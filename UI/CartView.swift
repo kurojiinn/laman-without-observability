@@ -20,7 +20,16 @@ struct CartView: View {
 
             VStack(spacing: 16) {
                 if appState.cartItems.isEmpty {
-                    ContentUnavailableView("Корзина пуста", systemImage: "cart")
+                    VStack(spacing: 10) {
+                        Image(systemName: "cart")
+                            .font(.system(size: 32))
+                            .foregroundStyle(.secondary)
+                        Text("Корзина пуста")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 24)
                 } else {
                     List {
                         Section("Товары") {

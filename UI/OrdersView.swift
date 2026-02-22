@@ -9,7 +9,16 @@ struct OrdersView: View {
     var body: some View {
         List {
             if appState.orders.isEmpty {
-                ContentUnavailableView("Заказов пока нет", systemImage: "list.bullet.rectangle")
+                VStack(spacing: 10) {
+                    Image(systemName: "list.bullet.rectangle")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.secondary)
+                    Text("Заказов пока нет")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.vertical, 24)
             } else {
                 ForEach(appState.orders) { order in
                     NavigationLink {

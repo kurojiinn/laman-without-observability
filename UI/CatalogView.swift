@@ -4,6 +4,7 @@ import Foundation
 struct CatalogView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var catalogVM: CatalogViewModel
+    @EnvironmentObject private var authVM: AuthViewModel
 
     let onCheckout: () -> Void
 
@@ -69,12 +70,30 @@ struct CatalogView: View {
             }
             .listStyle(.insetGrouped)
         }
-        .navigationTitle("Каталог")
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
         .searchable(text: Binding(
             get: { catalogVM.searchText },
             set: { catalogVM.searchTextChanged($0) }
         ))
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                NavigationLink {
+                    if authVM.isAuthorized {
+                        ProfileView()
+                    } else {
+                        AuthView()
+                    }
+                } label: {
+                    Image(systemName: "person.circle.fill")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(accentBlue)
+                        .padding(8)
+                        .background(Color.white.opacity(0.9))
+                        .clipShape(Circle())
+                        .shadow(color: .black.opacity(0.08), radius: 3, x: 0, y: 1)
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     onCheckout()
@@ -102,6 +121,7 @@ struct CatalogView: View {
         }
     }
 
+    /// Создает UI-чип категории с выбранным состоянием и обработчиком нажатия.
     private func categoryChip(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
@@ -195,4 +215,5 @@ struct ProductRowView: View {
         .environmentObject(appState)
         .environmentObject(CatalogViewModel(appState: appState))
         .environmentObject(StoresViewModel())
+        .environmentObject(AuthViewModel())
 }
