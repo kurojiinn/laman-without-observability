@@ -1,11 +1,11 @@
 package auth
 
 import (
+	"Laman/internal/database"
+	"Laman/internal/models"
 	"context"
 	"database/sql"
 	"fmt"
-	"Laman/internal/database"
-	"Laman/internal/models"
 	"github.com/google/uuid"
 )
 
@@ -50,5 +50,11 @@ func (r *postgresAuthRepository) GetAuthCodeByPhoneAndCode(ctx context.Context, 
 func (r *postgresAuthRepository) MarkAuthCodeAsUsed(ctx context.Context, id uuid.UUID) error {
 	query := `UPDATE auth_codes SET used = TRUE WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id)
+	return err
+}
+
+func (r *postgresAuthRepository) InvalidateAuthCodesByPhone(ctx context.Context, phone string) error {
+	query := `UPDATE auth_codes SET used = TRUE WHERE phone = $1 AND used = FALSE`
+	_, err := r.db.ExecContext(ctx, query, phone)
 	return err
 }

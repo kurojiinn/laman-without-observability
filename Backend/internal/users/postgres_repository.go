@@ -1,11 +1,12 @@
 package users
 
 import (
+	"Laman/internal/database"
+	"Laman/internal/models"
 	"context"
 	"database/sql"
 	"fmt"
-	"Laman/internal/database"
-	"Laman/internal/models"
+
 	"github.com/google/uuid"
 )
 
@@ -21,8 +22,8 @@ func NewPostgresUserRepository(db *database.DB) UserRepository {
 
 func (r *postgresUserRepository) Create(ctx context.Context, user *models.User) error {
 	query := `
-		INSERT INTO users (id, phone, created_at, updated_at)
-		VALUES (:id, :phone, :created_at, :updated_at)
+		INSERT INTO users (id, phone, role, created_at, updated_at)
+		VALUES (:id, :phone, :role, :created_at, :updated_at)
 	`
 	_, err := r.db.NamedExecContext(ctx, query, user)
 	return err
@@ -30,7 +31,7 @@ func (r *postgresUserRepository) Create(ctx context.Context, user *models.User) 
 
 func (r *postgresUserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	var user models.User
-	query := `SELECT id, phone, created_at, updated_at FROM users WHERE id = $1`
+	query := `SELECT id, phone, role, created_at, updated_at FROM users WHERE id = $1`
 	err := r.db.GetContext(ctx, &user, query, id)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("%w", ErrUserNotFound)
@@ -43,7 +44,7 @@ func (r *postgresUserRepository) GetByID(ctx context.Context, id uuid.UUID) (*mo
 
 func (r *postgresUserRepository) GetByPhone(ctx context.Context, phone string) (*models.User, error) {
 	var user models.User
-	query := `SELECT id, phone, created_at, updated_at FROM users WHERE phone = $1`
+	query := `SELECT id, phone, role, created_at, updated_at FROM users WHERE phone = $1`
 	err := r.db.GetContext(ctx, &user, query, phone)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("%w", ErrUserNotFound)

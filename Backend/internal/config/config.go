@@ -12,6 +12,7 @@ type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
 	JWT      JWTConfig
+	SMS      SMSConfig
 	Jaeger   JaegerConfig
 	Telegram TelegramConfig
 	Admin    AdminConfig
@@ -39,6 +40,11 @@ type DatabaseConfig struct {
 // JWTConfig содержит конфигурацию JWT.
 type JWTConfig struct {
 	Secret string
+}
+
+// SMSConfig содержит конфигурацию SMS провайдера.
+type SMSConfig struct {
+	RuAPIKey string
 }
 
 // JaegerConfig содержит конфигурацию трейсинга Jaeger.
@@ -72,7 +78,7 @@ func Load() (*Config, error) {
 			PublicURL: getEnv("PUBLIC_URL", "http://192.168.0.6:8080"),
 		},
 		Database: DatabaseConfig{
-			Host:     getEnv("DB_HOST", "localhost"),
+			Host:     getEnv("DB_HOST", "192.168.0.6"),
 			Port:     getEnv("DB_PORT", "5432"),
 			User:     getEnv("DB_USER", "postgres"),
 			Password: getEnv("DB_PASSWORD", "postgres"),
@@ -81,6 +87,9 @@ func Load() (*Config, error) {
 		},
 		JWT: JWTConfig{
 			Secret: getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
+		},
+		SMS: SMSConfig{
+			RuAPIKey: getEnv("SMS_RU_KEY", getEnv("SMSRU_API_KEY", "")),
 		},
 		Jaeger: JaegerConfig{
 			Endpoint: getEnv("JAEGER_ENDPOINT", "http://jaeger:14268/api/traces"),

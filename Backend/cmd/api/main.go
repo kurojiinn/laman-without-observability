@@ -84,7 +84,8 @@ func main() {
 	deliveryRepo := delivery.NewPostgresDeliveryRepository(db)
 
 	// Инициализация сервисов
-	authService := auth.NewAuthService(authRepo, userRepo, cfg.JWT.Secret)
+	smsProvider := auth.NewSMSRUProvider(cfg.SMS.RuAPIKey)
+	authService := auth.NewAuthService(authRepo, userRepo, cfg.JWT.Secret, smsProvider, logger)
 	userService := users.NewUserService(userRepo)
 	catalogService := catalog.NewCatalogService(categoryRepo, subcategoryRepo, productRepo, storeRepo)
 	orderService := orders.NewOrderService(
@@ -100,7 +101,7 @@ func main() {
 	)
 
 	// Инициализация обработчиков
-	authHandler := auth.NewHandler(authService)
+	authHandler := auth.NewHandler(authService, logger)
 	userHandler := users.NewHandler(userService, authService)
 	catalogHandler := catalog.NewHandler(catalogService, logger)
 	orderHandler := orders.NewHandler(orderService, authService)
