@@ -129,7 +129,7 @@ export JWT_SECRET=your-secret-key-change-in-production
 ```bash
 make migrate-up
 # или вручную:
-migrate -path ./migrations -database "postgres://postgres:postgres@localhost:5432/laman?sslmode=disable" up
+goose -dir ./migrations postgres "postgres://postgres:postgres@localhost:5432/laman?sslmode=disable" up
 ```
 
 5. Запустите приложение:
@@ -154,7 +154,7 @@ make migrate-down
 make migrate-version
 
 # Создать новую миграцию
-make migrate-create NAME=add_new_table
+make migrate-create NAME=add_new_table  # создаст один .sql с секциями Up/Down
 
 # Принудительно установить версию миграции
 make migrate-force VERSION=1
@@ -169,7 +169,9 @@ make migrate-force VERSION=1
 ### Аутентификация
 
 - `POST /api/v1/auth/send-code` - Отправить код верификации
-- `POST /api/v1/auth/verify-code` - Верифицировать код и получить JWT токен
+- `POST /api/v1/auth/register` - Зарегистрировать пользователя с ролью (`CLIENT` или `COURIER`)
+- `POST /api/v1/auth/login` - Войти по номеру телефона (для зарегистрированного пользователя)
+- `POST /api/v1/auth/verify-code` - Верифицировать код и получить JWT токен для уже зарегистрированного пользователя
 - `GET /api/v1/auth/me` - Получить текущего пользователя (требует аутентификации)
 
 ### Пользователи
@@ -235,7 +237,15 @@ curl -X POST http://localhost:8080/api/v1/auth/send-code \
   -d '{"phone": "+79991234567"}'
 ```
 
-### 2. Верифицировать код и получить токен
+### 2. Зарегистрировать пользователя с выбором роли
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"phone": "+79991234567", "role": "COURIER"}'
+```
+
+### 3. Войти после регистрации (верифицировать код и получить токен)
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/auth/verify-code \
@@ -250,18 +260,27 @@ curl -X POST http://localhost:8080/api/v1/auth/verify-code \
   "user": {
     "id": "uuid",
     "phone": "+79991234567",
+    "role": "COURIER",
     "created_at": "2024-01-01T00:00:00Z"
   }
 }
 ```
 
-### 3. Получить категории
+### 4. Войти по номеру телефона
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"phone": "+79991234567"}'
+```
+
+### 5. Получить категории
 
 ```bash
 curl http://localhost:8080/api/v1/catalog/categories
 ```
 
-### 4. Получить товары
+### 6. Получить товары
 
 ```bash
 curl http://localhost:8080/api/v1/catalog/products?available_only=true

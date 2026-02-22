@@ -1,12 +1,12 @@
 .PHONY: help build run test migrate-up migrate-down migrate-create docker-up docker-down docker-build docker-logs clean
 
 # Variables
-DB_HOST ?= localhost
+DB_HOST ?= 192.168.0.6
 DB_PORT ?= 5432
 DB_USER ?= postgres
 DB_PASSWORD ?= postgres
 DB_NAME ?= laman
-MIGRATE_CMD = migrate -path ./migrations -database "postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable"
+GOOSE_CMD = goose -dir ./migrations postgres "postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable"
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -34,19 +34,19 @@ test-coverage: ## Run tests with coverage
 
 migrate-up: ## Run database migrations up
 	@echo "Running migrations up..."
-	@$(MIGRATE_CMD) up
+	@$(GOOSE_CMD) up
 
 migrate-down: ## Run database migrations down
 	@echo "Running migrations down..."
-	@$(MIGRATE_CMD) down
+	@$(GOOSE_CMD) down
 
 migrate-force: ## Force migration version (use VERSION=xxx)
 	@echo "Forcing migration version $(VERSION)..."
-	@$(MIGRATE_CMD) force $(VERSION)
+	@$(GOOSE_CMD) up-to $(VERSION)
 
 migrate-version: ## Show current migration version
 	@echo "Current migration version:"
-	@$(MIGRATE_CMD) version
+	@$(GOOSE_CMD) status
 
 migrate-create: ## Create a new migration (use NAME=xxx)
 	@if [ -z "$(NAME)" ]; then \
@@ -54,7 +54,7 @@ migrate-create: ## Create a new migration (use NAME=xxx)
 		exit 1; \
 	fi
 	@echo "Creating migration: $(NAME)..."
-	@migrate create -ext sql -dir ./migrations -seq $(NAME)
+	@goose -dir ./migrations create $(NAME) sql
 
 docker-up: ## Start all services with docker-compose
 	@echo "Starting services with docker-compose..."

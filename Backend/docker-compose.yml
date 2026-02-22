@@ -33,13 +33,13 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-this-secret-key-in-production}
       SERVER_PORT: 8080
       SERVER_HOST: 0.0.0.0
-      PUBLIC_URL: ${PUBLIC_URL:-http://192.168.31.170:8080}
+      PUBLIC_URL: ${PUBLIC_URL:-http://192.168.0.6:8080}
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
       TG_BOT_TOKEN: ${TG_BOT_TOKEN:-}
       TG_CHAT_ID: ${TG_CHAT_ID:-}
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://192.168.31.170:5173}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://192.168.0.6:5173}
     ports:
       - "8080:8080"
     volumes:
@@ -52,21 +52,6 @@ services:
     networks:
       - laman-network
     restart: unless-stopped
-
-  migrate:
-    image: migrate/migrate:v4.17.0
-    container_name: laman-migrate
-    command:
-      - "-path=/migrations"
-      - "-database=postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-laman}?sslmode=disable"
-      - "up"
-    volumes:
-      - ./migrations:/migrations
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - laman-network
 
   jaeger:
     image: jaegertracing/all-in-one:latest
@@ -121,7 +106,7 @@ services:
       dockerfile: Dockerfile
     container_name: laman-admin-panel
     environment:
-      - VITE_API_BASE_URL=http://192.168.31.170:8080
+      - VITE_API_BASE_URL=http://192.168.0.6:8080
     ports:
       - "5173:5173"
     depends_on:

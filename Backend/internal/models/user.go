@@ -6,12 +6,28 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	UserRoleClient  = "CLIENT"
+	UserRoleCourier = "COURIER"
+)
+
+// IsValidUserRole проверяет, что роль пользователя поддерживается системой.
+func IsValidUserRole(role string) bool {
+	switch role {
+	case UserRoleClient, UserRoleCourier:
+		return true
+	default:
+		return false
+	}
+}
+
 // User представляет зарегистрированного пользователя в системе.
 type User struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 	Phone     string    `db:"phone" json:"phone"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	Role      string    `db:"role" json:"role"`
 }
 
 // UserProfile представляет информацию профиля пользователя.
