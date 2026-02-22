@@ -89,7 +89,7 @@ struct StoreDetailView: View {
         .listStyle(.insetGrouped)
         .navigationTitle(store.name)
         .searchable(text: $searchText)
-        .onChange(of: searchText, initial: false) { _, _ in
+        .onChange(of: searchText) { _ in
             Task { await loadProducts() }
         }
         .task {

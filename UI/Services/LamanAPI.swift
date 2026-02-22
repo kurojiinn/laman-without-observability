@@ -1,12 +1,128 @@
 import Foundation
 
+/// UserRole описывает роль пользователя в системе.
+enum UserRole: String, Codable, CaseIterable, Identifiable {
+    case client = "CLIENT"
+    case courier = "COURIER"
+
+    var id: String { rawValue }
+
+    /// Возвращает локализованное имя роли для UI.
+    var displayName: String {
+        switch self {
+        case .client:
+            return "Клиент"
+        case .courier:
+            return "Курьер"
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self).uppercased()
+        guard let value = UserRole(rawValue: raw) else {
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unsupported user role")
+        }
+        self = value
+    }
+}
+
+/// AuthUser представляет пользователя в ответе регистрации/авторизации.
+struct AuthUser: Codable {
+    let id: UUID
+    let phone: String
+    let role: UserRole
+}
+
+/// AuthResponse представляет ответ backend с токеном и пользователем.
+struct AuthResponse: Codable {
+    let token: String
+    let user: AuthUser
+}
+
 final class LamanAPI {
     private let baseURL: URL
     private let session: URLSession
 
-    init(baseURL: URL = URL(string: "http://localhost:8080")!, session: URLSession = .shared) {
+    init(baseURL: URL = URL(string: "http://192.168.0.6:8080")!, session: URLSession = .shared) {
         self.baseURL = baseURL
         self.session = session
+    }
+
+    /// Запрашивает OTP код для указанного номера телефона.
+    func requestCode(phone: String) async throws {
+        let url = baseURL.appendingPathComponent("api/v1/auth/request-code")
+        let payload = RequestCodePayload(phone: phone)
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder.laman.encode(payload)
+        logRequest(url: url, method: "POST", payload: payload)
+
+        let (data, response) = try await session.data(for: req)
+        logResponse(response: response, data: data)
+        try validate(response: response, data: data)
+    }
+
+    /// Подтверждает OTP код и возвращает JWT токен с данными пользователя.
+    func verify(phone: String, code: String, role: UserRole?) async throws -> AuthResponse {
+        let url = baseURL.appendingPathComponent("api/v1/auth/verify")
+        let payload = VerifyCodePayload(phone: phone, code: code, role: role?.rawValue)
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder.laman.encode(payload)
+        logRequest(url: url, method: "POST", payload: payload)
+
+        let (data, response) = try await session.data(for: req)
+        logResponse(response: response, data: data)
+        try validate(response: response, data: data)
+        return try JSONDecoder.laman.decode(AuthResponse.self, from: data)
+    }
+
+    /// Регистрирует пользователя с выбранной ролью и возвращает auth-токен.
+    func register(phone: String, role: UserRole) async throws -> AuthResponse {
+        let url = baseURL.appendingPathComponent("api/v1/auth/register")
+        let payload = RegisterRequest(phone: phone, role: role.rawValue)
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder.laman.encode(payload)
+        logRequest(url: url, method: "POST", payload: payload)
+
+        let (data, response) = try await session.data(for: req)
+        logResponse(response: response, data: data)
+        try validate(response: response, data: data)
+        return try JSONDecoder.laman.decode(AuthResponse.self, from: data)
+    }
+
+    /// Выполняет вход зарегистрированного пользователя по номеру телефона.
+    func login(phone: String) async throws -> AuthResponse {
+        let url = baseURL.appendingPathComponent("api/v1/auth/login")
+        let payload = LoginRequest(phone: phone)
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder.laman.encode(payload)
+        logRequest(url: url, method: "POST", payload: payload)
+
+        let (data, response) = try await session.data(for: req)
+        logResponse(response: response, data: data)
+        try validate(response: response, data: data)
+        return try JSONDecoder.laman.decode(AuthResponse.self, from: data)
+    }
+
+    /// Загружает текущего пользователя по JWT токену.
+    func getCurrentUser(token: String) async throws -> AuthUser {
+        let url = baseURL.appendingPathComponent("api/v1/auth/me")
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: req)
+        logResponse(response: response, data: data)
+        try validate(response: response, data: data)
+        return try JSONDecoder.laman.decode(AuthUser.self, from: data)
     }
 
     func getCategories() async throws -> [Category] {
@@ -126,6 +242,41 @@ final class LamanAPI {
             throw LamanAPIError.serverError(message)
         }
     }
+
+    /// Печатает URL и JSON тела запроса в консоль для диагностики 404/контракта API.
+    private func logRequest<T: Encodable>(url: URL, method: String, payload: T) {
+        let bodyData = try? JSONEncoder.laman.encode(payload)
+        let bodyText = bodyData.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        print("➡️ [API] \(method) \(url.absoluteString)")
+        print("➡️ [API] body: \(bodyText)")
+    }
+
+    /// Печатает HTTP-статус и тело ответа для диагностики проблем на сетевом слое.
+    private func logResponse(response: URLResponse, data: Data) {
+        let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+        let body = String(data: data, encoding: .utf8) ?? "<non-utf8>"
+        print("⬅️ [API] status: \(status)")
+        print("⬅️ [API] body: \(body)")
+    }
+}
+
+private struct RegisterRequest: Encodable {
+    let phone: String
+    let role: String
+}
+
+private struct LoginRequest: Encodable {
+    let phone: String
+}
+
+private struct RequestCodePayload: Encodable {
+    let phone: String
+}
+
+private struct VerifyCodePayload: Encodable {
+    let phone: String
+    let code: String
+    let role: String?
 }
 
 enum LamanAPIError: LocalizedError {

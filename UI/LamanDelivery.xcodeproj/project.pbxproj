@@ -7,31 +7,33 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		C10362F42F4A4BBD00A46923 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A257F2F4A4AA20011551A /* ContentView.swift */; };
-		C10362F52F4A4D1D00A46923 /* OrderDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25892F4A4AA20011551A /* OrderDetailView.swift */; };
-		B7DBBDEEE051C0C675F999F7 /* CartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A257C2F4A4AA20011551A /* CartView.swift */; };
-		A3914ACF550FC58D78BA4B6D /* CartViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A257D2F4A4AA20011551A /* CartViewModel.swift */; };
-		948C8C0673F3381F2EEC1825 /* CatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A257E2F4A4AA20011551A /* CatalogView.swift */; };
-		2C1B0F0C8FC41C48167A661F /* LamanDeliveryApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25812F4A4AA20011551A /* LamanDeliveryApp.swift */; };
-		C382900AC681B937DAD6405D /* Category.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25822F4A4AA20011551A /* Category.swift */; };
-		A2CD27CA9E4EE768CB2125C4 /* Order.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25832F4A4AA20011551A /* Order.swift */; };
-		E7A223B08940C41AC905B24C /* OrderItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25842F4A4AA20011551A /* OrderItem.swift */; };
-		EADD2781A3B4ADA826506A67 /* Product.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25852F4A4AA20011551A /* Product.swift */; };
-		95A20226EDE0063768EE0112 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25862F4A4AA20011551A /* Store.swift */; };
 		29F8FEE99307B1D15A4B5971 /* Subcategory.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25872F4A4AA20011551A /* Subcategory.swift */; };
-		784DFE1D9ED85ACD80D49EB4 /* OrdersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A258A2F4A4AA20011551A /* OrdersView.swift */; };
+		2C1B0F0C8FC41C48167A661F /* LamanDeliveryApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25812F4A4AA20011551A /* LamanDeliveryApp.swift */; };
 		3FCA96F03A89D66C274D048E /* OrderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A258B2F4A4AA20011551A /* OrderView.swift */; };
-		DF5F5B283CD58A06DD8B7A77 /* ProductRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A258C2F4A4AA20011551A /* ProductRowView.swift */; };
-		7FDDA7AD3B38ED61D5CF3B5E /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A258D2F4A4AA20011551A /* ProfileView.swift */; };
-		591E0A3B5744DF37CE181EE9 /* LamanAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A258E2F4A4AA20011551A /* LamanAPI.swift */; };
 		46D28D3E75EFC939F1C2E16B /* StoreCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25902F4A4AA20011551A /* StoreCardView.swift */; };
 		56592B0B37C82874168C8113 /* StoreDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25912F4A4AA20011551A /* StoreDetailView.swift */; };
+		591E0A3B5744DF37CE181EE9 /* LamanAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A258E2F4A4AA20011551A /* LamanAPI.swift */; };
+		784DFE1D9ED85ACD80D49EB4 /* OrdersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A258A2F4A4AA20011551A /* OrdersView.swift */; };
+		7FDDA7AD3B38ED61D5CF3B5E /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A258D2F4A4AA20011551A /* ProfileView.swift */; };
+		948C8C0673F3381F2EEC1825 /* CatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A257E2F4A4AA20011551A /* CatalogView.swift */; };
+		95A20226EDE0063768EE0112 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25862F4A4AA20011551A /* Store.swift */; };
+		A2CD27CA9E4EE768CB2125C4 /* Order.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25832F4A4AA20011551A /* Order.swift */; };
 		A2D3D3B8BEEADBA273B79719 /* StoresHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25922F4A4AA20011551A /* StoresHubView.swift */; };
+		A3914ACF550FC58D78BA4B6D /* CartViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A257D2F4A4AA20011551A /* CartViewModel.swift */; };
 		AF3170155280350A5FF58DEA /* CatalogViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25932F4A4AA20011551A /* CatalogViewModel.swift */; };
+		B1C2D3E4F5061728394A5B6C /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* KeychainStore.swift */; };
+		B7DBBDEEE051C0C675F999F7 /* CartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A257C2F4A4AA20011551A /* CartView.swift */; };
+		C10362F42F4A4BBD00A46923 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A257F2F4A4AA20011551A /* ContentView.swift */; };
+		C10362F52F4A4D1D00A46923 /* OrderDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25892F4A4AA20011551A /* OrderDetailView.swift */; };
+		C382900AC681B937DAD6405D /* Category.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25822F4A4AA20011551A /* Category.swift */; };
+		DF5F5B283CD58A06DD8B7A77 /* ProductRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A258C2F4A4AA20011551A /* ProductRowView.swift */; };
+		E7A223B08940C41AC905B24C /* OrderItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25842F4A4AA20011551A /* OrderItem.swift */; };
+		EADD2781A3B4ADA826506A67 /* Product.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25852F4A4AA20011551A /* Product.swift */; };
 		FEEF4381379BDB1B17794886 /* StoresViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25942F4A4AA20011551A /* StoresViewModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A1B2C3D4E5F60718293A4B5C /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		C15A257B2F4A4AA20011551A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C15A257C2F4A4AA20011551A /* CartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CartView.swift; sourceTree = "<group>"; };
 		C15A257D2F4A4AA20011551A /* CartViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CartViewModel.swift; sourceTree = "<group>"; };
@@ -86,6 +88,7 @@
 			isa = PBXGroup;
 			children = (
 				C15A258E2F4A4AA20011551A /* LamanAPI.swift */,
+				A1B2C3D4E5F60718293A4B5C /* KeychainStore.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -219,6 +222,7 @@
 				DF5F5B283CD58A06DD8B7A77 /* ProductRowView.swift in Sources */,
 				7FDDA7AD3B38ED61D5CF3B5E /* ProfileView.swift in Sources */,
 				591E0A3B5744DF37CE181EE9 /* LamanAPI.swift in Sources */,
+				B1C2D3E4F5061728394A5B6C /* KeychainStore.swift in Sources */,
 				46D28D3E75EFC939F1C2E16B /* StoreCardView.swift in Sources */,
 				56592B0B37C82874168C8113 /* StoreDetailView.swift in Sources */,
 				A2D3D3B8BEEADBA273B79719 /* StoresHubView.swift in Sources */,
@@ -356,6 +360,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2734TFDK66;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -363,6 +368,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -387,6 +393,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2734TFDK66;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -394,6 +401,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
