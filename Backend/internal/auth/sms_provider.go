@@ -14,7 +14,6 @@ import (
 )
 
 const smsRUCallEndpoint = "https://sms.ru/code/call"
-const SMS_RU_KEY = "608B74BB-56A0-2D45-8D9E-A4EB59D5D236"
 
 var ErrSMSRateLimited = errors.New("sms rate limited")
 
@@ -33,10 +32,6 @@ type SMSRUProvider struct {
 // NewSMSRUProvider создает отправитель SMS.RU на стандартном http.Client.
 func NewSMSRUProvider(apiKey string) SMSProvider {
 	resolvedKey := strings.TrimSpace(apiKey)
-	if resolvedKey == "" {
-		resolvedKey = strings.TrimSpace(SMS_RU_KEY)
-	}
-
 	if resolvedKey == "" || resolvedKey == "ТВОЙ_КЛЮЧ_ИЗ_SMS_RU" {
 		fmt.Printf("[SMS.RU] API key is not configured, using NoopSMSProvider\n")
 		return NewNoopSMSProvider()

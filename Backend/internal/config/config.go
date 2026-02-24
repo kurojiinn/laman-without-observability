@@ -17,6 +17,7 @@ type Config struct {
 	Telegram TelegramConfig
 	Admin    AdminConfig
 	CORS     CORSConfig
+	Redis    RedisConfig
 }
 
 // ServerConfig содержит конфигурацию сервера.
@@ -69,6 +70,14 @@ type CORSConfig struct {
 	Origins []string
 }
 
+// RedisConfig содержит конфигурацию Redis.
+type RedisConfig struct {
+	Host     string
+	Port     string
+	Password string
+	DB       int
+}
+
 // Load загружает конфигурацию из переменных окружения.
 func Load() (*Config, error) {
 	cfg := &Config{
@@ -105,6 +114,12 @@ func Load() (*Config, error) {
 		CORS: CORSConfig{
 			Origins: splitAndTrim(getEnv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")),
 		},
+		Redis: RedisConfig{
+			Host:     getEnv("REDIS_HOST", "localhost"),
+			Port:     getEnv("REDIS_PORT", "6379"),
+			Password: getEnv("REDIS_PASSWORD", ""),
+			DB:       getEnvAsInt("REDIS_DB", 0),
+		},
 	}
 
 	if cfg.JWT.Secret == "your-secret-key-change-in-production" {
@@ -118,6 +133,11 @@ func Load() (*Config, error) {
 func (d *DatabaseConfig) DSN() string {
 	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		d.Host, d.Port, d.User, d.Password, d.Name, d.SSLMode)
+}
+
+// Addr возвращает адрес подключения к Redis.
+func (r *RedisConfig) Addr() string {
+	return fmt.Sprintf("%s:%s", r.Host, r.Port)
 }
 
 func getEnv(key, defaultValue string) string {

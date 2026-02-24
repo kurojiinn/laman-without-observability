@@ -26,6 +26,9 @@
 		C10362F42F4A4BBD00A46923 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A257F2F4A4AA20011551A /* ContentView.swift */; };
 		C10362F52F4A4D1D00A46923 /* OrderDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25892F4A4AA20011551A /* OrderDetailView.swift */; };
 		C382900AC681B937DAD6405D /* Category.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25822F4A4AA20011551A /* Category.swift */; };
+		D1C0A100E100000000000001 /* CourierView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1C0B100E100000000000001 /* CourierView.swift */; };
+		D1C0A200E100000000000001 /* CourierOrdersHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1C0B200E100000000000001 /* CourierOrdersHistoryView.swift */; };
+		D1C0A300E100000000000001 /* CourierViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1C0B300E100000000000001 /* CourierViewModel.swift */; };
 		DF5F5B283CD58A06DD8B7A77 /* ProductRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A258C2F4A4AA20011551A /* ProductRowView.swift */; };
 		E7A223B08940C41AC905B24C /* OrderItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25842F4A4AA20011551A /* OrderItem.swift */; };
 		EADD2781A3B4ADA826506A67 /* Product.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25852F4A4AA20011551A /* Product.swift */; };
@@ -58,6 +61,9 @@
 		C15A25932F4A4AA20011551A /* CatalogViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogViewModel.swift; sourceTree = "<group>"; };
 		C15A25942F4A4AA20011551A /* StoresViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoresViewModel.swift; sourceTree = "<group>"; };
 		C15E9DD92F38BC54005F000E /* LamanDelivery.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LamanDelivery.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D1C0B100E100000000000001 /* CourierView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourierView.swift; sourceTree = "<group>"; };
+		D1C0B200E100000000000001 /* CourierOrdersHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourierOrdersHistoryView.swift; sourceTree = "<group>"; };
+		D1C0B300E100000000000001 /* CourierViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourierViewModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -97,6 +103,7 @@
 			isa = PBXGroup;
 			children = (
 				C15A25932F4A4AA20011551A /* CatalogViewModel.swift */,
+				D1C0B300E100000000000001 /* CourierViewModel.swift */,
 				C15A25942F4A4AA20011551A /* StoresViewModel.swift */,
 			);
 			path = ViewModels;
@@ -110,6 +117,8 @@
 				C15A257D2F4A4AA20011551A /* CartViewModel.swift */,
 				C15A257E2F4A4AA20011551A /* CatalogView.swift */,
 				C15A257F2F4A4AA20011551A /* ContentView.swift */,
+				D1C0B200E100000000000001 /* CourierOrdersHistoryView.swift */,
+				D1C0B100E100000000000001 /* CourierView.swift */,
 				C15A25812F4A4AA20011551A /* LamanDeliveryApp.swift */,
 				C15A25882F4A4AA20011551A /* Models */,
 				C15A25892F4A4AA20011551A /* OrderDetailView.swift */,
@@ -209,6 +218,8 @@
 				A3914ACF550FC58D78BA4B6D /* CartViewModel.swift in Sources */,
 				948C8C0673F3381F2EEC1825 /* CatalogView.swift in Sources */,
 				C10362F42F4A4BBD00A46923 /* ContentView.swift in Sources */,
+				D1C0A200E100000000000001 /* CourierOrdersHistoryView.swift in Sources */,
+				D1C0A100E100000000000001 /* CourierView.swift in Sources */,
 				2C1B0F0C8FC41C48167A661F /* LamanDeliveryApp.swift in Sources */,
 				C382900AC681B937DAD6405D /* Category.swift in Sources */,
 				A2CD27CA9E4EE768CB2125C4 /* Order.swift in Sources */,
@@ -227,6 +238,7 @@
 				56592B0B37C82874168C8113 /* StoreDetailView.swift in Sources */,
 				A2D3D3B8BEEADBA273B79719 /* StoresHubView.swift in Sources */,
 				AF3170155280350A5FF58DEA /* CatalogViewModel.swift in Sources */,
+				D1C0A300E100000000000001 /* CourierViewModel.swift in Sources */,
 				FEEF4381379BDB1B17794886 /* StoresViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
