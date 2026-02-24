@@ -295,42 +295,50 @@ struct ContentView: View {
     @State private var selectedTab: Tab = .catalog
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            NavigationStack {
-                CatalogView(onCheckout: { selectedTab = .cart })
-            }
-            .tag(Tab.catalog)
-            .tabItem {
-                Label("Каталог", systemImage: "square.grid.2x2")
-            }
+        Group {
+            if authVM.user?.role == .courier {
+                NavigationStack {
+                    CourierView()
+                }
+            } else {
+                TabView(selection: $selectedTab) {
+                    NavigationStack {
+                        CatalogView(onCheckout: { selectedTab = .cart })
+                    }
+                    .tag(Tab.catalog)
+                    .tabItem {
+                        Label("Каталог", systemImage: "square.grid.2x2")
+                    }
 
-            NavigationStack {
-                StoresHubView()
-            }
-            .tag(Tab.stores)
-            .tabItem {
-                Label("Магазины", systemImage: "building.2")
-            }
+                    NavigationStack {
+                        StoresHubView()
+                    }
+                    .tag(Tab.stores)
+                    .tabItem {
+                        Label("Магазины", systemImage: "building.2")
+                    }
 
-            NavigationStack {
-                CartView()
-            }
-            .tag(Tab.cart)
-            .tabItem {
-                Label("Корзина", systemImage: "cart")
-            }
+                    NavigationStack {
+                        CartView()
+                    }
+                    .tag(Tab.cart)
+                    .tabItem {
+                        Label("Корзина", systemImage: "cart")
+                    }
 
-            NavigationStack {
-                OrdersView()
+                    NavigationStack {
+                        OrdersView()
+                    }
+                    .tag(Tab.orders)
+                    .tabItem {
+                        Label("Заказы", systemImage: "list.bullet.clipboard")
+                    }
+                }
+                .task {
+                    await storesVM.loadStores()
+                    await catalogVM.loadInitial()
+                }
             }
-            .tag(Tab.orders)
-            .tabItem {
-                Label("Заказы", systemImage: "list.bullet.clipboard")
-            }
-        }
-        .task {
-            await storesVM.loadStores()
-            await catalogVM.loadInitial()
         }
     }
 }

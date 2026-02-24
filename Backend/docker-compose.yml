@@ -35,16 +35,23 @@ services:
       SERVER_HOST: 0.0.0.0
       PUBLIC_URL: ${PUBLIC_URL:-http://192.168.0.6:8080}
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
+      SMS_RU_KEY: ${SMS_RU_KEY:-}
+      SMSRU_API_KEY: ${SMSRU_API_KEY:-}
       TG_BOT_TOKEN: ${TG_BOT_TOKEN:-}
       TG_CHAT_ID: ${TG_CHAT_ID:-}
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://192.168.0.6:5173}
+      REDIS_URL: redis://redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     ports:
       - "8080:8080"
     volumes:
       - ./uploads:/root/uploads
     depends_on:
+      redis:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       jaeger:
@@ -115,6 +122,19 @@ services:
       - laman-network
     restart: unless-stopped
 
+  redis:
+    image: redis:7-alpine
+    container_name: laman-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - laman-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 networks:
   laman-network:
     driver: bridge

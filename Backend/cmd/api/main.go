@@ -1,12 +1,14 @@
 package main
 
 import (
+	"Laman/internal/cache"
 	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -60,6 +62,14 @@ func main() {
 	}
 	defer db.Close()
 
+	// Инициализация кэша Redis
+	redisClient, err := cache.New(&cfg.Redis)
+	if err != nil {
+		logger.Fatal("Не удалось подключиться к Redis", zap.Error(err))
+	}
+
+	defer redisClient.Close()
+
 	// Инициализация Telegram уведомлений (опционально)
 	var telegramNotifier *observability.TelegramNotifier
 	if cfg.Telegram.BotToken != "" && cfg.Telegram.ChatID != "" {
@@ -69,6 +79,12 @@ func main() {
 		} else {
 			telegramNotifier = notifier
 		}
+	} else {
+		logger.Warn("Telegram уведомления отключены: TG_BOT_TOKEN или TG_CHAT_ID не задан")
+	}
+
+	if strings.TrimSpace(cfg.SMS.RuAPIKey) == "" {
+		logger.Warn("SMS звонки отключены: задайте SMS_RU_KEY (или SMSRU_API_KEY)")
 	}
 
 	// Инициализация репозиториев
