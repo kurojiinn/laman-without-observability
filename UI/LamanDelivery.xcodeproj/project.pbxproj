@@ -29,6 +29,7 @@
 		D1C0A100E100000000000001 /* CourierView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1C0B100E100000000000001 /* CourierView.swift */; };
 		D1C0A200E100000000000001 /* CourierOrdersHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1C0B200E100000000000001 /* CourierOrdersHistoryView.swift */; };
 		D1C0A300E100000000000001 /* CourierViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1C0B300E100000000000001 /* CourierViewModel.swift */; };
+		D1C0A400E100000000000001 /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1C0B400E100000000000001 /* LocationService.swift */; };
 		DF5F5B283CD58A06DD8B7A77 /* ProductRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A258C2F4A4AA20011551A /* ProductRowView.swift */; };
 		E7A223B08940C41AC905B24C /* OrderItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25842F4A4AA20011551A /* OrderItem.swift */; };
 		EADD2781A3B4ADA826506A67 /* Product.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A25852F4A4AA20011551A /* Product.swift */; };
@@ -64,6 +65,7 @@
 		D1C0B100E100000000000001 /* CourierView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourierView.swift; sourceTree = "<group>"; };
 		D1C0B200E100000000000001 /* CourierOrdersHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourierOrdersHistoryView.swift; sourceTree = "<group>"; };
 		D1C0B300E100000000000001 /* CourierViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourierViewModel.swift; sourceTree = "<group>"; };
+		D1C0B400E100000000000001 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -95,6 +97,7 @@
 			children = (
 				C15A258E2F4A4AA20011551A /* LamanAPI.swift */,
 				A1B2C3D4E5F60718293A4B5C /* KeychainStore.swift */,
+				D1C0B400E100000000000001 /* LocationService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -239,6 +242,7 @@
 				A2D3D3B8BEEADBA273B79719 /* StoresHubView.swift in Sources */,
 				AF3170155280350A5FF58DEA /* CatalogViewModel.swift in Sources */,
 				D1C0A300E100000000000001 /* CourierViewModel.swift in Sources */,
+				D1C0A400E100000000000001 /* LocationService.swift in Sources */,
 				FEEF4381379BDB1B17794886 /* StoresViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -375,6 +379,7 @@
 				DEVELOPMENT_TEAM = 2734TFDK66;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Для работы курьера приложению нужен доступ к вашей геолокации во время смены.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -408,6 +413,7 @@
 				DEVELOPMENT_TEAM = 2734TFDK66;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Для работы курьера приложению нужен доступ к вашей геолокации во время смены.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

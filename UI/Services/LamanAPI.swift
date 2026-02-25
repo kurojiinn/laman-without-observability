@@ -43,6 +43,8 @@ struct AuthResponse: Codable {
 final class LamanAPI {
     private let baseURL: URL
     private let session: URLSession
+    private let keychain = KeychainStore(service: "laman.auth")
+    private let tokenKey = "jwt.token"
 
     init(baseURL: URL = URL(string: "http://192.168.0.6:8080")!, session: URLSession = .shared) {
         self.baseURL = baseURL
@@ -227,6 +229,27 @@ final class LamanAPI {
         try validate(response: response, data: data)
     }
 
+    /// Отправляет текущие координаты курьера на backend во время активной смены.
+    func updateCourierLocation(lat: Double, lng: Double) async throws {
+        let token = try keychain.get(for: tokenKey)
+        guard let token, !token.isEmpty else {
+            throw LamanAPIError.serverError("Пользователь не авторизован")
+        }
+
+        let url = baseURL.appendingPathComponent("api/v1/courier/location")
+        let payload = CourierLocationPayload(lat: lat, lng: lng)
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.httpBody = try JSONEncoder.laman.encode(payload)
+        logRequest(url: url, method: "POST", payload: payload)
+
+        let (data, response) = try await session.data(for: req)
+        logResponse(response: response, data: data)
+        try validate(response: response, data: data)
+    }
+
     private func fetch<T: Decodable>(url: URL, responseType: T.Type) async throws -> T {
         let (data, response) = try await session.data(from: url)
         try validate(response: response, data: data)
@@ -277,6 +300,11 @@ private struct VerifyCodePayload: Encodable {
     let phone: String
     let code: String
     let role: String?
+}
+
+private struct CourierLocationPayload: Encodable {
+    let lat: Double
+    let lng: Double
 }
 
 enum LamanAPIError: LocalizedError {

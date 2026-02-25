@@ -6,6 +6,13 @@ struct CourierView: View {
 
     var body: some View {
         VStack(spacing: 16) {
+            if let locationStatusMessage = viewModel.locationStatusMessage {
+                Text(locationStatusMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
             if !viewModel.isOnShift {
                 Spacer()
                 Button("Начать смену") {

@@ -6,20 +6,32 @@ final class CourierViewModel: ObservableObject {
     @Published var isOnShift: Bool = false
     @Published var currentOrder: Order?
     @Published var allOrders: [Order] = []
+    @Published var locationStatusMessage: String?
 
     private let api: LamanAPI
+    private let locationService: LocationService
 
     init(api: LamanAPI? = nil) {
-        self.api = api ?? LamanAPI()
+        let resolvedAPI = api ?? LamanAPI()
+        self.api = resolvedAPI
+        self.locationService = LocationService(api: resolvedAPI)
+        self.locationService.onStatusMessage = { [weak self] message in
+            Task { @MainActor in
+                self?.locationStatusMessage = message
+            }
+        }
     }
 
     func startShift() {
         isOnShift = true
+        locationService.startTracking()
     }
 
     func endShift() {
         isOnShift = false
         currentOrder = nil
+        locationService.stopTracking()
+        locationStatusMessage = nil
     }
 
     func fetchCurrentOrder() async {
