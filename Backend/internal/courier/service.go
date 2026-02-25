@@ -28,3 +28,12 @@ func (s *Service) UpdateLocation(ctx context.Context, courierID uuid.UUID, lat, 
 
 	return s.repository.SetLocation(ctx, courierID, lat, lng)
 }
+
+// GetLocation позволяет получить данные о местонахдение курьера
+func (s *Service) GetLocation(ctx context.Context, courierID uuid.UUID) (*Location, error) {
+	location, err := s.repository.GetLocation(ctx, courierID)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка при получении данных о местонахождении курьера: %w", err)
+	}
+	return location, err
+}

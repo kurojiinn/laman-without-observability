@@ -30,6 +30,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	couriers := router.Group("/courier")
 	{
 		couriers.POST("/location", middleware.AuthMiddleware(h.authService), h.UpdateLocation)
+		couriers.GET("/location/:courierId", middleware.AuthMiddleware(h.authService), h.GetCourierLocation)
 	}
 }
 
@@ -58,4 +59,24 @@ func (h *Handler) UpdateLocation(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "местоположение обновлено"})
+}
+
+func (h *Handler) GetCourierLocation(c *gin.Context) {
+	courierID, err := uuid.Parse(c.Param("courierId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID курьера"})
+		return
+	}
+
+	location, err := h.courierService.GetLocation(c.Request.Context(), courierID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ошибка при получении локации курьера"})
+		return
+	}
+
+	if location == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Не найден"})
+		return
+	}
+	c.JSON(http.StatusOK, location)
 }
