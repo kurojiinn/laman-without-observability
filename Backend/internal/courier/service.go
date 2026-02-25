@@ -1,6 +1,7 @@
 package courier
 
 import (
+	"Laman/internal/observability"
 	"context"
 	"fmt"
 
@@ -18,6 +19,8 @@ func NewCourierService(repository Repository) *Service {
 
 // UpdateLocation обновляем данные в кеше
 func (s *Service) UpdateLocation(ctx context.Context, courierID uuid.UUID, lat, lng float64) error {
+	ctx, span := observability.StartSpan(ctx, "courier.service.update_location")
+	defer span.End()
 	if lat < -90 || lat > 90 {
 		return fmt.Errorf("ширина не в диапазоне от -90 до 90: %v", lat)
 	}
@@ -31,6 +34,8 @@ func (s *Service) UpdateLocation(ctx context.Context, courierID uuid.UUID, lat, 
 
 // GetLocation позволяет получить данные о местонахдение курьера
 func (s *Service) GetLocation(ctx context.Context, courierID uuid.UUID) (*Location, error) {
+	ctx, span := observability.StartSpan(ctx, "courier.service.get_location")
+	defer span.End()
 	location, err := s.repository.GetLocation(ctx, courierID)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка при получении данных о местонахождении курьера: %w", err)

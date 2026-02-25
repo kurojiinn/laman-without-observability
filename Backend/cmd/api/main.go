@@ -127,7 +127,7 @@ func main() {
 	adminRepo := admin.NewPostgresRepository(db)
 	adminService := admin.NewService(adminRepo, logger)
 	adminHandler := admin.NewHandler(adminService, logger, cfg.Server.PublicURL)
-	courierHandler := courier.NewHandler(courierService, authService)
+	courierHandler := courier.NewHandler(courierService, authService, logger)
 
 	// Настройка роутера
 	router := setupRouter(logger, cfg, authHandler, userHandler, catalogHandler, orderHandler, adminHandler, courierHandler)

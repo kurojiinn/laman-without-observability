@@ -2,6 +2,7 @@ package courier
 
 import (
 	"Laman/internal/cache"
+	"Laman/internal/observability"
 	"context"
 	"encoding/json"
 	"errors"
@@ -29,6 +30,8 @@ type locationCache struct {
 
 // SetLocation добавляем данные о местоположении в кеш
 func (r *redisCourierRepository) SetLocation(ctx context.Context, courierID uuid.UUID, lat, lng float64) error {
+	ctx, span := observability.StartSpan(ctx, "courier.redis.set_location")
+	defer span.End()
 	key := fmt.Sprintf(cache.CourierLocationKey, courierID.String())
 	ttl := 5 * time.Minute
 	data := locationCache{
@@ -51,6 +54,9 @@ func (r *redisCourierRepository) SetLocation(ctx context.Context, courierID uuid
 
 // GetLocation получает данные о местоположении из кеша
 func (r *redisCourierRepository) GetLocation(ctx context.Context, courierID uuid.UUID) (*Location, error) {
+	ctx, span := observability.StartSpan(ctx, "courier.redis.get_location")
+	defer span.End()
+	
 	key := fmt.Sprintf(cache.CourierLocationKey, courierID.String())
 	bytes, err := r.client.Get(ctx, key).Bytes()
 	if err != nil {
