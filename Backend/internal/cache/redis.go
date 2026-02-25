@@ -29,3 +29,6 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 func (c *Client) Close() error {
 	return c.rdb.Close()
 }
+func (c *Client) Client() *redis.Client {
+	return c.rdb
+}

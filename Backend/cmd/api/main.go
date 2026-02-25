@@ -2,6 +2,7 @@ package main
 
 import (
 	"Laman/internal/cache"
+	"Laman/internal/courier"
 	"context"
 	"fmt"
 	"log"
@@ -98,6 +99,7 @@ func main() {
 	orderItemRepo := orders.NewPostgresOrderItemRepository(db)
 	paymentRepo := payments.NewPostgresPaymentRepository(db)
 	deliveryRepo := delivery.NewPostgresDeliveryRepository(db)
+	courierRepo := courier.NewRedisCourierRepository(redisClient.Client())
 
 	// Инициализация сервисов
 	smsProvider := auth.NewSMSRUProvider(cfg.SMS.RuAPIKey)
@@ -115,6 +117,7 @@ func main() {
 		telegramNotifier,
 		logger,
 	)
+	courierService := courier.NewCourierService(courierRepo)
 
 	// Инициализация обработчиков
 	authHandler := auth.NewHandler(authService, logger)
@@ -124,9 +127,10 @@ func main() {
 	adminRepo := admin.NewPostgresRepository(db)
 	adminService := admin.NewService(adminRepo, logger)
 	adminHandler := admin.NewHandler(adminService, logger, cfg.Server.PublicURL)
+	courierHandler := courier.NewHandler(courierService, authService)
 
 	// Настройка роутера
-	router := setupRouter(logger, cfg, authHandler, userHandler, catalogHandler, orderHandler, adminHandler)
+	router := setupRouter(logger, cfg, authHandler, userHandler, catalogHandler, orderHandler, adminHandler, courierHandler)
 
 	// Настройка эндпоинта метрик
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
@@ -176,6 +180,7 @@ func setupRouter(
 	catalogHandler *catalog.Handler,
 	orderHandler *orders.Handler,
 	adminHandler *admin.Handler,
+	courierHandler *courier.Handler,
 ) *gin.Engine {
 	router := gin.New()
 
@@ -197,6 +202,7 @@ func setupRouter(
 		catalogHandler.RegisterRoutes(v1)
 		orderHandler.RegisterRoutes(v1)
 		adminHandler.RegisterRoutes(v1, middleware.AdminAuthMiddleware(cfg.Admin))
+		courierHandler.RegisterRoutes(v1)
 	}
 
 	return router
