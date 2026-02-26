@@ -86,9 +86,9 @@ func (r *postgresRepository) GetActiveOrders(ctx context.Context) ([]models.Orde
 // CreateStore сохраняет новый магазин.
 func (r *postgresRepository) CreateStore(ctx context.Context, store *models.Store) error {
 	query := `
-		INSERT INTO stores (id, name, address, phone, description, image_url, rating, category_type, created_at, updated_at)
-		VALUES (:id, :name, :address, :phone, :description, :image_url, :rating, :category_type, :created_at, :updated_at)
-	`
+		INSERT INTO stores (id, name, address, phone, description, image_url, rating, category_type, created_at, updated_at, lat, lng)
+		VALUES (:id, :name, :address, :phone, :description, :image_url, :rating, :category_type, :created_at, :updated_at, :lat, :lng)
+		`
 	_, err := r.db.NamedExecContext(ctx, query, store)
 	return err
 }

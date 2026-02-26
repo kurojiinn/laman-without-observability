@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
@@ -186,7 +187,7 @@ func NewPostgresStoreRepository(db *database.DB) StoreRepository {
 
 func (r *postgresStoreRepository) GetAll(ctx context.Context, categoryType *models.StoreCategoryType, search *string) ([]models.Store, error) {
 	var stores []models.Store
-	query := `SELECT id, name, address, phone, description, image_url, rating, category_type, created_at, updated_at FROM stores WHERE 1=1`
+	query := `SELECT id, name, address, phone, description, image_url, rating, category_type, created_at, updated_at, lat, lng FROM stores WHERE 1=1`
 	args := []interface{}{}
 	argPos := 1
 
@@ -210,7 +211,7 @@ func (r *postgresStoreRepository) GetAll(ctx context.Context, categoryType *mode
 
 func (r *postgresStoreRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Store, error) {
 	var store models.Store
-	query := `SELECT id, name, address, phone, description, image_url, rating, category_type, created_at, updated_at FROM stores WHERE id = $1`
+	query := `SELECT id, name, address, phone, description, image_url, rating, category_type, created_at, updated_at, lat, lng FROM stores WHERE id = $1`
 	err := r.db.GetContext(ctx, &store, query, id)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("магазин не найден")

@@ -52,6 +52,8 @@ type Store struct {
 	CategoryType StoreCategoryType `db:"category_type" json:"category_type"`
 	CreatedAt    time.Time         `db:"created_at" json:"created_at"`
 	UpdatedAt    time.Time         `db:"updated_at" json:"updated_at"`
+	Lat          *float64          `db:"lat" json:"lat,omitempty"`
+	Lng          *float64          `db:"lng" json:"lng,omitempty"`
 }
 
 // StoreCategoryType представляет тип магазина.
