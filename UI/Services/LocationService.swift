@@ -8,6 +8,7 @@ final class LocationService: NSObject {
     private var timer: Timer?
     private var latestLocation: CLLocation?
     private var isTracking: Bool = false
+    private var didNotifyShiftStart: Bool = false
 
     var onStatusMessage: ((String?) -> Void)?
 
@@ -24,6 +25,7 @@ final class LocationService: NSObject {
     func startTracking() {
         guard !isTracking else { return }
         isTracking = true
+        didNotifyShiftStart = false
 
         let status = manager.authorizationStatus
         if status == .notDetermined {
@@ -36,7 +38,18 @@ final class LocationService: NSObject {
 
     /// Останавливает получение координат и отправку на backend.
     func stopTracking() {
+        if isTracking {
+            Task {
+                do {
+                    try await api.endCourierShift()
+                } catch {
+                    print("[LocationService] endCourierShift failed: \(error)")
+                }
+            }
+        }
+
         isTracking = false
+        didNotifyShiftStart = false
         latestLocation = nil
         timer?.invalidate()
         timer = nil
@@ -100,7 +113,22 @@ extension LocationService: CLLocationManagerDelegate {
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard isTracking else { return }
-        latestLocation = locations.last
+        guard let location = locations.last else { return }
+        latestLocation = location
+
+        if !didNotifyShiftStart {
+            didNotifyShiftStart = true
+            Task {
+                do {
+                    try await api.startCourierShift(
+                        lat: location.coordinate.latitude,
+                        lng: location.coordinate.longitude
+                    )
+                } catch {
+                    print("[LocationService] startCourierShift failed: \(error)")
+                }
+            }
+        }
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {

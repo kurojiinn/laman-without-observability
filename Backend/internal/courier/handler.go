@@ -35,6 +35,8 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	{
 		couriers.POST("/location", middleware.AuthMiddleware(h.authService), h.UpdateLocation)
 		couriers.GET("/location/:courierId", middleware.AuthMiddleware(h.authService), h.GetCourierLocation)
+		couriers.POST("/shift/start", middleware.AuthMiddleware(h.authService), h.StartShift)
+		couriers.POST("/shift/end", middleware.AuthMiddleware(h.authService), h.EndShift)
 	}
 }
 
@@ -97,4 +99,60 @@ func (h *Handler) GetCourierLocation(c *gin.Context) {
 	}
 	h.logger.Info("Успешно получен курьер", zap.String("courier_id", courierID.String()))
 	c.JSON(http.StatusOK, location)
+}
+func (h *Handler) StartShift(c *gin.Context) {
+	ctx, span := observability.StartSpan(c.Request.Context(), "courier.start_shift")
+	defer span.End()
+
+	var req UpdateCourierLocationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "пользователь не аутентифицирован"})
+		return
+	}
+
+	userIDUUID, ok := userID.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "неверный ID курьера"})
+		return
+	}
+
+	err := h.courierService.StartShift(ctx, userIDUUID, req.Lat, req.Lng)
+	if err != nil {
+		h.logger.Error("не удалось начать смену", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ошибка локации курьера"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "смена начата"})
+}
+
+func (h *Handler) EndShift(c *gin.Context) {
+	ctx, span := observability.StartSpan(c.Request.Context(), "courier.end_shift")
+	defer span.End()
+
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "пользователь не аутентифицирован"})
+		return
+	}
+
+	userIDUUID, ok := userID.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "неверный ID курьера"})
+		return
+	}
+	err := h.courierService.EndShift(ctx, userIDUUID)
+	if err != nil {
+		h.logger.Error("не удалось удалить смену", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ошибка локации курьера"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "смена завершена"})
 }

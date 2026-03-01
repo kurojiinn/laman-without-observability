@@ -16,4 +16,6 @@ type Location struct {
 type Repository interface {
 	SetLocation(ctx context.Context, courierID uuid.UUID, lat, lng float64) error
 	GetLocation(ctx context.Context, courierID uuid.UUID) (*Location, error)
+	AddToActivePool(ctx context.Context, courierID uuid.UUID, lat, lng float64) error
+	RemoveFromActivePool(ctx context.Context, courierID uuid.UUID) error
 }

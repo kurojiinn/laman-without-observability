@@ -42,3 +42,26 @@ func (s *Service) GetLocation(ctx context.Context, courierID uuid.UUID) (*Locati
 	}
 	return location, err
 }
+
+func (s *Service) StartShift(ctx context.Context, courierID uuid.UUID, lat, lng float64) error {
+	ctx, span := observability.StartSpan(ctx, "courier.service.start_shift")
+	defer span.End()
+
+	err := s.repository.AddToActivePool(ctx, courierID, lat, lng)
+	if err != nil {
+		return fmt.Errorf("ошибка %w", err)
+	}
+
+	return nil
+}
+
+func (s *Service) EndShift(ctx context.Context, courierID uuid.UUID) error {
+	ctx, span := observability.StartSpan(ctx, "courier.service.end_shift")
+	defer span.End()
+
+	err := s.repository.RemoveFromActivePool(ctx, courierID)
+	if err != nil {
+		return fmt.Errorf("ошибка при удалении %w", err)
+	}
+	return nil
+}

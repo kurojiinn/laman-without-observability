@@ -56,7 +56,7 @@ func (r *redisCourierRepository) SetLocation(ctx context.Context, courierID uuid
 func (r *redisCourierRepository) GetLocation(ctx context.Context, courierID uuid.UUID) (*Location, error) {
 	ctx, span := observability.StartSpan(ctx, "courier.redis.get_location")
 	defer span.End()
-	
+
 	key := fmt.Sprintf(cache.CourierLocationKey, courierID.String())
 	bytes, err := r.client.Get(ctx, key).Bytes()
 	if err != nil {
@@ -77,4 +77,32 @@ func (r *redisCourierRepository) GetLocation(ctx context.Context, courierID uuid
 		Lng:       data.Lng,
 		UpdatedAt: data.UpdatedAt,
 	}, nil
+}
+
+func (r *redisCourierRepository) AddToActivePool(ctx context.Context, courierID uuid.UUID, lat, lng float64) error {
+	ctx, span := observability.StartSpan(ctx, "courier.redis.add_to_active_pool")
+	defer span.End()
+
+	// ВАЖНО: Redis принимает Longitude первым, потом Latitude. У тебя в коде это учтено верно.
+	err := r.client.GeoAdd(ctx, cache.ActiveCouriersGeoKey, &redis.GeoLocation{
+		Name:      courierID.String(),
+		Longitude: lng,
+		Latitude:  lat,
+	}).Err()
+
+	if err != nil {
+		return fmt.Errorf("ошибка добавления курьера в GEO пул: %w", err)
+	}
+	return nil
+}
+
+func (r *redisCourierRepository) RemoveFromActivePool(ctx context.Context, courierID uuid.UUID) error {
+	ctx, span := observability.StartSpan(ctx, "courier.redis.remove_from_active_pool")
+	defer span.End()
+
+	err := r.client.ZRem(ctx, cache.ActiveCouriersGeoKey, courierID.String()).Err()
+	if err != nil {
+		return fmt.Errorf("ошибка удаления курьера из GEO пула: %w", err)
+	}
+	return nil
 }

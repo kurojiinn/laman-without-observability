@@ -41,6 +41,8 @@ struct AuthResponse: Codable {
 }
 
 final class LamanAPI {
+    static let shared = LamanAPI()
+
     private let baseURL: URL
     private let session: URLSession
     private let keychain = KeychainStore(service: "laman.auth")
@@ -250,6 +252,55 @@ final class LamanAPI {
         try validate(response: response, data: data)
     }
 
+    /// Открывает смену курьера и передает начальную геопозицию.
+    func startShift(lat: Double, lng: Double) async throws {
+        let token = try keychain.get(for: tokenKey)
+        guard let token, !token.isEmpty else {
+            throw LamanAPIError.serverError("Пользователь не авторизован")
+        }
+
+        let url = baseURL.appendingPathComponent("api/v1/courier/shift/start")
+        let payload = CourierLocationPayload(lat: lat, lng: lng)
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.httpBody = try JSONEncoder.laman.encode(payload)
+        logRequest(url: url, method: "POST", payload: payload)
+
+        let (data, response) = try await session.data(for: req)
+        logResponse(response: response, data: data)
+        try validate(response: response, data: data)
+    }
+
+    /// Закрывает смену курьера.
+    func endShift() async throws {
+        let token = try keychain.get(for: tokenKey)
+        guard let token, !token.isEmpty else {
+            throw LamanAPIError.serverError("Пользователь не авторизован")
+        }
+
+        let url = baseURL.appendingPathComponent("api/v1/courier/shift/end")
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        logRequest(url: url, method: "POST", payload: EmptyPayload())
+
+        let (data, response) = try await session.data(for: req)
+        logResponse(response: response, data: data)
+        try validate(response: response, data: data)
+    }
+
+    /// Уведомляет backend о старте смены курьера с текущими координатами.
+    func startCourierShift(lat: Double, lng: Double) async throws {
+        try await startShift(lat: lat, lng: lng)
+    }
+
+    /// Уведомляет backend о завершении смены курьера.
+    func endCourierShift() async throws {
+        try await endShift()
+    }
+
     private func fetch<T: Decodable>(url: URL, responseType: T.Type) async throws -> T {
         let (data, response) = try await session.data(from: url)
         try validate(response: response, data: data)
@@ -306,6 +357,8 @@ private struct CourierLocationPayload: Encodable {
     let lat: Double
     let lng: Double
 }
+
+private struct EmptyPayload: Encodable {}
 
 enum LamanAPIError: LocalizedError {
     case invalidURL
