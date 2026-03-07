@@ -10,12 +10,16 @@ import (
 type OrderStatus string
 
 const (
-	OrderStatusNew               OrderStatus = "NEW"
-	OrderStatusNeedsConfirmation OrderStatus = "NEEDS_CONFIRMATION"
-	OrderStatusConfirmed         OrderStatus = "CONFIRMED"
-	OrderStatusInProgress        OrderStatus = "IN_PROGRESS"
-	OrderStatusDelivered         OrderStatus = "DELIVERED"
-	OrderStatusCancelled         OrderStatus = "CANCELLED"
+	OrderStatusNew               = "NEW"                // создан, ждёт сборщика
+	OrderStatusAcceptedByPicker  = "ACCEPTED_BY_PICKER" // сборщик взял в работу
+	OrderStatusAssembling        = "ASSEMBLING"         // собирается
+	OrderStatusAssembled         = "ASSEMBLED"          // собран, ждём курьера
+	OrderStatusWaitingCourier    = "WAITING_COURIER"    // курьер вызван
+	OrderStatusCourierPickedUp   = "COURIER_PICKED_UP"  // курьер забрал
+	OrderStatusDelivering        = "DELIVERING"         // в пути
+	OrderStatusDelivered         = "DELIVERED"          // доставлен
+	OrderStatusCancelled         = "CANCELLED"          // отменён
+	OrderStatusNeedsConfirmation = "NEEDS_CONFIRMATION" // нужно уточнение у клиента
 )
 
 // Order представляет заказ в системе.

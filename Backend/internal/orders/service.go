@@ -494,20 +494,34 @@ func (s *OrderService) UpdateOrderStatus(ctx context.Context, id uuid.UUID, newS
 func isValidStateTransition(current, next models.OrderStatus) bool {
 	validTransitions := map[models.OrderStatus][]models.OrderStatus{
 		models.OrderStatusNew: {
+			models.OrderStatusAcceptedByPicker,
+			models.OrderStatusCancelled,
+		},
+		models.OrderStatusAcceptedByPicker: {
+			models.OrderStatusAssembling,
 			models.OrderStatusNeedsConfirmation,
 			models.OrderStatusCancelled,
 		},
 		models.OrderStatusNeedsConfirmation: {
-			models.OrderStatusConfirmed,
+			models.OrderStatusAssembling,
 			models.OrderStatusCancelled,
 		},
-		models.OrderStatusConfirmed: {
-			models.OrderStatusInProgress,
+		models.OrderStatusAssembling: {
+			models.OrderStatusAssembled,
 			models.OrderStatusCancelled,
 		},
-		models.OrderStatusInProgress: {
+		models.OrderStatusAssembled: {
+			models.OrderStatusWaitingCourier,
+			models.OrderStatusCancelled,
+		},
+		models.OrderStatusWaitingCourier: {
+			models.OrderStatusCourierPickedUp,
+		},
+		models.OrderStatusCourierPickedUp: {
+			models.OrderStatusDelivering,
+		},
+		models.OrderStatusDelivering: {
 			models.OrderStatusDelivered,
-			models.OrderStatusCancelled,
 		},
 		models.OrderStatusDelivered: {}, // Финальное состояние
 		models.OrderStatusCancelled: {}, // Финальное состояние

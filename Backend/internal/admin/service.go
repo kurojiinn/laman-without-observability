@@ -76,11 +76,15 @@ func (s *Service) UpdateOrderStatus(ctx context.Context, id uuid.UUID, status st
 	normalized := strings.ToUpper(strings.TrimSpace(status))
 	switch normalized {
 	case string(models.OrderStatusNew),
-		string(models.OrderStatusNeedsConfirmation),
-		string(models.OrderStatusConfirmed),
-		string(models.OrderStatusInProgress),
+		string(models.OrderStatusAcceptedByPicker),
+		string(models.OrderStatusAssembling),
+		string(models.OrderStatusAssembled),
+		string(models.OrderStatusWaitingCourier),
+		string(models.OrderStatusCourierPickedUp),
+		string(models.OrderStatusDelivering),
 		string(models.OrderStatusDelivered),
-		string(models.OrderStatusCancelled):
+		string(models.OrderStatusCancelled),
+		string(models.OrderStatusNeedsConfirmation):
 		return s.repo.UpdateOrderStatus(ctx, id, models.OrderStatus(normalized))
 	default:
 		return errInvalidStatus
