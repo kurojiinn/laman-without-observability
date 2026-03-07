@@ -76,7 +76,7 @@ func main() {
 	// Инициализация Telegram уведомлений (опционально)
 	var telegramNotifier *observability.TelegramNotifier
 	if cfg.Telegram.BotToken != "" && cfg.Telegram.ChatID != "" {
-		notifier, err := observability.NewTelegramNotifier(cfg.Telegram.BotToken, cfg.Telegram.ChatID)
+		notifier, err := observability.NewTelegramNotifier(cfg.Telegram.BotToken, cfg.Telegram.ChatID, cfg.Telegram.CourierGroupID)
 		if err != nil {
 			logger.Warn("Telegram уведомления отключены", zap.Error(err))
 		} else {

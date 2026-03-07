@@ -16,10 +16,11 @@ import (
 
 // TelegramNotifier отправляет уведомления в Telegram.
 type TelegramNotifier struct {
-	botToken string
-	chatID   string
-	client   *http.Client
-	apiBase  string
+	botToken       string
+	chatID         string
+	client         *http.Client
+	apiBase        string
+	courierGroupID string
 }
 
 // OrderMessageMeta содержит данные для формирования сообщения.
@@ -44,7 +45,7 @@ func orderMessageMetaFromContext(ctx context.Context) (OrderMessageMeta, bool) {
 }
 
 // NewTelegramNotifier создает TelegramNotifier с таймаутом 5 секунд.
-func NewTelegramNotifier(botToken, chatID string) (*TelegramNotifier, error) {
+func NewTelegramNotifier(botToken, chatID string, courierGroupID string) (*TelegramNotifier, error) {
 	if botToken == "" || chatID == "" {
 		return nil, errors.New("telegram bot token or chat id is empty")
 	}
@@ -55,7 +56,8 @@ func NewTelegramNotifier(botToken, chatID string) (*TelegramNotifier, error) {
 		client: &http.Client{
 			Timeout: 5 * time.Second,
 		},
-		apiBase: "https://api.telegram.org",
+		apiBase:        "https://api.telegram.org",
+		courierGroupID: courierGroupID,
 	}, nil
 }
 
@@ -190,10 +192,75 @@ func (n *TelegramNotifier) NotifyNoCourierFound(ctx context.Context, order *mode
 }
 
 type sendMessageRequest struct {
-	ChatID                string `json:"chat_id"`
-	Text                  string `json:"text"`
-	ParseMode             string `json:"parse_mode,omitempty"`
-	DisableWebPagePreview bool   `json:"disable_web_page_preview,omitempty"`
+	ChatID                string                `json:"chat_id"`
+	CourierGroupID        string                `json:"courier_group_id"`
+	Text                  string                `json:"text"`
+	ParseMode             string                `json:"parse_mode,omitempty"`
+	DisableWebPagePreview bool                  `json:"disable_web_page_preview,omitempty"`
+	ReplyMarkup           *inlineKeyboardMarkup `json:"reply_markup,omitempty"`
+}
+
+type inlineKeyboardMarkup struct {
+	InlineKeyboard [][]inlineKeyboardButton `json:"inline_keyboard"`
+}
+
+type inlineKeyboardButton struct {
+	Text         string `json:"text"`
+	CallbackData string `json:"callback_data"`
+}
+
+func (n *TelegramNotifier) NotifyNewOrderToCouriers(ctx context.Context, order *models.Order) error {
+	if n == nil {
+		return nil
+	}
+	if n.courierGroupID == "" {
+		return nil
+	}
+	if order == nil {
+		return errors.New("order is nil")
+	}
+
+	meta, _ := orderMessageMetaFromContext(ctx)
+	message := buildOrderMessage(order, meta)
+
+	payload := sendMessageRequest{
+		ChatID:                n.courierGroupID,
+		Text:                  message,
+		ParseMode:             "HTML",
+		DisableWebPagePreview: true,
+		ReplyMarkup: &inlineKeyboardMarkup{
+			InlineKeyboard: [][]inlineKeyboardButton{
+				{
+					{Text: "Взять заказ", CallbackData: "take_order:" + order.ID.String()},
+				},
+			},
+		},
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	url := fmt.Sprintf("%s/bot%s/sendMessage", n.apiBase, n.botToken)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := n.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("telegram api returned %s: %s", resp.Status, string(respBody))
+	}
+
+	return nil
 }
 
 func buildOrderMessage(order *models.Order, meta OrderMessageMeta) string {

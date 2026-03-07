@@ -55,8 +55,9 @@ type JaegerConfig struct {
 
 // TelegramConfig содержит конфигурацию Telegram бота.
 type TelegramConfig struct {
-	BotToken string
-	ChatID   string
+	BotToken       string
+	ChatID         string
+	CourierGroupID string
 }
 
 // AdminConfig содержит параметры доступа в админ-панель.
@@ -104,8 +105,9 @@ func Load() (*Config, error) {
 			Endpoint: getEnv("JAEGER_ENDPOINT", "http://jaeger:14268/api/traces"),
 		},
 		Telegram: TelegramConfig{
-			BotToken: getEnv("TG_BOT_TOKEN", ""),
-			ChatID:   getEnv("TG_CHAT_ID", ""),
+			BotToken:       getEnv("TG_BOT_TOKEN", ""),
+			ChatID:         getEnv("TG_CHAT_ID", ""),
+			CourierGroupID: getEnv("TG_COURIER_GROUP_ID", ""),
 		},
 		Admin: AdminConfig{
 			User:     getEnv("ADMIN_USER", "admin"),

@@ -259,6 +259,10 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 		if err := s.notifier.NotifyNewOrder(notifyCtx, order); err != nil && s.logger != nil {
 			s.logger.Warn("Не удалось отправить уведомление в Telegram", zap.Error(err))
 		}
+
+		if err := s.notifier.NotifyNewOrderToCouriers(notifyCtx, order); err != nil && s.logger != nil {
+			s.logger.Warn("Не удалось отправить уведомление в Telegram для курьеров", zap.Error(err))
+		}
 	}
 
 	return &models.OrderWithItems{
