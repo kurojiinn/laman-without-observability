@@ -106,3 +106,22 @@ func (r *redisCourierRepository) RemoveFromActivePool(ctx context.Context, couri
 	}
 	return nil
 }
+
+func (r *redisCourierRepository) FindNearest(ctx context.Context, lat, lng float64, radiusKm float64) ([]string, error) {
+	ctx, span := observability.StartSpan(ctx, "courier.redis.find_nearest")
+	defer span.End()
+
+	res, err := r.client.GeoSearch(ctx, cache.ActiveCouriersGeoKey, &redis.GeoSearchQuery{
+		Longitude:  lng,
+		Latitude:   lat,
+		Radius:     radiusKm,
+		RadiusUnit: "km",
+		Sort:       "ASC",
+	}).Result()
+
+	if err != nil {
+		return nil, fmt.Errorf("ошибка поиска ближайших курьеров: %w", err)
+	}
+
+	return res, nil
+}

@@ -65,3 +65,23 @@ func (s *Service) EndShift(ctx context.Context, courierID uuid.UUID) error {
 	}
 	return nil
 }
+
+func (s *Service) FindNearestCourier(ctx context.Context, lat, lng float64, radiusKm float64) (*uuid.UUID, error) {
+	ctx, span := observability.StartSpan(ctx, "courier.service.find_nearest_courier")
+	defer span.End()
+
+	res, err := s.repository.FindNearest(ctx, lat, lng, radiusKm)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка при получении списка курьеров: %w", err)
+	}
+
+	if len(res) == 0 {
+		return nil, nil
+	}
+
+	courierID, err := uuid.Parse(res[0])
+	if err != nil {
+		return nil, fmt.Errorf("ошибка при парсинге айди курьера: %w", err)
+	}
+	return &courierID, nil
+}

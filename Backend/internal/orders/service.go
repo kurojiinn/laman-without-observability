@@ -8,6 +8,7 @@ import (
 
 	"Laman/internal/models"
 	"Laman/internal/observability"
+
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -20,6 +21,8 @@ type OrderService struct {
 	productRepo       ProductRepository
 	deliveryRepo      DeliveryRepository
 	paymentRepo       PaymentRepository
+	storeRepo         StoreRepository
+	courierService    CourierService
 	notifier          *observability.TelegramNotifier
 	logger            *zap.Logger
 	serviceFeePercent float64
@@ -41,6 +44,15 @@ type PaymentRepository interface {
 	Create(ctx context.Context, payment *models.Payment) error
 }
 
+// CourierService определяет интерфейс для работы с курьерами.
+type CourierService interface {
+	FindNearestCourier(ctx context.Context, lat, lng float64, radiusKm float64) (*uuid.UUID, error)
+}
+
+type StoreRepository interface {
+	GetByID(ctx context.Context, id uuid.UUID) (*models.Store, error)
+}
+
 // NewOrderService создает новый сервис заказов.
 func NewOrderService(
 	orderRepo OrderRepository,
@@ -48,8 +60,10 @@ func NewOrderService(
 	productRepo ProductRepository,
 	deliveryRepo DeliveryRepository,
 	paymentRepo PaymentRepository,
+	storeRepo StoreRepository,
 	serviceFeePercent float64,
 	deliveryFee float64,
+	courierService CourierService,
 	notifier *observability.TelegramNotifier,
 	logger *zap.Logger,
 ) *OrderService {
@@ -59,8 +73,10 @@ func NewOrderService(
 		productRepo:       productRepo,
 		deliveryRepo:      deliveryRepo,
 		paymentRepo:       paymentRepo,
+		storeRepo:         storeRepo,
 		serviceFeePercent: serviceFeePercent,
 		deliveryFee:       deliveryFee,
+		courierService:    courierService,
 		notifier:          notifier,
 		logger:            logger,
 	}
@@ -180,6 +196,8 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 		UpdatedAt:     now,
 	}
 
+	order.CourierID = s.assignCourier(ctx, order)
+
 	// Создание заказа в транзакции
 	err = s.orderRepo.Create(ctx, order)
 	if err != nil {
@@ -247,6 +265,44 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 		Order: *order,
 		Items: orderItems,
 	}, nil
+}
+
+func (s *OrderService) assignCourier(ctx context.Context, order *models.Order) *uuid.UUID {
+	storeID := order.StoreID
+	// Получение айди магазина и его координат
+	store, err := s.storeRepo.GetByID(ctx, storeID)
+	if err != nil {
+		s.logger.Warn("не удалось найти магазин заказа", zap.Error(err))
+		return nil
+	}
+
+	// Поиск ближайшего курьера
+	if store.Lat != nil && store.Lng != nil {
+		courier, err := s.courierService.FindNearestCourier(ctx, *store.Lat, *store.Lng, 5.0)
+		if err != nil {
+			s.logger.Warn("не удалось найти ближайшего курьера", zap.Error(err))
+			return nil
+		}
+		if courier != nil {
+			return courier
+		}
+		courier, err = s.courierService.FindNearestCourier(ctx, *store.Lat, *store.Lng, 10.0)
+		if err != nil {
+			s.logger.Warn("не удалось найти ближайшего курьера", zap.Error(err))
+		}
+		if courier != nil {
+			return courier
+		}
+
+		if s.notifier != nil {
+			err = s.notifier.NotifyNoCourierFound(ctx, order)
+			if err != nil {
+				s.logger.Warn("не удалось отправить сообщение", zap.Error(err))
+			}
+		}
+
+	}
+	return nil
 }
 
 func buildCustomerText(req CreateOrderRequest, orderID uuid.UUID) string {

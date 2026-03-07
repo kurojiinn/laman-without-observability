@@ -33,15 +33,15 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-this-secret-key-in-production}
       SERVER_PORT: 8080
       SERVER_HOST: 0.0.0.0
-      PUBLIC_URL: ${PUBLIC_URL:-http://192.168.0.6:8080}
+      PUBLIC_URL: ${PUBLIC_URL:-http://192.168.0.10:8080}
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
       SMS_RU_KEY: 608B74BB-56A0-2D45-8D9E-A4EB59D5D236
       SMSRU_API_KEY: 608B74BB-56A0-2D45-8D9E-A4EB59D5D236
-      TG_BOT_TOKEN: ${TG_BOT_TOKEN:-}
-      TG_CHAT_ID: ${TG_CHAT_ID:-}
+      TG_BOT_TOKEN: 8559709779:AAHdskP-sNdWjXA6wLATljM9upSXGYsw58I
+      TG_CHAT_ID: 6695940715
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://192.168.0.6:5173}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://192.168.0.10:5173}
       REDIS_URL: redis://redis:6379
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -113,7 +113,7 @@ services:
       dockerfile: Dockerfile
     container_name: laman-admin-panel
     environment:
-      - VITE_API_BASE_URL=http://192.168.0.6:8080
+      - VITE_API_BASE_URL=http://192.168.0.10:8080
     ports:
       - "5173:5173"
     depends_on:

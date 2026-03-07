@@ -23,6 +23,7 @@ const (
 type Order struct {
 	ID            uuid.UUID     `db:"id" json:"id"`
 	UserID        *uuid.UUID    `db:"user_id" json:"user_id,omitempty"`
+	CourierID     *uuid.UUID    `db:"courier_id" json:"courier_id,omitempty"`
 	GuestName     *string       `db:"guest_name" json:"guest_name,omitempty"`
 	GuestPhone    *string       `db:"guest_phone" json:"guest_phone,omitempty"`
 	GuestAddress  *string       `db:"guest_address" json:"guest_address,omitempty"`

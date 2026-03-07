@@ -3,6 +3,7 @@ import UIKit
 
 struct CourierView: View {
     @StateObject private var viewModel = CourierViewModel()
+    @EnvironmentObject private var authVM: AuthViewModel
 
     var body: some View {
         VStack(spacing: 16) {
@@ -39,6 +40,13 @@ struct CourierView: View {
         }
         .padding()
         .navigationTitle("Курьер")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Выйти", role: .destructive) {
+                    authVM.logout()
+                }
+            }
+        }
         .task {
             if viewModel.isOnShift {
                 await viewModel.fetchCurrentOrder()

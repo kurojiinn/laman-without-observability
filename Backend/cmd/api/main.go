@@ -25,6 +25,8 @@ import (
 	"Laman/internal/payments"
 	"Laman/internal/users"
 
+	_ "net/http/pprof"
+
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
@@ -106,18 +108,20 @@ func main() {
 	authService := auth.NewAuthService(authRepo, userRepo, cfg.JWT.Secret, smsProvider, logger)
 	userService := users.NewUserService(userRepo)
 	catalogService := catalog.NewCatalogService(categoryRepo, subcategoryRepo, productRepo, storeRepo)
+	courierService := courier.NewCourierService(courierRepo)
 	orderService := orders.NewOrderService(
 		orderRepo,
 		orderItemRepo,
 		productRepo,
 		deliveryRepo,
 		paymentRepo,
+		storeRepo,
 		5.0,   // 5% сервисный сбор
 		200.0, // 200 руб. стоимость доставки
+		courierService,
 		telegramNotifier,
 		logger,
 	)
-	courierService := courier.NewCourierService(courierRepo)
 
 	// Инициализация обработчиков
 	authHandler := auth.NewHandler(authService, logger)
@@ -205,5 +209,6 @@ func setupRouter(
 		courierHandler.RegisterRoutes(v1)
 	}
 
+	router.GET("/debug/pprof/*any", gin.WrapH(http.DefaultServeMux))
 	return router
 }

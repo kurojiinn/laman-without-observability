@@ -48,7 +48,7 @@ final class LamanAPI {
     private let keychain = KeychainStore(service: "laman.auth")
     private let tokenKey = "jwt.token"
 
-    init(baseURL: URL = URL(string: "http://192.168.0.6:8080")!, session: URLSession = .shared) {
+    init(baseURL: URL = URL(string: "http://192.168.0.10:8080")!, session: URLSession = .shared) {
         self.baseURL = baseURL
         self.session = session
     }
@@ -381,9 +381,36 @@ extension JSONDecoder {
     static var laman: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let value = try container.decode(String.self)
+
+            if let date = ISO8601DateFormatter.lamanWithFractional.date(from: value) ??
+                ISO8601DateFormatter.lamanStandard.date(from: value) {
+                return date
+            }
+
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Unsupported date format: \(value)"
+            )
+        }
         return decoder
     }
+}
+
+private extension ISO8601DateFormatter {
+    static let lamanStandard: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    static let lamanWithFractional: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 }
 
 extension JSONEncoder {
