@@ -1,0 +1,27 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  IMAGE_NAME: registry.gitlab.com/khadzhiev404/laman-backend
+  IMAGE_TAG: $CI_COMMIT_SHORT_SHA
+
+build:
+  stage: build
+  script:
+    - cd Backend
+    - docker build -t $IMAGE_NAME:$IMAGE_TAG .
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker push $IMAGE_NAME:$IMAGE_TAG
+    - docker tag $IMAGE_NAME:$IMAGE_TAG $IMAGE_NAME:latest
+    - docker push $IMAGE_NAME:latest
+  only:
+    - main
+
+deploy:
+  stage: deploy
+  script:
+    - kubectl set image deployment/laman-api laman-api=$IMAGE_NAME:$IMAGE_TAG -n laman-dev
+    - kubectl rollout status deployment/laman-api -n laman-dev
+  only:
+    - main

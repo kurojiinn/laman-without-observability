@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: laman-dev
+spec:
+  accessModes:
+    - ReadWriteOnce      # только одна нода может писать — для PostgreSQL это нормально
+  resources:
+    requests:
+      storage: 1Gi
