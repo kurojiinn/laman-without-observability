@@ -463,7 +463,7 @@ func (s *OrderService) UpdateOrderStatus(ctx context.Context, id uuid.UUID, newS
 	}
 
 	// Валидация перехода состояния
-	if !isValidStateTransition(order.Status, newStatus) {
+	if !models.IsValidStateTransition(order.Status, newStatus) {
 		return fmt.Errorf("недопустимый переход состояния из %s в %s", order.Status, newStatus)
 	}
 
@@ -488,55 +488,4 @@ func (s *OrderService) UpdateOrderStatus(ctx context.Context, id uuid.UUID, newS
 	}
 
 	return nil
-}
-
-// isValidStateTransition валидирует, разрешен ли переход состояния.
-func isValidStateTransition(current, next models.OrderStatus) bool {
-	validTransitions := map[models.OrderStatus][]models.OrderStatus{
-		models.OrderStatusNew: {
-			models.OrderStatusAcceptedByPicker,
-			models.OrderStatusCancelled,
-		},
-		models.OrderStatusAcceptedByPicker: {
-			models.OrderStatusAssembling,
-			models.OrderStatusNeedsConfirmation,
-			models.OrderStatusCancelled,
-		},
-		models.OrderStatusNeedsConfirmation: {
-			models.OrderStatusAssembling,
-			models.OrderStatusCancelled,
-		},
-		models.OrderStatusAssembling: {
-			models.OrderStatusAssembled,
-			models.OrderStatusCancelled,
-		},
-		models.OrderStatusAssembled: {
-			models.OrderStatusWaitingCourier,
-			models.OrderStatusCancelled,
-		},
-		models.OrderStatusWaitingCourier: {
-			models.OrderStatusCourierPickedUp,
-		},
-		models.OrderStatusCourierPickedUp: {
-			models.OrderStatusDelivering,
-		},
-		models.OrderStatusDelivering: {
-			models.OrderStatusDelivered,
-		},
-		models.OrderStatusDelivered: {}, // Финальное состояние
-		models.OrderStatusCancelled: {}, // Финальное состояние
-	}
-
-	allowed, ok := validTransitions[current]
-	if !ok {
-		return false
-	}
-
-	for _, status := range allowed {
-		if status == next {
-			return true
-		}
-	}
-
-	return false
 }

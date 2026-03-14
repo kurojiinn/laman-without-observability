@@ -41,6 +41,7 @@ type Order struct {
 	FinalTotal    float64       `db:"final_total" json:"final_total"`
 	CreatedAt     time.Time     `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time     `db:"updated_at" json:"updated_at"`
+	PickerID      *uuid.UUID    `db:"picker_id" json:"picker_id,omitempty"`
 }
 
 // OrderItem представляет товар в заказе.
@@ -57,4 +58,54 @@ type OrderItem struct {
 type OrderWithItems struct {
 	Order
 	Items []OrderItem `json:"items"`
+}
+
+func IsValidStateTransition(current, next OrderStatus) bool {
+	validTransitions := map[OrderStatus][]OrderStatus{
+		OrderStatusNew: {
+			OrderStatusAcceptedByPicker,
+			OrderStatusCancelled,
+		},
+		OrderStatusAcceptedByPicker: {
+			OrderStatusAssembling,
+			OrderStatusNeedsConfirmation,
+			OrderStatusCancelled,
+		},
+		OrderStatusNeedsConfirmation: {
+			OrderStatusAssembling,
+			OrderStatusCancelled,
+		},
+		OrderStatusAssembling: {
+			OrderStatusAssembled,
+			OrderStatusCancelled,
+		},
+		OrderStatusAssembled: {
+			OrderStatusWaitingCourier,
+			OrderStatusCancelled,
+		},
+		OrderStatusWaitingCourier: {
+			OrderStatusCourierPickedUp,
+		},
+		OrderStatusCourierPickedUp: {
+			OrderStatusDelivering,
+		},
+		OrderStatusDelivering: {
+			OrderStatusDelivered,
+		},
+		OrderStatusDelivered: {}, // Финальное состояние
+		OrderStatusCancelled: {}, // Финальное состояние
+	}
+
+	allowed, ok := validTransitions[current]
+	if !ok {
+		return false
+	}
+
+	for _, status := range allowed {
+		if status == next {
+			return true
+		}
+	}
+
+	return false
 }

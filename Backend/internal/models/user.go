@@ -23,11 +23,13 @@ func IsValidUserRole(role string) bool {
 
 // User представляет зарегистрированного пользователя в системе.
 type User struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	Phone     string    `db:"phone" json:"phone"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
-	Role      string    `db:"role" json:"role"`
+	ID           uuid.UUID  `db:"id" json:"id"`
+	Phone        string     `db:"phone" json:"phone"`
+	CreatedAt    time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt    time.Time  `db:"updated_at" json:"updated_at"`
+	Role         string     `db:"role" json:"role"`
+	StoreID      *uuid.UUID `db:"store_id" json:"store_id,omitempty"`
+	PasswordHash *string    `db:"password_hash" json:"-"`
 }
 
 // UserProfile представляет информацию профиля пользователя.
