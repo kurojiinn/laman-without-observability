@@ -8,6 +8,8 @@ variables:
 
 build:
   stage: build
+  tags:
+    - local
   script:
     - cd Backend
     - docker build -t $IMAGE_NAME:$IMAGE_TAG .
@@ -20,6 +22,8 @@ build:
 
 deploy:
   stage: deploy
+  tags:
+    - local
   script:
     - kubectl set image deployment/laman-api laman-api=$IMAGE_NAME:$IMAGE_TAG -n laman-dev
     - kubectl rollout status deployment/laman-api -n laman-dev
