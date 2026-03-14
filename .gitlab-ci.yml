@@ -1,10 +1,22 @@
 stages:
+  - lint
   - build
   - deploy
 
 variables:
   IMAGE_NAME: registry.gitlab.com/khadzhiev404/laman-backend
   IMAGE_TAG: $CI_COMMIT_SHORT_SHA
+
+lint:
+  stage: lint
+  tags:
+    - local
+  script:
+    - cd Backend
+    - docker run --rm -v $(pwd):/app -w /app golangci/golangci-lint:latest golangci-lint run ./...
+  only:
+    - main
+    - merge_requests
 
 build:
   stage: build
@@ -20,12 +32,23 @@ build:
   only:
     - main
 
-deploy:
+deploy_staging:
   stage: deploy
   tags:
     - local
   script:
     - kubectl set image deployment/laman-api laman-api=$IMAGE_NAME:$IMAGE_TAG -n laman-dev
     - kubectl rollout status deployment/laman-api -n laman-dev
+  only:
+    - main
+
+deploy_prod:
+  stage: deploy
+  tags:
+    - local
+  script:
+    - kubectl set image deployment/laman-api laman-api=$IMAGE_NAME:$IMAGE_TAG -n laman-prod
+    - kubectl rollout status deployment/laman-api -n laman-prod
+  when: manual
   only:
     - main
