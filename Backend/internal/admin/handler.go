@@ -251,7 +251,9 @@ func (h *Handler) ImportProducts(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, "не удалось сохранить файл", err.Error())
 		return
 	}
-	defer os.Remove(tempPath)
+	defer func() {
+		_ = os.Remove(tempPath)
+	}()
 
 	h.logger.Info("Импорт товаров: файл сохранен", zap.String("path", tempPath))
 

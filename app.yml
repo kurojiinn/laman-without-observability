@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: laman-api-deployment
+spec:
+  replicas: 2 # Запустим сразу две копии для отказоустойчивости
+  selector:
+    matchLabels:
+      app: laman-api
+  template: # это описание того, как должен выглядеть каждый создаваемый Под.
+    metadata:
+      labels:
+        app: laman-api
+    spec:
+      containers:
+        - name: go-app
+          image: laman-delivery-api:latest # Имя твоего Docker-образа
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: MONGO_URL
+              value: "mongodb://mongodb-service:27017" # В будущем подключим так
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: laman-api-service
+spec:
+  selector:
+    app: laman-api
+  ports:
+    - protocol: TCP
+      port: 80       # Порт, на котором сервис будет доступен снаружи
+      targetPort: 8080 # Порт, который слушает твое Go-приложение
+  type: NodePort # Тип, который пробросит порт на твой локальный компьютер

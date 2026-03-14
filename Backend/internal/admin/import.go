@@ -50,11 +50,13 @@ func parseExcel(path string) ([]ImportRawRow, error) {
 	if err != nil {
 		return nil, fmt.Errorf("не удалось открыть Excel файл")
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	sheets := f.GetSheetList()
 	if len(sheets) == 0 {
-		return nil, fmt.Errorf("Excel файл не содержит листов")
+		return nil, fmt.Errorf("excel файл не содержит листов")
 	}
 
 	rows, err := f.GetRows(sheets[0])
@@ -71,7 +73,9 @@ func parseCSV(path string) ([]ImportRawRow, error) {
 	if err != nil {
 		return nil, fmt.Errorf("не удалось открыть CSV файл")
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	reader := csv.NewReader(file)
 	reader.TrimLeadingSpace = true

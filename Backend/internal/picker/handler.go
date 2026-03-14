@@ -94,7 +94,7 @@ func (h *Handler) GetOrders(c *gin.Context) {
 		return
 	}
 
-	orders, err := h.service.GetOrderByUserID(c.Request.Context(), userIDUUID)
+	orders, err := h.service.GetOrdersByUserID(c.Request.Context(), userIDUUID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

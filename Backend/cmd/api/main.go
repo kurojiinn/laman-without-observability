@@ -44,7 +44,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Не удалось инициализировать логгер: %v", err)
 	}
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// Инициализация трейсинга
 	tp, err := observability.InitTracing(cfg)
@@ -63,7 +63,7 @@ func main() {
 	if err != nil {
 		logger.Fatal("Не удалось подключиться к базе данных", zap.Error(err))
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Инициализация кэша Redis
 	redisClient, err := cache.New(&cfg.Redis)
@@ -71,7 +71,7 @@ func main() {
 		logger.Fatal("Не удалось подключиться к Redis", zap.Error(err))
 	}
 
-	defer redisClient.Close()
+	defer func() { _ = redisClient.Close() }()
 
 	// Инициализация Telegram уведомлений (опционально)
 	var telegramNotifier *observability.TelegramNotifier

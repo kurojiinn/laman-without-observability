@@ -1,0 +1,7 @@
+version: "2"
+
+issues:
+  exclude-rules:
+    - path: "internal/observability/tracing.go"
+      linters:
+        - staticcheck

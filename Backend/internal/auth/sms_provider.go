@@ -67,7 +67,9 @@ func (s *SMSRUProvider) RequestCode(ctx context.Context, phone string) (string, 
 	if err != nil {
 		return "", fmt.Errorf("ошибка запроса в SMS.RU: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	body, _ := io.ReadAll(resp.Body)
 	fmt.Printf("[SMS.RU] response status=%d body=%s\n", resp.StatusCode, string(body))

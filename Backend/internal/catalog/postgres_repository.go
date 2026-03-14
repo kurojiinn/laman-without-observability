@@ -85,30 +85,25 @@ func (r *postgresProductRepository) GetAll(ctx context.Context, categoryID *uuid
 	var products []models.Product
 	query := `SELECT id, category_id, subcategory_id, store_id, name, description, image_url, price, weight, is_available, created_at, updated_at FROM products WHERE 1=1`
 	args := []interface{}{}
-	argPos := 1
 
 	if categoryID != nil {
-		query += fmt.Sprintf(" AND category_id = $%d", argPos)
+		query += fmt.Sprintf(" AND category_id = $%d", len(args)+1)
 		args = append(args, *categoryID)
-		argPos++
 	}
 
 	if subcategoryID != nil {
-		query += fmt.Sprintf(" AND subcategory_id = $%d", argPos)
+		query += fmt.Sprintf(" AND subcategory_id = $%d", len(args)+1)
 		args = append(args, *subcategoryID)
-		argPos++
 	}
 
 	if search != nil && *search != "" {
-		query += fmt.Sprintf(" AND (name ILIKE $%d OR COALESCE(description, '') ILIKE $%d)", argPos, argPos)
+		query += fmt.Sprintf(" AND (name ILIKE $%d OR COALESCE(description, '') ILIKE $%d)", len(args)+1, len(args)+1)
 		args = append(args, "%"+*search+"%")
-		argPos++
 	}
 
 	if availableOnly {
-		query += fmt.Sprintf(" AND is_available = $%d", argPos)
+		query += fmt.Sprintf(" AND is_available = $%d", len(args)+1)
 		args = append(args, true)
-		argPos++
 	}
 
 	query += " ORDER BY name"
@@ -121,24 +116,20 @@ func (r *postgresProductRepository) GetByStoreID(ctx context.Context, storeID uu
 	var products []models.Product
 	query := `SELECT id, category_id, subcategory_id, store_id, name, description, image_url, price, weight, is_available, created_at, updated_at FROM products WHERE store_id = $1`
 	args := []interface{}{storeID}
-	argPos := 2
 
 	if subcategoryID != nil {
-		query += fmt.Sprintf(" AND subcategory_id = $%d", argPos)
+		query += fmt.Sprintf(" AND subcategory_id = $%d", len(args)+1)
 		args = append(args, *subcategoryID)
-		argPos++
 	}
 
 	if search != nil && *search != "" {
-		query += fmt.Sprintf(" AND (name ILIKE $%d OR COALESCE(description, '') ILIKE $%d)", argPos, argPos)
+		query += fmt.Sprintf(" AND (name ILIKE $%d OR COALESCE(description, '') ILIKE $%d)", len(args)+1, len(args)+1)
 		args = append(args, "%"+*search+"%")
-		argPos++
 	}
 
 	if availableOnly {
-		query += fmt.Sprintf(" AND is_available = $%d", argPos)
+		query += fmt.Sprintf(" AND is_available = $%d", len(args)+1)
 		args = append(args, true)
-		argPos++
 	}
 
 	query += " ORDER BY name"
@@ -189,18 +180,15 @@ func (r *postgresStoreRepository) GetAll(ctx context.Context, categoryType *mode
 	var stores []models.Store
 	query := `SELECT id, name, address, phone, description, image_url, rating, category_type, created_at, updated_at, lat, lng FROM stores WHERE 1=1`
 	args := []interface{}{}
-	argPos := 1
 
 	if categoryType != nil {
-		query += fmt.Sprintf(" AND category_type = $%d", argPos)
+		query += fmt.Sprintf(" AND category_type = $%d", len(args)+1)
 		args = append(args, *categoryType)
-		argPos++
 	}
 
 	if search != nil && *search != "" {
-		query += fmt.Sprintf(" AND (name ILIKE $%d OR description ILIKE $%d)", argPos, argPos)
+		query += fmt.Sprintf(" AND (name ILIKE $%d OR description ILIKE $%d)", len(args)+1, len(args)+1)
 		args = append(args, "%"+*search+"%")
-		argPos++
 	}
 
 	query += " ORDER BY name"
