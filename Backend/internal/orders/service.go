@@ -1,6 +1,7 @@
 package orders
 
 import (
+	"Laman/internal/events"
 	"context"
 	"fmt"
 	"strings"
@@ -27,6 +28,7 @@ type OrderService struct {
 	logger            *zap.Logger
 	serviceFeePercent float64
 	deliveryFee       float64
+	hub               *events.Hub
 }
 
 // ProductRepository определяет интерфейс, необходимый из модуля catalog.
@@ -66,6 +68,7 @@ func NewOrderService(
 	courierService CourierService,
 	notifier *observability.TelegramNotifier,
 	logger *zap.Logger,
+	hub *events.Hub,
 ) *OrderService {
 	return &OrderService{
 		orderRepo:         orderRepo,
@@ -79,6 +82,7 @@ func NewOrderService(
 		courierService:    courierService,
 		notifier:          notifier,
 		logger:            logger,
+		hub:               hub,
 	}
 }
 
@@ -204,6 +208,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 		return nil, fmt.Errorf("не удалось создать заказ: %w", err)
 	}
 
+	s.hub.Notify(order.StoreID, "new_order")
 	// Установка ID заказа для товаров
 	for i := range orderItems {
 		orderItems[i].OrderID = order.ID

@@ -79,16 +79,12 @@ func (p *Service) GetOrder(ctx context.Context, orderID uuid.UUID) (*models.Orde
 }
 
 func (p *Service) GetOrdersByUserID(ctx context.Context, userID uuid.UUID) ([]models.Order, error) {
-	user, err := p.userRepo.GetByID(ctx, userID)
+	storeID, err := p.getStoreID(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("не удалось получить информацию об сборщике")
+		return nil, err
 	}
 
-	if user.StoreID == nil {
-		return nil, fmt.Errorf("сборщик не привязан к магазину")
-	}
-
-	orders, err := p.pickerRepo.GetOrders(ctx, *user.StoreID)
+	orders, err := p.pickerRepo.GetOrders(ctx, storeID)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось получить заказы пользователя: %w", err)
 	}
@@ -123,4 +119,19 @@ func (p *Service) generateToken(userID uuid.UUID) (string, error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(p.jwtSecret))
+}
+
+func (p *Service) GetStoreIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	return p.getStoreID(ctx, userID)
+}
+
+func (p *Service) getStoreID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	user, err := p.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("пользователь не найден")
+	}
+	if user.StoreID == nil {
+		return uuid.Nil, fmt.Errorf("сборщик не привязан к магазину")
+	}
+	return *user.StoreID, nil
 }

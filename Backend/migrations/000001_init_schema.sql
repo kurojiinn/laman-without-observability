@@ -1,4 +1,4 @@
- -- +goose Up
+-- +goose Up
 -- +goose StatementBegin
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

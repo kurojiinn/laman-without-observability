@@ -3,6 +3,8 @@ package main
 import (
 	"Laman/internal/cache"
 	"Laman/internal/courier"
+	"Laman/internal/events"
+	"Laman/internal/picker"
 	"context"
 	"fmt"
 	"log"
@@ -102,7 +104,9 @@ func main() {
 	paymentRepo := payments.NewPostgresPaymentRepository(db)
 	deliveryRepo := delivery.NewPostgresDeliveryRepository(db)
 	courierRepo := courier.NewRedisCourierRepository(redisClient.Client())
+	pickerRepo := picker.NewPostgresPikerRepository(db)
 
+	hub := events.NewHub()
 	// Инициализация сервисов
 	smsProvider := auth.NewSMSRUProvider(cfg.SMS.RuAPIKey)
 	authService := auth.NewAuthService(authRepo, userRepo, cfg.JWT.Secret, smsProvider, logger)
@@ -121,7 +125,9 @@ func main() {
 		courierService,
 		telegramNotifier,
 		logger,
+		hub,
 	)
+	pickerService := picker.NewPickerService(pickerRepo, userRepo, cfg.JWT.Secret, logger)
 
 	// Инициализация обработчиков
 	authHandler := auth.NewHandler(authService, logger)
@@ -132,9 +138,10 @@ func main() {
 	adminService := admin.NewService(adminRepo, logger)
 	adminHandler := admin.NewHandler(adminService, logger, cfg.Server.PublicURL)
 	courierHandler := courier.NewHandler(courierService, authService, logger)
+	pickerHandler := picker.NewHandler(pickerService, logger, authService, hub)
 
 	// Настройка роутера
-	router := setupRouter(logger, cfg, authHandler, userHandler, catalogHandler, orderHandler, adminHandler, courierHandler)
+	router := setupRouter(logger, cfg, authHandler, userHandler, catalogHandler, orderHandler, adminHandler, courierHandler, pickerHandler)
 
 	// Настройка эндпоинта метрик
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
@@ -185,6 +192,7 @@ func setupRouter(
 	orderHandler *orders.Handler,
 	adminHandler *admin.Handler,
 	courierHandler *courier.Handler,
+	pickerHandler *picker.Handler,
 ) *gin.Engine {
 	router := gin.New()
 
@@ -207,6 +215,7 @@ func setupRouter(
 		orderHandler.RegisterRoutes(v1)
 		adminHandler.RegisterRoutes(v1, middleware.AdminAuthMiddleware(cfg.Admin))
 		courierHandler.RegisterRoutes(v1)
+		pickerHandler.RegisterRoutes(v1)
 	}
 
 	router.GET("/debug/pprof/*any", gin.WrapH(http.DefaultServeMux))

@@ -1,6 +1,7 @@
 package picker
 
 import (
+	"Laman/internal/events"
 	"Laman/internal/middleware"
 	"Laman/internal/models"
 	"net/http"
@@ -16,6 +17,7 @@ type Handler struct {
 	service     PickerService
 	authService AuthService
 	logger      *zap.Logger
+	hub         *events.Hub
 }
 
 // RegisterRoutes регистрирует маршруты заказов.
@@ -25,6 +27,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 		pikers.POST("/auth/login", h.Login)
 		pikers.GET("/orders/:id", middleware.AuthMiddleware(h.authService), h.GetOrder)
 		pikers.GET("", middleware.AuthMiddleware(h.authService), h.GetOrders)
+		pikers.GET("/events", middleware.AuthMiddleware(h.authService), h.Events)
 		pikers.PUT("/orders/:id/status", middleware.AuthMiddleware(h.authService), h.UpdateStatus)
 	}
 }
@@ -39,13 +42,15 @@ type PickerService interface {
 	GetOrder(ctx context.Context, orderID uuid.UUID) (*models.Order, error)
 	GetOrdersByUserID(ctx context.Context, storeID uuid.UUID) ([]models.Order, error)
 	UpdateStatus(ctx context.Context, orderID uuid.UUID, newStatus models.OrderStatus) error
+	GetStoreIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
 }
 
-func NewHandler(service PickerService, logger *zap.Logger, authService AuthService) *Handler {
+func NewHandler(service PickerService, logger *zap.Logger, authService AuthService, hub *events.Hub) *Handler {
 	return &Handler{
 		service:     service,
 		logger:      logger,
 		authService: authService,
+		hub:         hub,
 	}
 }
 
@@ -58,7 +63,7 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 	response, err := h.service.Login(c.Request.Context(), login)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "не правильный"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "не правильный телефон или пароль"})
 		return
 	}
 
@@ -122,4 +127,40 @@ func (h *Handler) UpdateStatus(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "статус заказа обновлен"})
+}
+
+func (h *Handler) Events(c *gin.Context) {
+	userUUID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "пользователь не аутентифицирован"})
+		return
+	}
+
+	userID := userUUID.(uuid.UUID)
+
+	storeID, err := h.service.GetStoreIDByUserID(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+
+	ch := h.hub.Subscribe(storeID)
+	defer h.hub.Unsubscribe(storeID)
+
+	for {
+		select {
+		case message, ok := <-ch:
+			if !ok {
+				return
+			}
+			c.SSEvent("message", message)
+			c.Writer.Flush()
+		case <-c.Request.Context().Done():
+			return
+		}
+	}
 }
