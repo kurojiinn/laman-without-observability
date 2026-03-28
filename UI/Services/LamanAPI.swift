@@ -48,7 +48,7 @@ final class LamanAPI {
     private let keychain = KeychainStore(service: "laman.auth")
     private let tokenKey = "jwt.token"
 
-    init(baseURL: URL = URL(string: "http://192.168.0.10:8080")!, session: URLSession = .shared) {
+    init(baseURL: URL = URL(string: "http://192.168.0.11:8080")!, session: URLSession = .shared) {
         self.baseURL = baseURL
         self.session = session
     }

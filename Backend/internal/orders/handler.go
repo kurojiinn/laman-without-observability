@@ -34,7 +34,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 		orders.POST("", h.CreateOrder)
 		orders.GET("/:id", h.GetOrder)
 		orders.GET("", middleware.AuthMiddleware(h.authService), h.GetUserOrders)
-		orders.PUT("/:id/status", h.UpdateOrderStatus)
+		orders.PUT("/:id/status", middleware.AuthMiddleware(h.authService), h.UpdateOrderStatus)
 	}
 }
 

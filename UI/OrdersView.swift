@@ -64,9 +64,13 @@ struct OrdersView: View {
     private func statusText(_ status: String?) -> String {
         switch status ?? "NEW" {
         case "NEW": return "Новый"
+        case "ACCEPTED_BY_PICKER": return "Принят сборщиком"
+        case "ASSEMBLING": return "Собирается"
+        case "ASSEMBLED": return "Собран"
+        case "WAITING_COURIER": return "Ожидает курьера"
+        case "COURIER_PICKED_UP": return "Курьер забрал"
+        case "DELIVERING": return "В пути"
         case "NEEDS_CONFIRMATION": return "Требует подтверждения"
-        case "CONFIRMED": return "Подтвержден"
-        case "IN_PROGRESS": return "В работе"
         case "DELIVERED": return "Доставлен"
         case "CANCELLED": return "Отменён"
         default: return status ?? "NEW"

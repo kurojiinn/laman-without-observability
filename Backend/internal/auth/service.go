@@ -24,6 +24,7 @@ var (
 	ErrUserAlreadyExists    = errors.New("user already exists")
 	ErrRegistrationRequired = errors.New("registration required")
 	ErrRoleRequired         = errors.New("role is required for new user")
+	ErrCodeRequired         = errors.New("verification code is required")
 )
 
 // AuthService обрабатывает бизнес-логику, связанную с аутентификацией,
@@ -220,14 +221,15 @@ func (s *AuthService) Register(ctx context.Context, req RegisterRequest) (*AuthR
 	}
 
 	verificationCode := strings.TrimSpace(req.Code)
-	if verificationCode != "" {
-		if err := s.verifyAndConsumeCode(ctx, req.Phone, verificationCode); err != nil {
-			authOperationTotal.WithLabelValues("register", "error").Inc()
-			authOperationDuration.WithLabelValues("register").Observe(time.Since(start).Seconds())
-			return nil, err
-		}
-	} else if s.logger != nil {
-		s.logger.Warn("Регистрация выполнена без SMS-кода", zap.String("phone", maskPhone(req.Phone)))
+	if verificationCode == "" {
+		authOperationTotal.WithLabelValues("register", "error").Inc()
+		authOperationDuration.WithLabelValues("register").Observe(time.Since(start).Seconds())
+		return nil, ErrCodeRequired
+	}
+	if err := s.verifyAndConsumeCode(ctx, req.Phone, verificationCode); err != nil {
+		authOperationTotal.WithLabelValues("register", "error").Inc()
+		authOperationDuration.WithLabelValues("register").Observe(time.Since(start).Seconds())
+		return nil, err
 	}
 
 	user := &models.User{

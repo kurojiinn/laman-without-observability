@@ -18,6 +18,19 @@ lint:
     - main
     - merge_requests
 
+picker_panel_test:
+  stage: lint
+  tags:
+    - local
+  script:
+    - cd Backend/picker-panel
+    - npm ci
+    - npm test
+    - npm run build
+  only:
+    - main
+    - merge_requests
+
 build:
   stage: build
   tags:
@@ -37,8 +50,8 @@ deploy_staging:
   tags:
     - local
   script:
-    - kubectl set image deployment/laman-api laman-api=$IMAGE_NAME:$IMAGE_TAG -n laman-dev
-    - kubectl rollout status deployment/laman-api -n laman-dev
+    - kubectl set image deployment/laman-api laman-api=$IMAGE_NAME:$IMAGE_TAG -n laman-staging
+    - kubectl rollout status deployment/laman-api -n laman-staging
   only:
     - main
 

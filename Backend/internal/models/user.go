@@ -9,12 +9,13 @@ import (
 const (
 	UserRoleClient  = "CLIENT"
 	UserRoleCourier = "COURIER"
+	UserRolePicker  = "PICKER"
 )
 
 // IsValidUserRole проверяет, что роль пользователя поддерживается системой.
 func IsValidUserRole(role string) bool {
 	switch role {
-	case UserRoleClient, UserRoleCourier:
+	case UserRoleClient, UserRoleCourier, UserRolePicker:
 		return true
 	default:
 		return false

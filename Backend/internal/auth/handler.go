@@ -159,7 +159,12 @@ func (h *Handler) Register(c *gin.Context) {
 			if h.logger != nil {
 				h.logger.Warn("Регистрация отклонена: недопустимая роль", zap.String("role", req.Role), zap.String("phone", maskPhone(req.Phone)))
 			}
-			c.JSON(http.StatusBadRequest, gin.H{"error": "недопустимая роль, используйте CLIENT или COURIER"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "недопустимая роль, используйте CLIENT, COURIER или PICKER"})
+		case errors.Is(err, ErrCodeRequired):
+			if h.logger != nil {
+				h.logger.Warn("Регистрация отклонена: отсутствует код подтверждения", zap.String("phone", maskPhone(req.Phone)))
+			}
+			c.JSON(http.StatusBadRequest, gin.H{"error": "для регистрации требуется код подтверждения"})
 		case errors.Is(err, ErrUserAlreadyExists):
 			if h.logger != nil {
 				h.logger.Info("Регистрация отклонена: пользователь уже существует", zap.String("phone", maskPhone(req.Phone)))

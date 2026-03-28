@@ -30,9 +30,9 @@ struct CourierOrdersHistoryView: View {
         switch status {
         case "DELIVERED":
             return .green
-        case "IN_PROGRESS":
+        case "DELIVERING", "COURIER_PICKED_UP":
             return .yellow
-        case "CONFIRMED":
+        case "WAITING_COURIER":
             return .blue
         default:
             return .gray

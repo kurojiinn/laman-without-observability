@@ -112,13 +112,13 @@ private struct ActiveOrderCard: View {
             .disabled((order.guestAddress ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
             HStack(spacing: 8) {
-                Button("Еду к магазину") {
-                    onUpdateStatus("CONFIRMED")
+                Button("Забрал заказ") {
+                    onUpdateStatus("COURIER_PICKED_UP")
                 }
                 .disabled(currentProgress >= 1)
 
-                Button("Забрал заказ") {
-                    onUpdateStatus("IN_PROGRESS")
+                Button("В пути") {
+                    onUpdateStatus("DELIVERING")
                 }
                 .disabled(currentProgress >= 2 || currentProgress < 1)
 
@@ -139,11 +139,11 @@ private struct ActiveOrderCard: View {
 
     private var currentProgress: Int {
         switch order.status ?? "NEW" {
-        case "NEW", "NEEDS_CONFIRMATION":
+        case "NEW", "ACCEPTED_BY_PICKER", "ASSEMBLING", "ASSEMBLED", "WAITING_COURIER", "NEEDS_CONFIRMATION":
             return 0
-        case "CONFIRMED":
+        case "COURIER_PICKED_UP":
             return 1
-        case "IN_PROGRESS":
+        case "DELIVERING":
             return 2
         case "DELIVERED":
             return 3

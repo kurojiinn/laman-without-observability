@@ -1,7 +1,7 @@
 .PHONY: help build run test migrate-up migrate-down migrate-create docker-up docker-down docker-build docker-logs clean
 
 # Variables
-DB_HOST ?= 192.168.0.6
+DB_HOST ?= 192.168.0.11
 DB_PORT ?= 5432
 DB_USER ?= postgres
 DB_PASSWORD ?= postgres

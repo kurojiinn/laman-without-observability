@@ -131,9 +131,13 @@ struct OrderDetailView: View {
     private func statusText(_ status: String?) -> String {
         switch status ?? "NEW" {
         case "NEW": return "Новый"
+        case "ACCEPTED_BY_PICKER": return "Принят сборщиком"
+        case "ASSEMBLING": return "Собирается"
+        case "ASSEMBLED": return "Собран"
+        case "WAITING_COURIER": return "Ожидает курьера"
+        case "COURIER_PICKED_UP": return "Курьер забрал"
+        case "DELIVERING": return "В пути"
         case "NEEDS_CONFIRMATION": return "Требует подтверждения"
-        case "CONFIRMED": return "Подтвержден"
-        case "IN_PROGRESS": return "В работе"
         case "DELIVERED": return "Доставлен"
         case "CANCELLED": return "Отменён"
         default: return status ?? "NEW"
@@ -144,7 +148,7 @@ struct OrderDetailView: View {
         switch status ?? "NEW" {
         case "CANCELLED": return .red
         case "DELIVERED": return .green
-        case "IN_PROGRESS": return .orange
+        case "DELIVERING", "COURIER_PICKED_UP": return .orange
         default: return .secondary
         }
     }
@@ -165,7 +169,7 @@ struct OrderDetailView: View {
         guestPhone: "+79991234567",
         guestAddress: "Грозный, ул. Айтхазарова 45",
         comment: "Звонить за час",
-        status: "IN_PROGRESS",
+        status: "DELIVERING",
         paymentMethod: .cash,
         itemsTotal: 460,
         serviceFee: 23,
