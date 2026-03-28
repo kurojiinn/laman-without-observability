@@ -31,7 +31,7 @@ func (r *postgresUserRepository) Create(ctx context.Context, user *models.User) 
 
 func (r *postgresUserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	var user models.User
-	query := `SELECT id, phone, role, created_at, updated_at FROM users WHERE id = $1`
+	query := `SELECT id, phone, role, store_id, password_hash, created_at, updated_at FROM users WHERE id = $1`
 	err := r.db.GetContext(ctx, &user, query, id)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("%w", ErrUserNotFound)
@@ -44,7 +44,7 @@ func (r *postgresUserRepository) GetByID(ctx context.Context, id uuid.UUID) (*mo
 
 func (r *postgresUserRepository) GetByPhone(ctx context.Context, phone string) (*models.User, error) {
 	var user models.User
-	query := `SELECT id, phone, role, created_at, updated_at FROM users WHERE phone = $1`
+	query := `SELECT id, phone, role, store_id, password_hash, created_at, updated_at FROM users WHERE phone = $1`
 	err := r.db.GetContext(ctx, &user, query, phone)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("%w", ErrUserNotFound)
