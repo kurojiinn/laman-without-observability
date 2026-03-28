@@ -22,7 +22,7 @@ const orderSchema = z.object({
   picker_id: z.string().uuid().nullable().optional(),
 });
 
-const ordersSchema = z.array(orderSchema);
+const ordersSchema = z.array(orderSchema).nullish().transform((value) => value ?? []);
 
 function mapOrder(raw: z.infer<typeof orderSchema>): PickerOrder {
   return {

@@ -8,13 +8,22 @@ import { statusLabel, statusPriority } from "../../entities/order/model";
 
 type FilterType = "all" | "new" | "assembling" | "problem";
 
+const completedStatuses = new Set([
+  "ASSEMBLED",
+  "WAITING_COURIER",
+  "COURIER_PICKED_UP",
+  "DELIVERING",
+  "DELIVERED",
+  "CANCELLED",
+]);
+
 export function OrdersPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
   const ordersQuery = usePickerOrders();
   usePickerRealtime(true);
 
-  const orders = useMemo(() => {
+  const filteredOrders = useMemo(() => {
     const items = [...(ordersQuery.data ?? [])];
     items.sort((a, b) => {
       const byPriority = statusPriority(a.status) - statusPriority(b.status);
@@ -39,6 +48,15 @@ export function OrdersPage() {
       return matchesQuery && matchesFilter;
     });
   }, [ordersQuery.data, query, filter]);
+
+  const activeOrders = useMemo(
+    () => filteredOrders.filter((order) => !completedStatuses.has(order.status)),
+    [filteredOrders]
+  );
+  const completedOrders = useMemo(
+    () => filteredOrders.filter((order) => completedStatuses.has(order.status)),
+    [filteredOrders]
+  );
 
   return (
     <AppShell title="Очередь заказов">
@@ -77,11 +95,11 @@ export function OrdersPage() {
             {ordersQuery.error instanceof Error ? ordersQuery.error.message : "Ошибка загрузки"}
           </p>
         ) : null}
-        {!ordersQuery.isLoading && !ordersQuery.isError && orders.length === 0 ? (
-          <p className="empty-text">Нет заказов по текущему фильтру</p>
+        {!ordersQuery.isLoading && !ordersQuery.isError && activeOrders.length === 0 ? (
+          <p className="empty-text">Нет активных заказов по текущему фильтру</p>
         ) : null}
 
-        {orders.length > 0 ? (
+        {activeOrders.length > 0 ? (
           <table className="orders-table">
             <thead>
               <tr>
@@ -95,7 +113,7 @@ export function OrdersPage() {
               </tr>
             </thead>
             <tbody>
-              {orders.map((order) => (
+              {activeOrders.map((order) => (
                 <tr key={order.id}>
                   <td>#{shortId(order.id)}</td>
                   <td>{order.guestName ?? "Гость"}</td>
@@ -111,6 +129,42 @@ export function OrdersPage() {
             </tbody>
           </table>
         ) : null}
+      </section>
+
+      <section className="card">
+        <h2>Выполненные</h2>
+        {completedOrders.length === 0 ? (
+          <p className="empty-text">Пока нет выполненных заказов</p>
+        ) : (
+          <table className="orders-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Клиент</th>
+                <th>Телефон</th>
+                <th>Статус</th>
+                <th>Создан</th>
+                <th>Сумма</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {completedOrders.map((order) => (
+                <tr key={order.id}>
+                  <td>#{shortId(order.id)}</td>
+                  <td>{order.guestName ?? "Гость"}</td>
+                  <td>{order.guestPhone ?? "-"}</td>
+                  <td>{statusLabel(order.status)}</td>
+                  <td>{formatDate(order.createdAt)}</td>
+                  <td>{formatPrice(order.finalTotal)}</td>
+                  <td>
+                    <Link to={`/orders/${order.id}`}>Открыть</Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
     </AppShell>
   );

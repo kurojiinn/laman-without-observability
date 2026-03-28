@@ -158,7 +158,13 @@ struct OrderView: View {
             let order = try await appState.submitOrder(request: request)
             createdOrder = order
         } catch {
-            errorMessage = error.localizedDescription
+            let rawMessage = error.localizedDescription
+            if let missingID = extractMissingProductID(from: rawMessage) {
+                appState.removeProduct(byID: missingID)
+                errorMessage = "Один из товаров больше недоступен и был удален из корзины. Проверьте корзину и повторите заказ."
+            } else {
+                errorMessage = rawMessage
+            }
             showError = true
         }
     }
@@ -168,6 +174,13 @@ struct OrderView: View {
             return "\(Int(price))₽"
         }
         return String(format: "%.2f₽", price)
+    }
+
+    private func extractMissingProductID(from message: String) -> UUID? {
+        guard let range = message.range(of: "товар не найден: ") else { return nil }
+        let candidate = message[range.upperBound...]
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        return UUID(uuidString: candidate)
     }
 }
 

@@ -208,6 +208,11 @@ final class AppState: ObservableObject {
         syncActiveStore()
     }
 
+    func removeProduct(byID productID: UUID) {
+        cart.removeValue(forKey: productID)
+        syncActiveStore()
+    }
+
     func clearCart() {
         cart.removeAll()
         activeStoreId = nil

@@ -312,9 +312,38 @@ final class LamanAPI {
             throw LamanAPIError.invalidResponse
         }
         guard (200...299).contains(http.statusCode) else {
-            let message = String(data: data, encoding: .utf8) ?? "HTTP \(http.statusCode)"
+            let message = Self.extractServerErrorMessage(from: data) ?? String(data: data, encoding: .utf8) ?? "HTTP \(http.statusCode)"
             throw LamanAPIError.serverError(message)
         }
+    }
+
+    private static func extractServerErrorMessage(from data: Data) -> String? {
+        struct ServerErrorBody: Decodable {
+            let error: String?
+            let err: String?
+            let message: String?
+        }
+
+        func firstNonEmpty(_ values: [String?]) -> String? {
+            values
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .first(where: { !$0.isEmpty })
+        }
+
+        guard let topLevel = try? JSONDecoder.laman.decode(ServerErrorBody.self, from: data) else {
+            return nil
+        }
+
+        if let message = firstNonEmpty([topLevel.error, topLevel.err, topLevel.message]) {
+            guard let nestedData = message.data(using: .utf8),
+                  let nested = try? JSONDecoder.laman.decode(ServerErrorBody.self, from: nestedData),
+                  let nestedMessage = firstNonEmpty([nested.error, nested.err, nested.message]) else {
+                return message
+            }
+            return nestedMessage
+        }
+
+        return nil
     }
 
     /// Печатает URL и JSON тела запроса в консоль для диагностики 404/контракта API.
