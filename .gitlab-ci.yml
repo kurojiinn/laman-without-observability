@@ -6,6 +6,9 @@ stages:
 variables:
   IMAGE_NAME: registry.gitlab.com/khadzhiev404/laman-backend
   IMAGE_TAG: $CI_COMMIT_SHORT_SHA
+  K8S_NAMESPACE: laman-dev
+  K8S_DEPLOYMENT: laman-api
+  K8S_CONTAINER: laman-api
 
 lint:
   stage: lint
@@ -50,8 +53,9 @@ deploy_staging:
   tags:
     - local
   script:
-    - kubectl set image deployment/laman-api laman-api=$IMAGE_NAME:$IMAGE_TAG -n laman-staging
-    - kubectl rollout status deployment/laman-api -n laman-staging
+    - kubectl -n "$K8S_NAMESPACE" get deployment "$K8S_DEPLOYMENT"
+    - kubectl -n "$K8S_NAMESPACE" set image deployment/"$K8S_DEPLOYMENT" "$K8S_CONTAINER"="$IMAGE_NAME:$IMAGE_TAG"
+    - kubectl -n "$K8S_NAMESPACE" rollout status deployment/"$K8S_DEPLOYMENT" --timeout=180s
   only:
     - main
 
@@ -60,8 +64,9 @@ deploy_prod:
   tags:
     - local
   script:
-    - kubectl set image deployment/laman-api laman-api=$IMAGE_NAME:$IMAGE_TAG -n laman-prod
-    - kubectl rollout status deployment/laman-api -n laman-prod
+    - kubectl -n laman-prod get deployment laman-api
+    - kubectl -n laman-prod set image deployment/laman-api laman-api=$IMAGE_NAME:$IMAGE_TAG
+    - kubectl -n laman-prod rollout status deployment/laman-api --timeout=180s
   when: manual
   only:
     - main
