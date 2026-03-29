@@ -16,6 +16,8 @@ struct OrderView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var createdOrder: Order? = nil
+    @State private var hasInvalidCartItems = false
+    @State private var invalidCartMessage: String?
 
     private let priceColor = Color(red: 0.06, green: 0.73, blue: 0.51)
     private let accentBlue = Color(red: 0.23, green: 0.51, blue: 0.96)
@@ -98,8 +100,11 @@ struct OrderView: View {
                 Button("Оформить") {
                     Task { await submitOrder() }
                 }
-                .disabled(appState.totalItems == 0 || isSubmitting || !isFormValid)
+                .disabled(appState.totalItems == 0 || isSubmitting || !isFormValid || hasInvalidCartItems)
             }
+        }
+        .task {
+            await validateCartItemsBeforeSubmit()
         }
         .overlay {
             if isSubmitting {
@@ -127,6 +132,17 @@ struct OrderView: View {
                 .padding(.top, 8)
             }
             .padding()
+        }
+        .safeAreaInset(edge: .bottom) {
+            if let invalidCartMessage {
+                Text(invalidCartMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.ultraThinMaterial)
+            }
         }
     }
 
@@ -159,9 +175,8 @@ struct OrderView: View {
             createdOrder = order
         } catch {
             let rawMessage = error.localizedDescription
-            if let missingID = extractMissingProductID(from: rawMessage) {
-                appState.removeProduct(byID: missingID)
-                errorMessage = "Один из товаров больше недоступен и был удален из корзины. Проверьте корзину и повторите заказ."
+            if extractMissingProductID(from: rawMessage) != nil {
+                errorMessage = "Один из товаров больше недоступен. Обновите корзину и повторите заказ."
             } else {
                 errorMessage = rawMessage
             }
@@ -181,6 +196,35 @@ struct OrderView: View {
         let candidate = message[range.upperBound...]
             .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
         return UUID(uuidString: candidate)
+    }
+
+    private func validateCartItemsBeforeSubmit() async {
+        guard let storeId = appState.activeStoreId ?? appState.cartItems.first?.product.storeId else {
+            hasInvalidCartItems = false
+            invalidCartMessage = nil
+            return
+        }
+
+        do {
+            let currentProducts = try await LamanAPI.shared.getStoreProducts(
+                storeId: storeId,
+                subcategoryId: nil,
+                search: nil,
+                availableOnly: false
+            )
+            let currentIDs = Set(currentProducts.map(\.id))
+            let missingCount = appState.cartItems.reduce(0) { partial, item in
+                partial + (currentIDs.contains(item.product.id) ? 0 : 1)
+            }
+
+            hasInvalidCartItems = missingCount > 0
+            invalidCartMessage = hasInvalidCartItems
+                ? "Часть товаров в корзине уже недоступна. Вернитесь в корзину и обновите состав заказа."
+                : nil
+        } catch {
+            hasInvalidCartItems = false
+            invalidCartMessage = nil
+        }
     }
 }
 
