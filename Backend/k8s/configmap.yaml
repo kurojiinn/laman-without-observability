@@ -12,7 +12,7 @@ data:
   # Сервер
   SERVER_PORT: "8080"
   SERVER_HOST: "0.0.0.0"
-  PUBLIC_URL: "http://192.168.0.14:8080"
+  PUBLIC_URL: "http://192.168.32.225:8080"
 
   # Redis — имя Service redis
   REDIS_URL: "redis://redis:6379"
@@ -23,4 +23,4 @@ data:
   JAEGER_ENDPOINT: "http://jaeger:14268/api/traces"
 
   # CORS
-  CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://192.168.0.14:5173,http://192.168.0.14:5174"
+  CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://192.168.32.225:5173,http://192.168.32.225:5174"

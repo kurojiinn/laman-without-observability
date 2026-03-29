@@ -33,8 +33,8 @@ The following inconsistencies were corrected after the initial review:
 - removed OTP bypass for registration: backend now requires a verification code for `Register`
 - aligned iOS courier status transitions with backend order statuses
 - aligned iOS order status labels with backend order lifecycle
-- aligned iOS default API base URL with the current local backend IP `192.168.0.14`
-- aligned local Docker/admin-panel URLs with `192.168.0.14`
+- aligned iOS default API base URL with the current local backend IP `192.168.32.225`
+- aligned local Docker/admin-panel URLs with `192.168.32.225`
 - aligned GitLab staging deploy namespace with `laman-staging`
 
 These fixes reduce the inconsistency level noticeably, but they do not yet solve secret management or the missing real courier order APIs on iOS.

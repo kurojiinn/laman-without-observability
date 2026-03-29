@@ -1,7 +1,7 @@
 .PHONY: help build run test migrate-up migrate-down migrate-create docker-up docker-down docker-build docker-logs clean
 
 # Variables
-DB_HOST ?= 192.168.0.14
+DB_HOST ?= 192.168.32.225
 DB_PORT ?= 5432
 DB_USER ?= postgres
 DB_PASSWORD ?= postgres
@@ -61,7 +61,7 @@ docker-up: ## Start all services with docker-compose
 	@docker-compose up -d
 	@echo "Waiting for services to be ready..."
 	@sleep 5
-	@echo "Services started. API: http://192.168.0.14:8080"
+	@echo "Services started. API: http://192.168.32.225:8080"
 	@echo "Grafana: http://localhost:3000 (admin/admin)"
 	@echo "Jaeger: http://localhost:16686"
 	@echo "Prometheus: http://localhost:9090"
