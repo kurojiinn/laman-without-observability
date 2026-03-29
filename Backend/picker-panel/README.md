@@ -22,7 +22,7 @@ npm run dev
 По умолчанию:
 
 - panel: `http://localhost:5174`
-- backend: `http://192.168.0.11:8080`
+- backend: `http://192.168.0.14:8080`
 
 ## Тесты и сборка
 
