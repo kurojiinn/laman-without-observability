@@ -53,7 +53,7 @@ func (h *Handler) GetCategories(c *gin.Context) {
 	start := time.Now()
 	categories, err := h.catalogService.GetCategories(ctx)
 	if err != nil {
-		h.logger.Error("Не удалось получить категории о", zap.Error(err))
+		h.logger.Error("Не удалось получить категории", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
