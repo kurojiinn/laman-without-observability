@@ -65,8 +65,30 @@ func (r *postgresPikerRepository) UpdateStatus(ctx context.Context, orderID uuid
 	return nil
 }
 
+func (r *postgresPikerRepository) UpdateStatusAndAssignPicker(ctx context.Context, orderID uuid.UUID, status models.OrderStatus, pickerID uuid.UUID) error {
+	query := `
+		UPDATE orders
+		SET status = $1,
+		    picker_id = COALESCE(picker_id, $2),
+		    updated_at = NOW()
+		WHERE id = $3
+		  AND (picker_id IS NULL OR picker_id = $2)
+	`
+
+	result, err := r.db.ExecContext(ctx, query, status, pickerID, orderID)
+	if err != nil {
+		return fmt.Errorf("ошибка назначения сборщика: %w", err)
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("заказ уже взят другим сборщиком или не существует")
+	}
+
+	return nil
+}
+
 func (r *postgresPikerRepository) AssignPicker(ctx context.Context, orderID uuid.UUID, pickerID uuid.UUID) error {
-	query := `UPDATE orders SET picker_id = $1, updated_at = NOW() WHERE id = $2`
+	query := `UPDATE orders SET picker_id = $1, updated_at = NOW() WHERE id = $2 AND (picker_id IS NULL OR picker_id = $1)`
 
 	result, err := r.db.ExecContext(ctx, query, pickerID, orderID)
 	if err != nil {

@@ -41,7 +41,7 @@ type PickerService interface {
 	Login(ctx context.Context, login LoginRequest) (LoginResponse, error)
 	GetOrder(ctx context.Context, orderID uuid.UUID) (*models.Order, error)
 	GetOrdersByUserID(ctx context.Context, storeID uuid.UUID) ([]models.Order, error)
-	UpdateStatus(ctx context.Context, orderID uuid.UUID, newStatus models.OrderStatus) error
+	UpdateStatus(ctx context.Context, orderID uuid.UUID, pickerID uuid.UUID, newStatus models.OrderStatus) error
 	GetStoreIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
 }
 
@@ -115,13 +115,24 @@ func (h *Handler) UpdateStatus(c *gin.Context) {
 		return
 	}
 
+	userIDRaw, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "пользователь не аутентифицирован"})
+		return
+	}
+	userID, ok := userIDRaw.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "неверный ID пользователя"})
+		return
+	}
+
 	var req UpdateOrderStatusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := h.service.UpdateStatus(c.Request.Context(), id, models.OrderStatus(req.Status)); err != nil {
+	if err := h.service.UpdateStatus(c.Request.Context(), id, userID, models.OrderStatus(req.Status)); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

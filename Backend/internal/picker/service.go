@@ -92,17 +92,26 @@ func (p *Service) GetOrdersByUserID(ctx context.Context, userID uuid.UUID) ([]mo
 	return orders, nil
 }
 
-func (p *Service) UpdateStatus(ctx context.Context, orderID uuid.UUID, newStatus models.OrderStatus) error {
+func (p *Service) UpdateStatus(ctx context.Context, orderID uuid.UUID, pickerID uuid.UUID, newStatus models.OrderStatus) error {
 	order, err := p.GetOrder(ctx, orderID)
 	if err != nil {
 		return fmt.Errorf("не удалось получить заказ")
 	}
+	if order.PickerID != nil && *order.PickerID != pickerID {
+		return fmt.Errorf("заказ уже взят другим сборщиком")
+	}
+
 	// Валидация перехода состояния
 	if !models.IsValidStateTransition(order.Status, newStatus) {
 		return fmt.Errorf("недопустимый переход состояния из %s в %s", order.Status, newStatus)
 	}
 
-	err = p.pickerRepo.UpdateStatus(ctx, orderID, newStatus)
+	// На этапе "взят/в сборке" назначаем сборщика атомарно вместе со статусом.
+	if newStatus == models.OrderStatusAcceptedByPicker || newStatus == models.OrderStatusAssembling {
+		err = p.pickerRepo.UpdateStatusAndAssignPicker(ctx, orderID, newStatus, pickerID)
+	} else {
+		err = p.pickerRepo.UpdateStatus(ctx, orderID, newStatus)
+	}
 	if err != nil {
 		return fmt.Errorf("не удалось обновить статус заказа: %w", err)
 	}
