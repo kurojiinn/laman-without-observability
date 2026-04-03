@@ -85,10 +85,10 @@ func Load() (*Config, error) {
 		Server: ServerConfig{
 			Port:      getEnv("SERVER_PORT", "8080"),
 			Host:      getEnv("SERVER_HOST", "0.0.0.0"),
-			PublicURL: getEnv("PUBLIC_URL", "http://192.168.32.225:8080"),
+			PublicURL: getEnv("PUBLIC_URL", "http://localhost:8080"),
 		},
 		Database: DatabaseConfig{
-			Host:     getEnv("DB_HOST", "192.168.32.225"),
+			Host:     getEnv("DB_HOST", "localhost"),
 			Port:     getEnv("DB_PORT", "5432"),
 			User:     getEnv("DB_USER", "postgres"),
 			Password: getEnv("DB_PASSWORD", "postgres"),

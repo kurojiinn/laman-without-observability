@@ -1,0 +1,162 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: laman-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - laman-network
+
+  api:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    container_name: laman-api
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_SSLMODE: ${DB_SSLMODE}
+      JWT_SECRET: ${JWT_SECRET}
+      SERVER_PORT: ${SERVER_PORT}
+      SERVER_HOST: ${SERVER_HOST}
+      PUBLIC_URL: http://${HOST_IP}:8080
+      JAEGER_ENDPOINT: ${JAEGER_ENDPOINT}
+      SMS_RU_KEY: ${SMS_RU_KEY}
+      SMSRU_API_KEY: ${SMSRU_API_KEY}
+      TG_BOT_TOKEN: ${TG_BOT_TOKEN}
+      TG_CHAT_ID: ${TG_CHAT_ID}
+      TG_COURIER_GROUP_ID: ${TG_COURIER_GROUP_ID}
+      ADMIN_USER: ${ADMIN_USER}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://${HOST_IP}:5173,http://${HOST_IP}:5174
+      REDIS_URL: ${REDIS_URL}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./Backend/uploads:/root/uploads
+      - ./Backend/migrations:/root/migrations
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+    networks:
+      - laman-network
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: laman-jaeger
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+      - "4317:4317"
+      - "4318:4318"
+    networks:
+      - laman-network
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: laman-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./Backend/docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - laman-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: laman-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./Backend/docker/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    networks:
+      - laman-network
+    restart: unless-stopped
+
+  admin-panel:
+    build:
+      context: ./Frontend/admin-panel
+      dockerfile: Dockerfile
+    container_name: laman-admin-panel
+    environment:
+      - VITE_API_BASE_URL=http://${HOST_IP}:8080
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+    networks:
+      - laman-network
+    restart: unless-stopped
+
+  picker-panel:
+    build:
+      context: ./Frontend/picker-panel
+      dockerfile: Dockerfile
+    container_name: laman-picker-panel
+    environment:
+      - VITE_API_BASE_URL=http://${HOST_IP}:8080
+    ports:
+      - "5174:5174"
+    depends_on:
+      - api
+    networks:
+      - laman-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: laman-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - laman-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+networks:
+  laman-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:

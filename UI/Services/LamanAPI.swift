@@ -48,7 +48,19 @@ final class LamanAPI {
     private let keychain = KeychainStore(service: "laman.auth")
     private let tokenKey = "jwt.token"
 
-    init(baseURL: URL = URL(string: "http://192.168.32.225:8080")!, session: URLSession = .shared) {
+    private static func resolveBaseURL() -> URL {
+        if let runtimeBaseURL = ProcessInfo.processInfo.environment["LAMAN_API_BASE_URL"],
+           let url = URL(string: runtimeBaseURL) {
+            return url
+        }
+        if let plistBaseURL = Bundle.main.object(forInfoDictionaryKey: "LAMAN_API_BASE_URL") as? String,
+           let url = URL(string: plistBaseURL) {
+            return url
+        }
+        return URL(string: "http://192.168.0.6:8080")!
+    }
+
+    init(baseURL: URL = LamanAPI.resolveBaseURL(), session: URLSession = .shared) {
         self.baseURL = baseURL
         self.session = session
     }

@@ -1,11 +1,12 @@
 .PHONY: help build run test migrate-up migrate-down migrate-create docker-up docker-down docker-build docker-logs clean
 
 # Variables
-DB_HOST ?= 192.168.32.225
+DB_HOST ?= localhost
 DB_PORT ?= 5432
 DB_USER ?= postgres
 DB_PASSWORD ?= postgres
 DB_NAME ?= laman
+APP_HOST ?= 192.168.0.6
 GOOSE_CMD = goose -dir ./migrations postgres "postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable"
 
 help: ## Show this help message
@@ -58,28 +59,28 @@ migrate-create: ## Create a new migration (use NAME=xxx)
 
 docker-up: ## Start all services with docker-compose
 	@echo "Starting services with docker-compose..."
-	@docker-compose up -d
+	@docker compose -f ../docker-compose.yml up -d
 	@echo "Waiting for services to be ready..."
 	@sleep 5
-	@echo "Services started. API: http://192.168.32.225:8080"
+	@echo "Services started. API: http://$(APP_HOST):8080"
 	@echo "Grafana: http://localhost:3000 (admin/admin)"
 	@echo "Jaeger: http://localhost:16686"
 	@echo "Prometheus: http://localhost:9090"
 
 docker-down: ## Stop all services
 	@echo "Stopping services..."
-	@docker-compose down
+	@docker compose -f ../docker-compose.yml down
 
 docker-build: ## Build docker images
 	@echo "Building docker images..."
-	@docker-compose build
+	@docker compose -f ../docker-compose.yml build
 
 docker-logs: ## Show docker logs
-	@docker-compose logs -f
+	@docker compose -f ../docker-compose.yml logs -f
 
 docker-restart: ## Restart all services
 	@echo "Restarting services..."
-	@docker-compose restart
+	@docker compose -f ../docker-compose.yml restart
 
 clean: ## Clean build artifacts
 	@echo "Cleaning build artifacts..."

@@ -28,8 +28,6 @@ COPY --from=builder /app/bin/api .
 # Copy migrations
 COPY --from=builder /app/migrations ./migrations
 
-# Copy admin HTML assets
-COPY --from=builder /app/admin ./admin
 
 EXPOSE 8080
 

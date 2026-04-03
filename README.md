@@ -65,17 +65,16 @@ git clone <repository-url>
 cd Laman
 ```
 
-2. Создайте файл `.env` (опционально, значения по умолчанию установлены в docker-compose.yml):
+2. Проверьте файл `.env` в корне проекта и при необходимости обновите значения:
 ```bash
-cp env.example .env
-# Отредактируйте .env со своими значениями
+# .env расположен в корне репозитория
 ```
 
 3. Запустите все сервисы:
 ```bash
 make docker-up
 # или
-docker-compose up -d
+docker compose -f ./docker-compose.yml up -d
 ```
 
 Это запустит:
@@ -162,7 +161,7 @@ make migrate-force VERSION=1
 
 ### Использование Docker
 
-Миграции запускаются автоматически при старте сервисов с помощью `docker-compose up`.
+Миграции запускаются автоматически при старте сервисов с помощью `docker compose up`.
 
 ## API Endpoints
 
