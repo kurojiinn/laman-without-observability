@@ -6,12 +6,13 @@ import TabBar, { type Tab } from "@/components/layout/TabBar";
 import CatalogTab from "@/components/catalog/CatalogTab";
 import StoresTab from "@/components/stores/StoresTab";
 import CartTab from "@/components/cart/CartTab";
-import OrdersTab from "@/components/orders/OrdersTab";
 import FavoritesTab from "@/components/favorites/FavoritesTab";
+import ProfileDrawer from "@/components/profile/ProfileDrawer";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("catalog");
   const [search, setSearch] = useState("");
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const handleTabChange = (tab: Tab) => {
     setActiveTab(tab);
@@ -27,19 +28,20 @@ export default function Home() {
         onSearchChange={setSearch}
         onLogoClick={() => handleTabChange("catalog")}
         onCartClick={() => handleTabChange("cart")}
+        onProfileClick={() => setProfileOpen(true)}
       />
 
-      {/* TabBar: на десктопе под хедером, на мобильном — fixed bottom */}
       <TabBar active={activeTab} onChange={handleTabChange} />
 
-      {/* pb-16 на мобильном — чтобы контент не перекрывался нижним TabBar */}
       <main className="flex-1 pb-16 md:pb-0">
         {activeTab === "catalog"   && <CatalogTab search={search} />}
         {activeTab === "stores"    && <StoresTab  search={search} />}
         {activeTab === "favorites" && <FavoritesTab />}
         {activeTab === "cart"      && <CartTab />}
-        {activeTab === "orders"    && <OrdersTab />}
       </main>
+
+      {/* Личный кабинет — drawer поверх экрана, не таб */}
+      <ProfileDrawer open={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>
   );
 }
