@@ -2,7 +2,7 @@
 
 import { useCart } from "@/context/CartContext";
 
-export type Tab = "catalog" | "stores" | "favorites" | "cart" | "profile";
+export type Tab = "catalog" | "stores" | "favorites" | "cart";
 
 const TABS: {
   id: Tab;
@@ -47,16 +47,6 @@ const TABS: {
     icon: (active) => (
       <svg className={`w-6 h-6 ${active ? "text-indigo-600" : "text-gray-400"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-      </svg>
-    ),
-  },
-  {
-    id: "profile",
-    label: "Профиль",
-    shortLabel: "Профиль",
-    icon: (active) => (
-      <svg className={`w-6 h-6 ${active ? "text-indigo-600" : "text-gray-400"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
       </svg>
     ),
   },
