@@ -33,7 +33,7 @@ export default function ProfileDrawer({ open, onClose }: Props) {
     setLoading(true);
     ordersApi
       .getOrders()
-      .then(setOrders)
+      .then((data) => setOrders(data ?? []))
       .catch(() => setOrders([]))
       .finally(() => setLoading(false));
   }, [open, isAuthenticated]);
