@@ -69,6 +69,11 @@ func (h *Handler) Verify(c *gin.Context) {
 	resp, err := h.authService.Verify(c.Request.Context(), req)
 	if err != nil {
 		switch {
+		// HTTP 429 Too Many Requests — семантически правильный статус для rate limiting.
+		// Фронт и iOS могут проверять именно этот код и показывать специальное сообщение.
+		// Стандарт описан в RFC 6585. Используется в GitHub API, Stripe, Twilio.
+		case errors.Is(err, ErrOTPBlocked):
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "Слишком много попыток. Попробуйте через 15 минут"})
 		case errors.Is(err, ErrInvalidRole):
 			c.JSON(http.StatusBadRequest, gin.H{"error": "недопустимая роль"})
 		case errors.Is(err, ErrRoleRequired):
@@ -121,17 +126,20 @@ func (h *Handler) VerifyCode(c *gin.Context) {
 
 	response, err := h.authService.VerifyCode(c.Request.Context(), req)
 	if err != nil {
-		if errors.Is(err, ErrRegistrationRequired) {
+		switch {
+		case errors.Is(err, ErrOTPBlocked):
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "Слишком много попыток. Попробуйте через 15 минут"})
+		case errors.Is(err, ErrRegistrationRequired):
 			if h.logger != nil {
 				h.logger.Info("Попытка логина без регистрации", zap.String("phone", maskPhone(req.Phone)))
 			}
 			c.JSON(http.StatusBadRequest, gin.H{"error": "пользователь не зарегистрирован, используйте /auth/register"})
-			return
+		default:
+			if h.logger != nil {
+				h.logger.Warn("Ошибка verify-code", zap.Error(err), zap.String("phone", maskPhone(req.Phone)))
+			}
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		}
-		if h.logger != nil {
-			h.logger.Warn("Ошибка verify-code", zap.Error(err), zap.String("phone", maskPhone(req.Phone)))
-		}
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 	if h.logger != nil {

@@ -17,6 +17,8 @@ export type PickerOrder = {
   guestName?: string | null;
   guestPhone?: string | null;
   guestAddress?: string | null;
+  customerPhone?: string | null;
+  deliveryAddress?: string | null;
   comment?: string | null;
   status: OrderStatus;
   storeId: string;

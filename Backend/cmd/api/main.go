@@ -21,6 +21,7 @@ import (
 	"Laman/internal/config"
 	"Laman/internal/database"
 	"Laman/internal/delivery"
+	"Laman/internal/favorites"
 	"Laman/internal/middleware"
 	"Laman/internal/observability"
 	"Laman/internal/orders"
@@ -105,11 +106,18 @@ func main() {
 	deliveryRepo := delivery.NewPostgresDeliveryRepository(db)
 	courierRepo := courier.NewRedisCourierRepository(redisClient.Client())
 	pickerRepo := picker.NewPostgresPikerRepository(db)
+	favoritesRepo := favorites.NewPostgresRepository(db)
 
 	hub := events.NewHub()
 	// Инициализация сервисов
-	smsProvider := auth.NewSMSRUProvider(cfg.SMS.RuAPIKey)
-	authService := auth.NewAuthService(authRepo, userRepo, cfg.JWT.Secret, smsProvider, logger)
+	smsProvider := auth.NewSMSRUProvider(cfg.SMS.RuAPIKey, cfg.SMS.TestMode)
+
+	// OTPLimiter: максимум 5 попыток, блокировка на 15 минут.
+	// Используем тот же Redis-клиент что и courier — переиспользование соединения,
+	// не создаём второй connection pool. Это стандартная практика.
+	otpLimiter := auth.NewRedisOTPLimiter(redisClient.Client(), 5, 15*time.Minute)
+
+	authService := auth.NewAuthService(authRepo, userRepo, cfg.JWT.Secret, smsProvider, logger, otpLimiter)
 	userService := users.NewUserService(userRepo)
 	catalogService := catalog.NewCatalogService(categoryRepo, subcategoryRepo, productRepo, storeRepo)
 	courierService := courier.NewCourierService(courierRepo)
@@ -128,6 +136,7 @@ func main() {
 		hub,
 	)
 	pickerService := picker.NewPickerService(pickerRepo, userRepo, cfg.JWT.Secret, logger)
+	favoritesService := favorites.NewService(favoritesRepo, logger)
 
 	// Инициализация обработчиков
 	authHandler := auth.NewHandler(authService, logger)
@@ -139,9 +148,10 @@ func main() {
 	adminHandler := admin.NewHandler(adminService, logger, cfg.Server.PublicURL)
 	courierHandler := courier.NewHandler(courierService, authService, logger)
 	pickerHandler := picker.NewHandler(pickerService, logger, authService, hub)
+	favoritesHandler := favorites.NewHandler(favoritesService, authService, logger)
 
 	// Настройка роутера
-	router := setupRouter(logger, cfg, authHandler, userHandler, catalogHandler, orderHandler, adminHandler, courierHandler, pickerHandler)
+	router := setupRouter(logger, cfg, authHandler, userHandler, catalogHandler, orderHandler, adminHandler, courierHandler, pickerHandler, favoritesHandler)
 
 	// Настройка эндпоинта метрик
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
@@ -193,6 +203,7 @@ func setupRouter(
 	adminHandler *admin.Handler,
 	courierHandler *courier.Handler,
 	pickerHandler *picker.Handler,
+	favoritesHandler *favorites.Handler,
 ) *gin.Engine {
 	router := gin.New()
 
@@ -216,6 +227,7 @@ func setupRouter(
 		adminHandler.RegisterRoutes(v1, middleware.AdminAuthMiddleware(cfg.Admin))
 		courierHandler.RegisterRoutes(v1)
 		pickerHandler.RegisterRoutes(v1)
+		favoritesHandler.RegisterRoutes(v1)
 	}
 
 	router.GET("/debug/pprof/*any", gin.WrapH(http.DefaultServeMux))

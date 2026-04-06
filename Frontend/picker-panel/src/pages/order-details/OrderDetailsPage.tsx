@@ -37,13 +37,13 @@ export function OrderDetailsPage() {
                 <strong>Статус:</strong> {statusLabel(orderQuery.data.status)}
               </p>
               <p>
-                <strong>Клиент:</strong> {orderQuery.data.guestName ?? "Гость"}
+                <strong>Клиент:</strong> {orderQuery.data.guestName ?? "Авторизованный пользователь"}
               </p>
               <p>
-                <strong>Телефон:</strong> {orderQuery.data.guestPhone ?? "-"}
+                <strong>Телефон:</strong> {orderQuery.data.customerPhone ?? orderQuery.data.guestPhone ?? "-"}
               </p>
               <p>
-                <strong>Адрес:</strong> {orderQuery.data.guestAddress ?? "-"}
+                <strong>Адрес:</strong> {orderQuery.data.deliveryAddress ?? orderQuery.data.guestAddress ?? "-"}
               </p>
               <p>
                 <strong>Комментарий:</strong> {orderQuery.data.comment ?? "-"}

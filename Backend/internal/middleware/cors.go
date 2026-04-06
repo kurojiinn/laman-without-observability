@@ -23,10 +23,13 @@ func CORSMiddleware(origins []string) gin.HandlerFunc {
 				c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 				c.Writer.Header().Set("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS")
 				c.Writer.Header().Set("Access-Control-Allow-Headers", strings.Join([]string{
+					"Origin",
 					"Authorization",
 					"Content-Type",
+					"Accept",
 					"X-Request-Id",
 				}, ", "))
+				c.Writer.Header().Set("Access-Control-Expose-Headers", "Content-Length")
 			}
 		}
 

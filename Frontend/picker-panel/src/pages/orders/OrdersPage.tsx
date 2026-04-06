@@ -36,7 +36,7 @@ export function OrdersPage() {
       const matchesQuery =
         q === "" ||
         order.id.toLowerCase().includes(q) ||
-        (order.guestPhone ?? "").toLowerCase().includes(q);
+        (order.customerPhone ?? order.guestPhone ?? "").toLowerCase().includes(q);
 
       const matchesFilter =
         filter === "all" ||
@@ -117,7 +117,7 @@ export function OrdersPage() {
                 <tr key={order.id}>
                   <td>#{shortId(order.id)}</td>
                   <td>{order.guestName ?? "Гость"}</td>
-                  <td>{order.guestPhone ?? "-"}</td>
+                  <td>{order.customerPhone ?? order.guestPhone ?? "-"}</td>
                   <td>{statusLabel(order.status)}</td>
                   <td>{formatDate(order.createdAt)}</td>
                   <td>{formatPrice(order.finalTotal)}</td>
@@ -153,7 +153,7 @@ export function OrdersPage() {
                 <tr key={order.id}>
                   <td>#{shortId(order.id)}</td>
                   <td>{order.guestName ?? "Гость"}</td>
-                  <td>{order.guestPhone ?? "-"}</td>
+                  <td>{order.customerPhone ?? order.guestPhone ?? "-"}</td>
                   <td>{statusLabel(order.status)}</td>
                   <td>{formatDate(order.createdAt)}</td>
                   <td>{formatPrice(order.finalTotal)}</td>

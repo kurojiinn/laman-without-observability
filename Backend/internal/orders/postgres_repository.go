@@ -22,9 +22,9 @@ func NewPostgresOrderRepository(db *database.DB) OrderRepository {
 
 func (r *postgresOrderRepository) Create(ctx context.Context, order *models.Order) error {
 	query := `
-		INSERT INTO orders (id, user_id, courier_id, guest_name, guest_phone, guest_address, comment, status,
+		INSERT INTO orders (id, user_id, courier_id, guest_name, guest_phone, guest_address, customer_phone, comment, status,
 		                    store_id, payment_method, items_total, service_fee, delivery_fee, final_total, created_at, updated_at)
-		VALUES (:id, :user_id, :courier_id, :guest_name, :guest_phone, :guest_address, :comment, :status,
+		VALUES (:id, :user_id, :courier_id, :guest_name, :guest_phone, :guest_address, :customer_phone, :comment, :status,
 		        :store_id, :payment_method, :items_total, :service_fee, :delivery_fee, :final_total, :created_at, :updated_at)
 	`
 	_, err := r.db.NamedExecContext(ctx, query, order)
@@ -34,7 +34,7 @@ func (r *postgresOrderRepository) Create(ctx context.Context, order *models.Orde
 func (r *postgresOrderRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Order, error) {
 	var order models.Order
 	query := `
-		SELECT id, user_id, courier_id, guest_name, guest_phone, guest_address, comment, status, store_id, payment_method,
+		SELECT id, user_id, courier_id, guest_name, guest_phone, guest_address, customer_phone, comment, status, store_id, payment_method,
 		       items_total, service_fee, delivery_fee, final_total, created_at, updated_at
 		FROM orders WHERE id = $1
 	`
@@ -51,7 +51,7 @@ func (r *postgresOrderRepository) GetByID(ctx context.Context, id uuid.UUID) (*m
 func (r *postgresOrderRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]models.Order, error) {
 	var orders []models.Order
 	query := `
-		SELECT id, user_id, courier_id, guest_name, guest_phone, guest_address, comment, status, store_id, payment_method,
+		SELECT id, user_id, courier_id, guest_name, guest_phone, guest_address, customer_phone, comment, status, store_id, payment_method,
 		       items_total, service_fee, delivery_fee, final_total, created_at, updated_at
 		FROM orders WHERE user_id = $1 ORDER BY created_at DESC
 	`
@@ -69,7 +69,7 @@ func (r *postgresOrderRepository) Update(ctx context.Context, order *models.Orde
 	query := `
 		UPDATE orders
 		SET user_id = :user_id, courier_id = :courier_id, guest_name = :guest_name, guest_phone = :guest_phone,
-		    guest_address = :guest_address, comment = :comment, status = :status, store_id = :store_id, payment_method = :payment_method,
+		    guest_address = :guest_address, customer_phone = :customer_phone, comment = :comment, status = :status, store_id = :store_id, payment_method = :payment_method,
 		    items_total = :items_total, service_fee = :service_fee, delivery_fee = :delivery_fee,
 		    final_total = :final_total, updated_at = :updated_at
 		WHERE id = :id

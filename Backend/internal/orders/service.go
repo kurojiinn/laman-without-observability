@@ -92,6 +92,7 @@ type CreateOrderRequest struct {
 	GuestName       *string                  `json:"guest_name,omitempty"`
 	GuestPhone      *string                  `json:"guest_phone,omitempty"`
 	GuestAddress    *string                  `json:"guest_address,omitempty"`
+	CustomerPhone   *string                  `json:"customer_phone,omitempty"`
 	Comment         *string                  `json:"comment,omitempty"`
 	Items           []CreateOrderItemRequest `json:"items" binding:"required"`
 	PaymentMethod   models.PaymentMethod     `json:"payment_method" binding:"required"`
@@ -182,12 +183,19 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 	if storeID == nil {
 		return nil, fmt.Errorf("не удалось определить магазин заказа")
 	}
+	// Определяем телефон клиента: явно переданный > guest_phone
+	customerPhone := req.CustomerPhone
+	if customerPhone == nil {
+		customerPhone = req.GuestPhone
+	}
+
 	order := &models.Order{
 		ID:            uuid.New(),
 		UserID:        req.UserID,
 		GuestName:     req.GuestName,
 		GuestPhone:    req.GuestPhone,
 		GuestAddress:  req.GuestAddress,
+		CustomerPhone: customerPhone,
 		Comment:       req.Comment,
 		Status:        models.OrderStatusNew,
 		StoreID:       *storeID,
@@ -327,6 +335,9 @@ func buildCustomerText(req CreateOrderRequest, orderID uuid.UUID) string {
 }
 
 func buildPhoneText(req CreateOrderRequest) string {
+	if req.CustomerPhone != nil && *req.CustomerPhone != "" {
+		return *req.CustomerPhone
+	}
 	if req.GuestPhone != nil && *req.GuestPhone != "" {
 		return *req.GuestPhone
 	}
@@ -369,6 +380,9 @@ func buildCustomerTextFromOrder(order *models.Order) string {
 }
 
 func buildPhoneTextFromOrder(order *models.Order) string {
+	if order.CustomerPhone != nil && *order.CustomerPhone != "" {
+		return *order.CustomerPhone
+	}
 	if order.GuestPhone != nil && *order.GuestPhone != "" {
 		return *order.GuestPhone
 	}

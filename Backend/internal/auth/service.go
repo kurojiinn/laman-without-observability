@@ -25,6 +25,13 @@ var (
 	ErrRegistrationRequired = errors.New("registration required")
 	ErrRoleRequired         = errors.New("role is required for new user")
 	ErrCodeRequired         = errors.New("verification code is required")
+
+	// ErrOTPBlocked возвращается когда пользователь превысил лимит попыток ввода кода.
+	//
+	// Используем sentinel error (errors.New) а не строку — чтобы вызывающий код
+	// мог делать errors.Is(err, ErrOTPBlocked) и обрабатывать отдельно от других ошибок.
+	// Это стандарт Go начиная с 1.13 (pkg.go.dev/errors).
+	ErrOTPBlocked = errors.New("too many otp attempts")
 )
 
 // AuthService обрабатывает бизнес-логику, связанную с аутентификацией,
@@ -34,6 +41,7 @@ type AuthService struct {
 	userRepo    UserRepository
 	jwtSecret   string
 	smsProvider SMSProvider
+	otpLimiter  OTPLimiter
 	logger      *zap.Logger
 }
 
@@ -45,15 +53,24 @@ type UserRepository interface {
 }
 
 // NewAuthService создает новый сервис аутентификации.
-func NewAuthService(authRepo AuthRepository, userRepo UserRepository, jwtSecret string, smsProvider SMSProvider, logger *zap.Logger) *AuthService {
+//
+// Если otpLimiter == nil — используется NoopOTPLimiter (без ограничений).
+// Это позволяет сервису работать без Redis, что удобно в тестах и dev-окружении.
+// Паттерн "optional dependency with safe default" — используется в большинстве
+// Go-библиотек (например, zap.Logger по умолчанию noop если не передан).
+func NewAuthService(authRepo AuthRepository, userRepo UserRepository, jwtSecret string, smsProvider SMSProvider, logger *zap.Logger, otpLimiter OTPLimiter) *AuthService {
 	if smsProvider == nil {
 		smsProvider = NewNoopSMSProvider()
+	}
+	if otpLimiter == nil {
+		otpLimiter = NewNoopOTPLimiter()
 	}
 	return &AuthService{
 		authRepo:    authRepo,
 		userRepo:    userRepo,
 		jwtSecret:   jwtSecret,
 		smsProvider: smsProvider,
+		otpLimiter:  otpLimiter,
 		logger:      logger,
 	}
 }
@@ -185,8 +202,13 @@ func (s *AuthService) RequestCode(ctx context.Context, req RequestCodeRequest) e
 
 	authOperationTotal.WithLabelValues("request_code", "success").Inc()
 	authOperationDuration.WithLabelValues("request_code").Observe(time.Since(start).Seconds())
+	// DEV: всегда выводим код в stdout, чтобы можно было тестировать без SMS
+	fmt.Printf("[OTP] phone=%s code=%s\n", phone, code)
 	if s.logger != nil {
-		s.logger.Info("OTP код отправлен пользователю", zap.String("phone", maskPhone(phone)))
+		s.logger.Info("OTP код отправлен пользователю",
+			zap.String("phone", maskPhone(phone)),
+			zap.String("code", code),
+		)
 	}
 	return nil
 }
@@ -309,6 +331,18 @@ func (s *AuthService) VerifyCode(ctx context.Context, req VerifyCodeRequest) (*A
 	start := time.Now()
 	span.SetAttributes(attribute.String("auth.phone_masked", maskPhone(req.Phone)))
 
+	// Та же логика что в Verify — сначала лимит, потом проверка кода.
+	phone := normalizePhone(req.Phone)
+	_, blocked, limiterErr := s.otpLimiter.CheckAndIncrement(ctx, phone)
+	if limiterErr != nil && s.logger != nil {
+		s.logger.Warn("OTPLimiter недоступен, пропускаем проверку", zap.Error(limiterErr), zap.String("phone", maskPhone(phone)))
+	}
+	if blocked {
+		authOperationTotal.WithLabelValues("verify_code", "blocked").Inc()
+		authOperationDuration.WithLabelValues("verify_code").Observe(time.Since(start).Seconds())
+		return nil, ErrOTPBlocked
+	}
+
 	user, err := s.userRepo.GetByPhone(ctx, req.Phone)
 	if err != nil {
 		if errors.Is(err, users.ErrUserNotFound) {
@@ -325,6 +359,11 @@ func (s *AuthService) VerifyCode(ctx context.Context, req VerifyCodeRequest) (*A
 		authOperationTotal.WithLabelValues("verify_code", "error").Inc()
 		authOperationDuration.WithLabelValues("verify_code").Observe(time.Since(start).Seconds())
 		return nil, err
+	}
+
+	// Сбрасываем счётчик только при успехе.
+	if err := s.otpLimiter.Reset(ctx, phone); err != nil && s.logger != nil {
+		s.logger.Warn("не удалось сбросить счётчик OTP", zap.Error(err), zap.String("phone", maskPhone(phone)))
 	}
 
 	token, err := s.generateToken(user.ID)
@@ -357,10 +396,35 @@ func (s *AuthService) Verify(ctx context.Context, req VerifyRequest) (*AuthRespo
 	start := time.Now()
 	span.SetAttributes(attribute.String("auth.phone_masked", maskPhone(phone)))
 
+	// Проверяем лимит попыток ДО верификации кода.
+	//
+	// Порядок важен: если сначала проверить код а потом лимит —
+	// злоумышленник узнает что код верный (получит успех) и обойдёт блокировку.
+	// Сначала лимит — потом код. Именно так реализовано в Twilio Verify.
+	//
+	// Graceful degradation: если Redis недоступен (err != nil) —
+	// логируем предупреждение, но продолжаем. Лучше пропустить атаку
+	// в момент падения Redis, чем заблокировать всех пользователей.
+	_, blocked, limiterErr := s.otpLimiter.CheckAndIncrement(ctx, phone)
+	if limiterErr != nil && s.logger != nil {
+		s.logger.Warn("OTPLimiter недоступен, пропускаем проверку", zap.Error(limiterErr), zap.String("phone", maskPhone(phone)))
+	}
+	if blocked {
+		authOperationTotal.WithLabelValues("verify", "blocked").Inc()
+		authOperationDuration.WithLabelValues("verify").Observe(time.Since(start).Seconds())
+		return nil, ErrOTPBlocked
+	}
+
 	if err := s.verifyAndConsumeCode(ctx, phone, req.Code); err != nil {
 		authOperationTotal.WithLabelValues("verify", "error").Inc()
 		authOperationDuration.WithLabelValues("verify").Observe(time.Since(start).Seconds())
 		return nil, err
+	}
+
+	// Сбрасываем счётчик только при успешной верификации.
+	// Ошибку Reset не возвращаем пользователю — он уже прошёл верификацию.
+	if err := s.otpLimiter.Reset(ctx, phone); err != nil && s.logger != nil {
+		s.logger.Warn("не удалось сбросить счётчик OTP", zap.Error(err), zap.String("phone", maskPhone(phone)))
 	}
 
 	user, err := s.userRepo.GetByPhone(ctx, phone)

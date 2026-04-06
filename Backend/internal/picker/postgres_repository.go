@@ -22,9 +22,13 @@ func NewPostgresPikerRepository(db *database.DB) PickerRepository {
 func (r *postgresPikerRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*models.Order, error) {
 	var order models.Order
 	query := `
-		SELECT id, user_id, courier_id, guest_name, guest_phone, guest_address, comment, status, store_id, payment_method,
-		       items_total, service_fee, delivery_fee, final_total, created_at, updated_at
-		FROM orders WHERE id = $1
+		SELECT o.id, o.user_id, o.courier_id, o.guest_name, o.guest_phone, o.guest_address,
+		       o.customer_phone, o.comment, o.status, o.store_id, o.payment_method,
+		       o.items_total, o.service_fee, o.delivery_fee, o.final_total, o.created_at, o.updated_at,
+		       o.picker_id, d.address AS delivery_address
+		FROM orders o
+		LEFT JOIN deliveries d ON d.order_id = o.id
+		WHERE o.id = $1
 	`
 	err := r.db.GetContext(ctx, &order, query, id)
 	if err == sql.ErrNoRows {
@@ -38,11 +42,17 @@ func (r *postgresPikerRepository) GetOrderByID(ctx context.Context, id uuid.UUID
 
 func (r *postgresPikerRepository) GetOrders(ctx context.Context, storeID uuid.UUID) ([]models.Order, error) {
 	var orders []models.Order
-	query := `SELECT id, user_id, courier_id, guest_name, guest_phone, guest_address, comment, status, store_id, payment_method,
-		       items_total, service_fee, delivery_fee, final_total, created_at, updated_at FROM orders WHERE store_id = $1 
-			AND status IN ('NEW', 'ACCEPTED_BY_PICKER', 'ASSEMBLING', 'ASSEMBLED')
-			ORDER BY created_at ASC
-`
+	query := `
+		SELECT o.id, o.user_id, o.courier_id, o.guest_name, o.guest_phone, o.guest_address,
+		       o.customer_phone, o.comment, o.status, o.store_id, o.payment_method,
+		       o.items_total, o.service_fee, o.delivery_fee, o.final_total, o.created_at, o.updated_at,
+		       o.picker_id, d.address AS delivery_address
+		FROM orders o
+		LEFT JOIN deliveries d ON d.order_id = o.id
+		WHERE o.store_id = $1
+		  AND o.status IN ('NEW', 'ACCEPTED_BY_PICKER', 'ASSEMBLING', 'ASSEMBLED')
+		ORDER BY o.created_at ASC
+	`
 	err := r.db.SelectContext(ctx, &orders, query, storeID)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка получения заказов: %w", err)

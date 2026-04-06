@@ -46,6 +46,7 @@ type JWTConfig struct {
 // SMSConfig содержит конфигурацию SMS провайдера.
 type SMSConfig struct {
 	RuAPIKey string
+	TestMode bool
 }
 
 // JaegerConfig содержит конфигурацию трейсинга Jaeger.
@@ -100,6 +101,7 @@ func Load() (*Config, error) {
 		},
 		SMS: SMSConfig{
 			RuAPIKey: getEnv("SMS_RU_KEY", getEnv("SMSRU_API_KEY", "")),
+			TestMode: getEnvBool("SMS_RU_TEST", false),
 		},
 		Jaeger: JaegerConfig{
 			Endpoint: getEnv("JAEGER_ENDPOINT", "http://jaeger:14268/api/traces"),
@@ -114,7 +116,7 @@ func Load() (*Config, error) {
 			Password: getEnv("ADMIN_PASSWORD", "admin"),
 		},
 		CORS: CORSConfig{
-			Origins: splitAndTrim(getEnv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174")),
+			Origins: splitAndTrim(getEnv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174")),
 		},
 		Redis: RedisConfig{
 			Host:     getEnv("REDIS_HOST", "localhost"),
@@ -155,6 +157,14 @@ func getEnvAsInt(key string, defaultValue int) int {
 		return value
 	}
 	return defaultValue
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	return strings.EqualFold(value, "true") || value == "1"
 }
 
 func splitAndTrim(value string) []string {
