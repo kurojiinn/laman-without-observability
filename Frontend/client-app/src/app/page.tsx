@@ -7,6 +7,7 @@ import CatalogTab from "@/components/catalog/CatalogTab";
 import StoresTab from "@/components/stores/StoresTab";
 import CartTab from "@/components/cart/CartTab";
 import FavoritesTab from "@/components/favorites/FavoritesTab";
+import CategoriesTab from "@/components/categories/CategoriesTab";
 import ProfileDrawer from "@/components/profile/ProfileDrawer";
 
 export default function Home() {
@@ -37,7 +38,8 @@ export default function Home() {
         {activeTab === "catalog"   && <CatalogTab search={search} />}
         {activeTab === "stores"    && <StoresTab  search={search} />}
         {activeTab === "favorites" && <FavoritesTab />}
-        {activeTab === "cart"      && <CartTab />}
+        {activeTab === "cart"       && <CartTab />}
+        {activeTab === "categories" && <CategoriesTab />}
       </main>
 
       {/* Личный кабинет — drawer поверх экрана, не таб */}
