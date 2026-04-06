@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 
@@ -9,6 +8,7 @@ interface HeaderProps {
   onSearchChange: (v: string) => void;
   onLogoClick: () => void;
   onCartClick: () => void;
+  onProfileClick: () => void;
 }
 
 export default function Header({
@@ -16,33 +16,19 @@ export default function Header({
   onSearchChange,
   onLogoClick,
   onCartClick,
+  onProfileClick,
 }: HeaderProps) {
-  const { isAuthenticated, user, openAuthModal, logout } = useAuth();
+  const { isAuthenticated, user, openAuthModal } = useAuth();
   const { totalCount } = useCart();
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
+  // Кнопка профиля: авторизован → открыть таб профиля, нет → открыть модалку входа.
+  // Раньше тут был dropdown с инфо+выход — теперь вся эта информация живёт в ProfileTab.
   function handleProfileClick() {
     if (isAuthenticated) {
-      setDropdownOpen((v) => !v);
+      onProfileClick();
     } else {
       openAuthModal();
     }
-  }
-
-  function handleLogout() {
-    logout();
-    setDropdownOpen(false);
   }
 
   return (
@@ -94,67 +80,24 @@ export default function Header({
             )}
           </button>
 
-          {/* Профиль */}
-          <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={handleProfileClick}
-              className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors"
-            >
-              <div className="w-7 h-7 bg-indigo-100 rounded-full flex items-center justify-center">
-                {isAuthenticated ? (
-                  <span className="text-xs font-bold text-indigo-600">{user?.phone.slice(-2)}</span>
-                ) : (
-                  <svg className="w-4 h-4 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                  </svg>
-                )}
-              </div>
-              <span className="text-sm text-gray-600 hidden sm:block">
-                {isAuthenticated ? "Кабинет" : "Войти"}
-              </span>
-              {isAuthenticated && (
-                <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform hidden sm:block ${dropdownOpen ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+          {/* Профиль — один клик открывает таб профиля (или модалку входа) */}
+          <button
+            onClick={handleProfileClick}
+            className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors"
+          >
+            <div className="w-7 h-7 bg-indigo-100 rounded-full flex items-center justify-center">
+              {isAuthenticated ? (
+                <span className="text-xs font-bold text-indigo-600">{user?.phone.slice(-2)}</span>
+              ) : (
+                <svg className="w-4 h-4 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
                 </svg>
               )}
-            </button>
-
-            {isAuthenticated && dropdownOpen && (
-              <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50">
-                <div className="px-4 py-4 bg-indigo-50 border-b border-indigo-100">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center">
-                      <svg className="w-5 h-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">{user?.phone}</p>
-                      <p className="text-xs text-indigo-500 font-medium mt-0.5">
-                        {user?.role === "CLIENT" ? "Клиент" : user?.role}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div className="px-4 py-3 space-y-2">
-                  <InfoRow label="Телефон" value={user?.phone ?? "—"} />
-                  <InfoRow label="Роль" value={user?.role === "CLIENT" ? "Клиент" : user?.role ?? "—"} />
-                  <InfoRow label="ID" value={user?.id ? `${user.id.slice(0, 8)}…` : "—"} mono />
-                </div>
-                <div className="px-4 pb-4">
-                  <button
-                    onClick={handleLogout}
-                    className="w-full flex items-center justify-center gap-2 h-9 rounded-xl border border-red-100 text-red-500 hover:bg-red-50 text-sm font-medium transition-colors"
-                  >
-                    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
-                    </svg>
-                    Выйти из аккаунта
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+            </div>
+            <span className="text-sm text-gray-600 hidden sm:block">
+              {isAuthenticated ? "Кабинет" : "Войти"}
+            </span>
+          </button>
         </div>
 
         {/* Строка 2: поиск только на мобильном */}
@@ -178,11 +121,3 @@ export default function Header({
   );
 }
 
-function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
-      <span className="text-xs text-gray-400">{label}</span>
-      <span className={`text-xs text-gray-700 font-medium ${mono ? "font-mono" : ""}`}>{value}</span>
-    </div>
-  );
-}
