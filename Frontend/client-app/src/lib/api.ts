@@ -50,6 +50,12 @@ export interface Category {
   description?: string;
 }
 
+export interface Subcategory {
+  id: string;
+  category_id: string;
+  name: string;
+}
+
 export interface Product {
   id: string;
   category_id: string;
@@ -107,9 +113,13 @@ export interface Order {
 export const catalogApi = {
   getCategories: () => api.get<Category[]>("/v1/catalog/categories"),
 
-  getProducts: (params?: { category_id?: string; search?: string }) => {
+  getSubcategories: (categoryId: string) =>
+    api.get<Subcategory[]>(`/v1/catalog/subcategories?category_id=${categoryId}`),
+
+  getProducts: (params?: { category_id?: string; subcategory_id?: string; search?: string }) => {
     const q = new URLSearchParams();
     if (params?.category_id) q.set("category_id", params.category_id);
+    if (params?.subcategory_id) q.set("subcategory_id", params.subcategory_id);
     if (params?.search) q.set("search", params.search);
     q.set("available_only", "true");
     return api.get<Product[]>(`/v1/catalog/products?${q}`);

@@ -1,11 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { catalogApi, type Category, type Product } from "@/lib/api";
+import { catalogApi, type Category, type Subcategory, type Product } from "@/lib/api";
 import { useCart } from "@/context/CartContext";
 import ProductModal from "@/components/ui/ProductModal";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
+
+// Эмодзи и цвета для категорий — хранятся на фронте, не в БД.
+// Причина: иконки — это UI-деталь, не бизнес-данные.
+// Ключ совпадает с полем name категории в БД.
+const CATEGORY_META: Record<string, { emoji: string; color: string }> = {
+  "Продукты":       { emoji: "🛒", color: "bg-green-50 border-green-100"  },
+  "Аптека":         { emoji: "💊", color: "bg-red-50 border-red-100"      },
+  "Стройматериалы": { emoji: "🔨", color: "bg-orange-50 border-orange-100"},
+  "Химия":          { emoji: "🧴", color: "bg-blue-50 border-blue-100"    },
+};
 
 interface Props {
   search: string;
@@ -13,48 +23,110 @@ interface Props {
 
 export default function CatalogTab({ search }: Props) {
   const [categories, setCategories] = useState<Category[]>([]);
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [activeCat, setActiveCat] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  const [activeCat, setActiveCat] = useState<Category | null>(null);
+  const [activeSubcat, setActiveSubcat] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
+  // Загружаем корневые категории один раз
   useEffect(() => {
-    catalogApi.getCategories().then(setCategories).catch(() => {});
+    catalogApi.getCategories()
+      .then((data) => setCategories(data ?? []))
+      .catch(() => {});
   }, []);
 
+  // Когда выбрана категория — загружаем её подкатегории
+  useEffect(() => {
+    if (!activeCat) {
+      setSubcategories([]);
+      setActiveSubcat(null);
+      return;
+    }
+    catalogApi.getSubcategories(activeCat.id)
+      .then((data) => setSubcategories(data ?? []))
+      .catch(() => setSubcategories([]));
+    setActiveSubcat(null);
+  }, [activeCat]);
+
+  // Загружаем товары при изменении фильтров
   useEffect(() => {
     setLoading(true);
     catalogApi
       .getProducts({
-        category_id: activeCat ?? undefined,
+        category_id: activeCat?.id,
+        subcategory_id: activeSubcat ?? undefined,
         search: search || undefined,
       })
-      .then(setProducts)
+      .then((data) => setProducts(data ?? []))
       .catch(() => setProducts([]))
       .finally(() => setLoading(false));
-  }, [activeCat, search]);
+  }, [activeCat, activeSubcat, search]);
+
+  function handleCategoryClick(cat: Category) {
+    // Повторный клик по активной категории — сбрасываем выбор
+    if (activeCat?.id === cat.id) {
+      setActiveCat(null);
+    } else {
+      setActiveCat(cat);
+    }
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-      {/* Фильтр по категориям — горизонтальный скролл на мобильном */}
+
+      {/* ── Блоки категорий ── */}
       {categories.length > 0 && (
-        <div className="flex gap-2 mb-4 sm:mb-6 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
-          <CategoryPill label="Все" active={activeCat === null} onClick={() => setActiveCat(null)} />
-          {categories.map((c) => (
-            <CategoryPill
-              key={c.id}
-              label={c.name}
-              active={activeCat === c.id}
-              onClick={() => setActiveCat(c.id)}
+        <div className="grid grid-cols-4 gap-2 sm:gap-3 mb-4 sm:mb-6">
+          {categories.map((cat) => {
+            const meta = CATEGORY_META[cat.name] ?? { emoji: "📦", color: "bg-gray-50 border-gray-100" };
+            const isActive = activeCat?.id === cat.id;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => handleCategoryClick(cat)}
+                className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl border transition-all ${
+                  isActive
+                    ? "bg-indigo-600 border-indigo-600 text-white shadow-md scale-[0.97]"
+                    : `${meta.color} text-gray-700 hover:shadow-sm`
+                }`}
+              >
+                <span className="text-2xl sm:text-3xl leading-none">{meta.emoji}</span>
+                <span className={`text-[11px] sm:text-xs font-medium text-center leading-tight ${isActive ? "text-white" : "text-gray-600"}`}>
+                  {cat.name}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Подкатегории — скролл-пилюли ── */}
+      {activeCat && subcategories.length > 0 && (
+        <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+          <SubcatPill
+            label="Все"
+            active={activeSubcat === null}
+            onClick={() => setActiveSubcat(null)}
+          />
+          {subcategories.map((sc) => (
+            <SubcatPill
+              key={sc.id}
+              label={sc.name}
+              active={activeSubcat === sc.id}
+              onClick={() => setActiveSubcat(sc.id)}
             />
           ))}
         </div>
       )}
 
+      {/* ── Товары ── */}
       {loading ? (
         <ProductSkeleton />
       ) : products.length === 0 ? (
-        <Empty text="Товары не найдены" />
+        <Empty />
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
           {products.map((p) => (
@@ -64,16 +136,15 @@ export default function CatalogTab({ search }: Props) {
       )}
 
       {selectedProduct && (
-        <ProductModal
-          product={selectedProduct}
-          onClose={() => setSelectedProduct(null)}
-        />
+        <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
       )}
     </div>
   );
 }
 
-function CategoryPill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+// ─── Вспомогательные компоненты ───────────────────────────────────────────────
+
+function SubcatPill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -104,7 +175,6 @@ function ProductCard({ product, onOpen }: { product: Product; onOpen: () => void
       className="relative bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-md transition-shadow flex flex-col cursor-pointer"
       onClick={onOpen}
     >
-      {/* Сердечко — снаружи overflow-hidden картинки, позиционируется по карточке */}
       <button
         onClick={handleFav}
         className="absolute top-2 right-2 z-10 w-8 h-8 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow-sm transition-colors"
@@ -145,18 +215,18 @@ function ProductCard({ product, onOpen }: { product: Product; onOpen: () => void
 function ProductSkeleton() {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-      {Array.from({ length: 10 }).map((_, i) => (
+      {Array.from({ length: 8 }).map((_, i) => (
         <div key={i} className="bg-gray-100 rounded-2xl aspect-[3/4] animate-pulse" />
       ))}
     </div>
   );
 }
 
-function Empty({ text }: { text: string }) {
+function Empty() {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-gray-400">
       <span className="text-5xl mb-4">🔍</span>
-      <p className="text-sm">{text}</p>
+      <p className="text-sm">Товары не найдены</p>
     </div>
   );
 }
