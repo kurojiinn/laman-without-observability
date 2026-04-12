@@ -13,10 +13,11 @@ import (
 )
 
 type Service struct {
-	pickerRepo PickerRepository
-	userRepo   UserRepository
-	jwtSecret  string
-	logger     *zap.Logger
+	pickerRepo        PickerRepository
+	userRepo          UserRepository
+	jwtSecret         string
+	serviceFeePercent float64
+	logger            *zap.Logger
 }
 
 type UserRepository interface {
@@ -27,13 +28,15 @@ type UserRepository interface {
 func NewPickerService(pickerRepo PickerRepository,
 	userRepo UserRepository,
 	jwtSecret string,
+	serviceFeePercent float64,
 	logger *zap.Logger,
 ) *Service {
 	return &Service{
-		pickerRepo: pickerRepo,
-		userRepo:   userRepo,
-		jwtSecret:  jwtSecret,
-		logger:     logger,
+		pickerRepo:        pickerRepo,
+		userRepo:          userRepo,
+		jwtSecret:         jwtSecret,
+		serviceFeePercent: serviceFeePercent,
+		logger:            logger,
 	}
 }
 func (p *Service) Login(ctx context.Context, login LoginRequest) (LoginResponse, error) {
@@ -69,13 +72,21 @@ func (p *Service) Login(ctx context.Context, login LoginRequest) (LoginResponse,
 	}, nil
 }
 
-func (p *Service) GetOrder(ctx context.Context, orderID uuid.UUID) (*models.Order, error) {
+func (p *Service) GetOrder(ctx context.Context, orderID uuid.UUID) (*PickerOrderResponse, error) {
 	order, err := p.pickerRepo.GetOrderByID(ctx, orderID)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось получить заказ: %w", err)
 	}
 
-	return order, nil
+	items, err := p.pickerRepo.GetOrderItemsByOrderID(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("не удалось получить товары заказа: %w", err)
+	}
+
+	return &PickerOrderResponse{
+		Order: *order,
+		Items: items,
+	}, nil
 }
 
 func (p *Service) GetOrdersByUserID(ctx context.Context, userID uuid.UUID) ([]models.Order, error) {
@@ -93,10 +104,11 @@ func (p *Service) GetOrdersByUserID(ctx context.Context, userID uuid.UUID) ([]mo
 }
 
 func (p *Service) UpdateStatus(ctx context.Context, orderID uuid.UUID, pickerID uuid.UUID, newStatus models.OrderStatus) error {
-	order, err := p.GetOrder(ctx, orderID)
+	orderResp, err := p.GetOrder(ctx, orderID)
 	if err != nil {
 		return fmt.Errorf("не удалось получить заказ")
 	}
+	order := &orderResp.Order
 	if order.PickerID != nil && *order.PickerID != pickerID {
 		return fmt.Errorf("заказ уже взят другим сборщиком")
 	}
@@ -114,6 +126,31 @@ func (p *Service) UpdateStatus(ctx context.Context, orderID uuid.UUID, pickerID 
 	}
 	if err != nil {
 		return fmt.Errorf("не удалось обновить статус заказа: %w", err)
+	}
+
+	return nil
+}
+
+func (p *Service) AddItem(ctx context.Context, orderID uuid.UUID, req AddItemRequest) (*PickerOrderItem, error) {
+	item, err := p.pickerRepo.AddOrderItem(ctx, orderID, req.ProductName, req.Price, req.Quantity)
+	if err != nil {
+		return nil, fmt.Errorf("не удалось добавить товар: %w", err)
+	}
+
+	if err := p.pickerRepo.RecalcOrderTotals(ctx, orderID, p.serviceFeePercent); err != nil {
+		return nil, fmt.Errorf("не удалось пересчитать сумму: %w", err)
+	}
+
+	return item, nil
+}
+
+func (p *Service) RemoveItem(ctx context.Context, orderID uuid.UUID, itemID uuid.UUID) error {
+	if err := p.pickerRepo.RemoveOrderItem(ctx, itemID); err != nil {
+		return fmt.Errorf("не удалось удалить товар: %w", err)
+	}
+
+	if err := p.pickerRepo.RecalcOrderTotals(ctx, orderID, p.serviceFeePercent); err != nil {
+		return fmt.Errorf("не удалось пересчитать сумму: %w", err)
 	}
 
 	return nil

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Product } from "@/lib/api";
+import { resolveImageUrl, type Product } from "@/lib/api";
 import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
@@ -10,9 +10,11 @@ interface Props {
   product: Product;
   storeName?: string;
   onClose: () => void;
+  /** Если передан — показывает кнопку "Перейти в магазин" вместо корзины */
+  onGoToStore?: () => void;
 }
 
-export default function ProductModal({ product, storeName, onClose }: Props) {
+export default function ProductModal({ product, storeName, onClose, onGoToStore }: Props) {
   const { items, addItem, updateQuantity } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
   const { isAuthenticated, openAuthModal } = useAuth();
@@ -68,7 +70,7 @@ export default function ProductModal({ product, storeName, onClose }: Props) {
         <div className="relative w-full aspect-square bg-gray-100 flex-shrink-0">
           {product.image_url ? (
             <img
-              src={product.image_url}
+              src={resolveImageUrl(product.image_url)}
               alt={product.name}
               className="w-full h-full object-cover"
             />
@@ -116,41 +118,55 @@ export default function ProductModal({ product, storeName, onClose }: Props) {
 
           {/* Price */}
           <p className="text-xl font-bold text-gray-900">
-            {totalPrice.toLocaleString("ru-RU")} ₽
-            {qty > 1 && (
+            {(onGoToStore ? product.price : totalPrice).toLocaleString("ru-RU")} ₽
+            {!onGoToStore && qty > 1 && (
               <span className="text-sm font-normal text-gray-400 ml-1.5">
                 ({product.price.toLocaleString("ru-RU")} ₽ × {qty})
               </span>
             )}
           </p>
 
-          {/* Quantity selector */}
-          <div className="flex items-center gap-4 mt-1">
-            <span className="text-sm text-gray-500">Количество</span>
-            <div className="flex items-center gap-3 ml-auto">
-              <button
-                onClick={() => setQty((q) => Math.max(1, q - 1))}
-                className="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center text-gray-700 text-xl font-bold hover:border-indigo-400 hover:text-indigo-600 transition-colors active:scale-95"
-              >
-                −
-              </button>
-              <span className="w-8 text-center text-base font-semibold text-gray-900">{qty}</span>
-              <button
-                onClick={() => setQty((q) => q + 1)}
-                className="w-10 h-10 rounded-full border-2 border-indigo-500 bg-indigo-500 flex items-center justify-center text-white text-xl font-bold hover:bg-indigo-600 hover:border-indigo-600 transition-colors active:scale-95"
-              >
-                +
-              </button>
+          {/* Quantity selector — только в контексте магазина */}
+          {!onGoToStore && (
+            <div className="flex items-center gap-4 mt-1">
+              <span className="text-sm text-gray-500">Количество</span>
+              <div className="flex items-center gap-3 ml-auto">
+                <button
+                  onClick={() => setQty((q) => Math.max(1, q - 1))}
+                  className="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center text-gray-700 text-xl font-bold hover:border-indigo-400 hover:text-indigo-600 transition-colors active:scale-95"
+                >
+                  −
+                </button>
+                <span className="w-8 text-center text-base font-semibold text-gray-900">{qty}</span>
+                <button
+                  onClick={() => setQty((q) => q + 1)}
+                  className="w-10 h-10 rounded-full border-2 border-indigo-500 bg-indigo-500 flex items-center justify-center text-white text-xl font-bold hover:bg-indigo-600 hover:border-indigo-600 transition-colors active:scale-95"
+                >
+                  +
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Add to cart button */}
-          <button
-            onClick={handleAddToCart}
-            className="mt-2 w-full py-4 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-base font-bold rounded-2xl transition-all shadow-sm"
-          >
-            {cartItem ? "Обновить корзину" : `Добавить в корзину · ${totalPrice.toLocaleString("ru-RU")} ₽`}
-          </button>
+          {/* Кнопка: корзина (обычный контекст) или перейти в магазин (с главной) */}
+          {onGoToStore ? (
+            <button
+              onClick={onGoToStore}
+              className="mt-2 w-full py-4 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-base font-bold rounded-2xl transition-all shadow-sm flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+              Перейти в магазин
+            </button>
+          ) : (
+            <button
+              onClick={handleAddToCart}
+              className="mt-2 w-full py-4 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-base font-bold rounded-2xl transition-all shadow-sm"
+            >
+              {cartItem ? "Обновить корзину" : `Добавить в корзину · ${totalPrice.toLocaleString("ru-RU")} ₽`}
+            </button>
+          )}
         </div>
       </div>
     </div>

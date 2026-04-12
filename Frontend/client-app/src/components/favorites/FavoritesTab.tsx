@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
-import type { Product } from "@/lib/api";
+import { resolveImageUrl, type Product } from "@/lib/api";
 import ProductModal from "@/components/ui/ProductModal";
 
 export default function FavoritesTab() {
@@ -94,7 +94,7 @@ function FavoriteCard({
     >
       <div className="aspect-square bg-gray-50 relative overflow-hidden">
         {product.image_url ? (
-          <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+          <img src={resolveImageUrl(product.image_url)} alt={product.name} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-4xl">🛍️</div>
         )}

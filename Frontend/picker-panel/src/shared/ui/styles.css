@@ -142,6 +142,51 @@ button:disabled {
   vertical-align: top;
 }
 
+.clickable-row {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.clickable-row:hover {
+  background: #f0f4ff;
+}
+
+@media (max-width: 600px) {
+  .app-shell {
+    padding: 12px 8px;
+  }
+
+  .topbar h1 {
+    font-size: 18px;
+  }
+
+  .card {
+    padding: 12px;
+    border-radius: 8px;
+  }
+
+  .segmented {
+    gap: 6px;
+  }
+
+  .segmented button {
+    padding: 7px 10px;
+    font-size: 13px;
+  }
+
+  .orders-table th,
+  .orders-table td {
+    padding: 8px 6px;
+    font-size: 13px;
+  }
+
+  /* На мобиле прячем колонку "Создан" — остаётся телефон, статус, сумма */
+  .orders-table th:nth-child(3),
+  .orders-table td:nth-child(3) {
+    display: none;
+  }
+}
+
 .order-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));

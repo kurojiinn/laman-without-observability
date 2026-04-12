@@ -2,6 +2,15 @@ import { z } from "zod";
 import { httpRequest } from "../../shared/api/http";
 import type { PickerOrder, OrderStatus } from "../../entities/order/model";
 
+const orderItemSchema = z.object({
+  id: z.string().uuid(),
+  product_id: z.string().uuid().nullable().optional(),
+  product_name: z.string(),
+  image_url: z.string().nullable().optional(),
+  quantity: z.number(),
+  price: z.number(),
+});
+
 const orderSchema = z.object({
   id: z.string().uuid(),
   user_id: z.string().uuid().nullable().optional(),
@@ -22,6 +31,7 @@ const orderSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   picker_id: z.string().uuid().nullable().optional(),
+  items: z.array(orderItemSchema).optional().default([]),
 });
 
 const ordersSchema = z.array(orderSchema).nullish().transform((value) => value ?? []);
@@ -47,6 +57,14 @@ function mapOrder(raw: z.infer<typeof orderSchema>): PickerOrder {
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
     pickerId: raw.picker_id ?? null,
+    items: (raw.items ?? []).map((item) => ({
+      id: item.id,
+      productId: item.product_id ?? null,
+      productName: item.product_name,
+      imageUrl: item.image_url ?? null,
+      quantity: item.quantity,
+      price: item.price,
+    })),
   };
 }
 
@@ -67,5 +85,23 @@ export async function updatePickerOrderStatus(orderId: string, status: OrderStat
     method: "PUT",
     authorized: true,
     body: { status },
+  });
+}
+
+export async function addOrderItem(
+  orderId: string,
+  item: { product_name: string; price: number; quantity: number },
+): Promise<void> {
+  await httpRequest(`/api/v1/picker/orders/${orderId}/items`, {
+    method: "POST",
+    authorized: true,
+    body: item,
+  });
+}
+
+export async function removeOrderItem(orderId: string, itemId: string): Promise<void> {
+  await httpRequest(`/api/v1/picker/orders/${orderId}/items/${itemId}`, {
+    method: "DELETE",
+    authorized: true,
   });
 }

@@ -1,5 +1,30 @@
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api";
+// Возвращает base URL для API.
+// Приоритет: NEXT_PUBLIC_API_URL → динамический hostname браузера → localhost.
+// Это позволяет открывать сайт по любому IP (192.168.x.x, другое устройство)
+// без изменения конфигурации.
+function getBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  if (typeof window !== "undefined") {
+    return `http://${window.location.hostname}:8080/api`;
+  }
+  return "http://localhost:8080/api";
+}
+
+// Нормализует image_url: заменяет любой хост из старых бэкендов
+// на текущий API-хост. image_url хранится в БД как абсолютный URL
+// с тем IP, который был прописан в PUBLIC_URL на момент загрузки.
+export function resolveImageUrl(url: string | undefined | null): string | undefined {
+  if (!url) return undefined;
+  try {
+    const apiHost = new URL(getBaseUrl()).origin;
+    const parsed = new URL(url);
+    return apiHost + parsed.pathname;
+  } catch {
+    return url;
+  }
+}
 
 function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
@@ -14,7 +39,7 @@ function getAuthHeaders(): Record<string, string> {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(`${getBaseUrl()}${path}`, {
     ...options,
     credentials: "include",
     headers: { ...getAuthHeaders(), ...options.headers },

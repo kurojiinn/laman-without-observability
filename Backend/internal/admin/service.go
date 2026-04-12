@@ -52,6 +52,16 @@ func (s *Service) CreateProduct(ctx context.Context, req *CreateProductRequest) 
 	return product, nil
 }
 
+// GetProductsByStore возвращает товары магазина.
+func (s *Service) GetProductsByStore(ctx context.Context, storeID uuid.UUID) ([]models.Product, error) {
+	return s.repo.GetProductsByStore(ctx, storeID)
+}
+
+// UpdateProduct обновляет товар.
+func (s *Service) UpdateProduct(ctx context.Context, id uuid.UUID, req *UpdateProductRequest) (*models.Product, error) {
+	return s.repo.UpdateProduct(ctx, id, req)
+}
+
 // GetActiveOrders возвращает заказы, которые еще не доставлены.
 func (s *Service) GetActiveOrders(ctx context.Context) ([]models.Order, error) {
 	orders, err := s.repo.GetActiveOrders(ctx)

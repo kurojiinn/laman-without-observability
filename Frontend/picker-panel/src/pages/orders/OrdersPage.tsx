@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { AppShell } from "../../shared/ui/AppShell";
 import { usePickerOrders } from "../../features/orders/hooks";
 import { usePickerRealtime } from "../../features/sse/usePickerRealtime";
-import { shortId, formatDate, formatPrice } from "../../shared/lib/format";
+import { formatDate, formatPrice } from "../../shared/lib/format";
 import { statusLabel, statusPriority } from "../../entities/order/model";
 
 type FilterType = "all" | "new" | "assembling" | "problem";
@@ -21,6 +21,7 @@ export function OrdersPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
   const ordersQuery = usePickerOrders();
+  const navigate = useNavigate();
   usePickerRealtime(true);
 
   const filteredOrders = useMemo(() => {
@@ -103,27 +104,23 @@ export function OrdersPage() {
           <table className="orders-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Клиент</th>
                 <th>Телефон</th>
                 <th>Статус</th>
                 <th>Создан</th>
                 <th>Сумма</th>
-                <th />
               </tr>
             </thead>
             <tbody>
               {activeOrders.map((order) => (
-                <tr key={order.id}>
-                  <td>#{shortId(order.id)}</td>
-                  <td>{order.guestName ?? "Гость"}</td>
+                <tr
+                  key={order.id}
+                  className="clickable-row"
+                  onClick={() => navigate(`/orders/${order.id}`)}
+                >
                   <td>{order.customerPhone ?? order.guestPhone ?? "-"}</td>
                   <td>{statusLabel(order.status)}</td>
                   <td>{formatDate(order.createdAt)}</td>
                   <td>{formatPrice(order.finalTotal)}</td>
-                  <td>
-                    <Link to={`/orders/${order.id}`}>Открыть</Link>
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -139,27 +136,23 @@ export function OrdersPage() {
           <table className="orders-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Клиент</th>
                 <th>Телефон</th>
                 <th>Статус</th>
                 <th>Создан</th>
                 <th>Сумма</th>
-                <th />
               </tr>
             </thead>
             <tbody>
               {completedOrders.map((order) => (
-                <tr key={order.id}>
-                  <td>#{shortId(order.id)}</td>
-                  <td>{order.guestName ?? "Гость"}</td>
+                <tr
+                  key={order.id}
+                  className="clickable-row"
+                  onClick={() => navigate(`/orders/${order.id}`)}
+                >
                   <td>{order.customerPhone ?? order.guestPhone ?? "-"}</td>
                   <td>{statusLabel(order.status)}</td>
                   <td>{formatDate(order.createdAt)}</td>
                   <td>{formatPrice(order.finalTotal)}</td>
-                  <td>
-                    <Link to={`/orders/${order.id}`}>Открыть</Link>
-                  </td>
                 </tr>
               ))}
             </tbody>

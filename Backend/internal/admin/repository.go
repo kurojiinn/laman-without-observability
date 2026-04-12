@@ -21,6 +21,8 @@ type Repository interface {
 	DeleteStore(ctx context.Context, id uuid.UUID) error
 	CreateProduct(ctx context.Context, product *models.Product) error
 	DeleteProduct(ctx context.Context, id uuid.UUID) error
+	UpdateProduct(ctx context.Context, id uuid.UUID, req *UpdateProductRequest) (*models.Product, error)
+	GetProductsByStore(ctx context.Context, storeID uuid.UUID) ([]models.Product, error)
 	UpdateOrderStatus(ctx context.Context, id uuid.UUID, status models.OrderStatus) error
 	GetCategoryAndStoreMaps(ctx context.Context) (map[string]uuid.UUID, map[string]uuid.UUID, error)
 	BulkInsertProducts(ctx context.Context, rows []ImportProductRow) error
@@ -235,6 +237,82 @@ func newProductFromRequest(req *CreateProductRequest) *models.Product {
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
+}
+
+// UpdateProductRequest — поля для частичного обновления товара.
+type UpdateProductRequest struct {
+	Name        *string    `json:"name"`
+	Price       *float64   `json:"price"`
+	Description *string    `json:"description"`
+	ImageURL    *string    `json:"image_url"`
+	IsAvailable *bool      `json:"is_available"`
+	CategoryID  *uuid.UUID `json:"category_id"`
+}
+
+// GetProductsByStore возвращает все товары магазина.
+func (r *postgresRepository) GetProductsByStore(ctx context.Context, storeID uuid.UUID) ([]models.Product, error) {
+	var products []models.Product
+	query := `
+		SELECT id, category_id, subcategory_id, store_id, name, description, image_url,
+		       price, weight, is_available, created_at, updated_at
+		FROM products
+		WHERE store_id = $1
+		ORDER BY name ASC
+	`
+	err := r.db.SelectContext(ctx, &products, query, storeID)
+	return products, err
+}
+
+// UpdateProduct обновляет только переданные поля товара.
+func (r *postgresRepository) UpdateProduct(ctx context.Context, id uuid.UUID, req *UpdateProductRequest) (*models.Product, error) {
+	setClauses := []string{"updated_at = NOW()"}
+	args := []any{}
+	argIdx := 1
+
+	if req.Name != nil {
+		setClauses = append(setClauses, fmt.Sprintf("name = $%d", argIdx))
+		args = append(args, *req.Name)
+		argIdx++
+	}
+	if req.Price != nil {
+		setClauses = append(setClauses, fmt.Sprintf("price = $%d", argIdx))
+		args = append(args, *req.Price)
+		argIdx++
+	}
+	if req.Description != nil {
+		setClauses = append(setClauses, fmt.Sprintf("description = $%d", argIdx))
+		args = append(args, *req.Description)
+		argIdx++
+	}
+	if req.ImageURL != nil {
+		setClauses = append(setClauses, fmt.Sprintf("image_url = $%d", argIdx))
+		args = append(args, *req.ImageURL)
+		argIdx++
+	}
+	if req.IsAvailable != nil {
+		setClauses = append(setClauses, fmt.Sprintf("is_available = $%d", argIdx))
+		args = append(args, *req.IsAvailable)
+		argIdx++
+	}
+	if req.CategoryID != nil {
+		setClauses = append(setClauses, fmt.Sprintf("category_id = $%d", argIdx))
+		args = append(args, *req.CategoryID)
+		argIdx++
+	}
+
+	args = append(args, id)
+	query := fmt.Sprintf(
+		`UPDATE products SET %s WHERE id = $%d
+		 RETURNING id, category_id, subcategory_id, store_id, name, description, image_url, price, weight, is_available, created_at, updated_at`,
+		strings.Join(setClauses, ", "),
+		argIdx,
+	)
+
+	var product models.Product
+	if err := r.db.GetContext(ctx, &product, query, args...); err != nil {
+		return nil, fmt.Errorf("товар не найден или ошибка обновления: %w", err)
+	}
+	return &product, nil
 }
 
 var errInvalidStatus = fmt.Errorf("некорректный статус заказа")

@@ -1,7 +1,9 @@
 -- +goose Up
 -- +goose StatementBegin
 
--- Обнуляем ссылки на категории и подкатегории в товарах перед заменой
+-- Временно снимаем NOT NULL, чтобы обнулить ссылки перед заменой категорий
+ALTER TABLE products ALTER COLUMN category_id DROP NOT NULL;
+
 UPDATE products SET subcategory_id = NULL WHERE subcategory_id IS NOT NULL;
 UPDATE products SET category_id = NULL WHERE category_id IS NOT NULL;
 

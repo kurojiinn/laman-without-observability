@@ -4,9 +4,9 @@ import (
 	"Laman/internal/events"
 	"Laman/internal/middleware"
 	"Laman/internal/models"
-	"net/http"
-
 	"context"
+	"fmt"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -29,6 +29,8 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 		pikers.GET("", middleware.AuthMiddleware(h.authService), h.GetOrders)
 		pikers.GET("/events", middleware.AuthMiddleware(h.authService), h.Events)
 		pikers.PUT("/orders/:id/status", middleware.AuthMiddleware(h.authService), h.UpdateStatus)
+		pikers.POST("/orders/:id/items", middleware.AuthMiddleware(h.authService), h.AddItem)
+		pikers.DELETE("/orders/:id/items/:itemId", middleware.AuthMiddleware(h.authService), h.RemoveItem)
 	}
 }
 
@@ -39,10 +41,12 @@ type AuthService interface {
 
 type PickerService interface {
 	Login(ctx context.Context, login LoginRequest) (LoginResponse, error)
-	GetOrder(ctx context.Context, orderID uuid.UUID) (*models.Order, error)
+	GetOrder(ctx context.Context, orderID uuid.UUID) (*PickerOrderResponse, error)
 	GetOrdersByUserID(ctx context.Context, storeID uuid.UUID) ([]models.Order, error)
 	UpdateStatus(ctx context.Context, orderID uuid.UUID, pickerID uuid.UUID, newStatus models.OrderStatus) error
 	GetStoreIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
+	AddItem(ctx context.Context, orderID uuid.UUID, req AddItemRequest) (*PickerOrderItem, error)
+	RemoveItem(ctx context.Context, orderID uuid.UUID, itemID uuid.UUID) error
 }
 
 func NewHandler(service PickerService, logger *zap.Logger, authService AuthService, hub *events.Hub) *Handler {
@@ -138,6 +142,65 @@ func (h *Handler) UpdateStatus(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "статус заказа обновлен"})
+}
+
+func (h *Handler) AddItem(c *gin.Context) {
+	orderID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID заказа"})
+		return
+	}
+
+	var req AddItemRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	item, err := h.service.AddItem(c.Request.Context(), orderID, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Уведомляем клиента через SSE
+	order, err := h.service.GetOrder(c.Request.Context(), orderID)
+	if err == nil && order.UserID != nil {
+		msg := fmt.Sprintf(`{"type":"order_updated","order_id":"%s","message":"Сборщик добавил товар «%s». Новая сумма: %.0f₽","final_total":%.2f}`,
+			orderID, req.ProductName, order.FinalTotal, order.FinalTotal)
+		h.hub.Notify(*order.UserID, msg)
+	}
+
+	c.JSON(http.StatusCreated, item)
+}
+
+func (h *Handler) RemoveItem(c *gin.Context) {
+	orderID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID заказа"})
+		return
+	}
+
+	itemID, err := uuid.Parse(c.Param("itemId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID товара"})
+		return
+	}
+
+	if err := h.service.RemoveItem(c.Request.Context(), orderID, itemID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Уведомляем клиента через SSE
+	order, err := h.service.GetOrder(c.Request.Context(), orderID)
+	if err == nil && order.UserID != nil {
+		msg := fmt.Sprintf(`{"type":"order_updated","order_id":"%s","message":"Сборщик изменил состав заказа. Новая сумма: %.0f₽","final_total":%.2f}`,
+			orderID, order.FinalTotal, order.FinalTotal)
+		h.hub.Notify(*order.UserID, msg)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "товар удалён"})
 }
 
 func (h *Handler) Events(c *gin.Context) {

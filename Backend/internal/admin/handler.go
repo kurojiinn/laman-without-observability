@@ -43,7 +43,9 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.Han
 		admin.GET("/orders/active", h.GetActiveOrders)
 		admin.POST("/stores", h.CreateStore)
 		admin.DELETE("/stores/:id", h.DeleteStore)
+		admin.GET("/products", h.GetProducts)
 		admin.POST("/products", h.CreateProduct)
+		admin.PATCH("/products/:id", h.UpdateProduct)
 		admin.POST("/products/import", h.ImportProducts)
 		admin.DELETE("/products/:id", h.DeleteProduct)
 		admin.PATCH("/orders/:id", h.UpdateOrderStatus)
@@ -179,6 +181,74 @@ func (h *Handler) DeleteStore(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// GetProducts возвращает список товаров магазина.
+func (h *Handler) GetProducts(c *gin.Context) {
+	storeID, err := uuid.Parse(c.Query("store_id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "требуется store_id", "")
+		return
+	}
+	products, err := h.service.GetProductsByStore(c.Request.Context(), storeID)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось получить товары", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, products)
+}
+
+// UpdateProduct обновляет товар. Принимает multipart/form-data (поля + опциональное фото).
+func (h *Handler) UpdateProduct(c *gin.Context) {
+	ctx, span := observability.StartSpan(c.Request.Context(), "admin.update_product")
+	defer span.End()
+
+	productID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID товара", "")
+		return
+	}
+
+	_ = c.Request.ParseMultipartForm(20 << 20)
+
+	req := &UpdateProductRequest{}
+
+	if name := c.PostForm("name"); name != "" {
+		req.Name = &name
+	}
+	if priceStr := c.PostForm("price"); priceStr != "" {
+		var price float64
+		if _, err := fmt.Sscanf(priceStr, "%f", &price); err == nil && price > 0 {
+			req.Price = &price
+		}
+	}
+	if desc := c.PostForm("description"); desc != "" {
+		req.Description = &desc
+	}
+	if availStr := c.PostForm("is_available"); availStr != "" {
+		avail := availStr == "true"
+		req.IsAvailable = &avail
+	}
+	if catStr := c.PostForm("category_id"); catStr != "" {
+		if catID, err := uuid.Parse(catStr); err == nil {
+			req.CategoryID = &catID
+		}
+	}
+
+	// Если загружено новое фото — сохраняем и обновляем URL
+	if _, fileHeader, err := c.Request.FormFile("image"); err == nil && fileHeader != nil {
+		imageURL, err := h.saveUploadedImage(ctx, c)
+		if err == nil {
+			req.ImageURL = &imageURL
+		}
+	}
+
+	product, err := h.service.UpdateProduct(ctx, productID, req)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "не удалось обновить товар", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, product)
 }
 
 // DeleteProduct удаляет товар по ID.

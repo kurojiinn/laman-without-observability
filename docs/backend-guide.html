@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Laman Backend — Гайд для разработчика</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3350;
+    --accent: #6c63ff;
+    --accent2: #00d2ff;
+    --green: #4ade80;
+    --yellow: #fbbf24;
+    --red: #f87171;
+    --orange: #fb923c;
+    --pink: #e879f9;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --text3: #64748b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.6; }
+
+  /* NAV */
+  nav { position: fixed; top: 0; left: 0; width: 260px; height: 100vh; background: var(--surface); border-right: 1px solid var(--border); overflow-y: auto; padding: 24px 0; z-index: 100; }
+  nav .logo { padding: 0 20px 20px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+  nav .logo h1 { font-size: 20px; font-weight: 700; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  nav .logo p { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  nav a { display: block; padding: 8px 20px; color: var(--text2); text-decoration: none; font-size: 13px; border-left: 3px solid transparent; transition: all 0.2s; }
+  nav a:hover, nav a.active { color: var(--text); border-left-color: var(--accent); background: rgba(108,99,255,0.08); }
+  nav .nav-section { padding: 12px 20px 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text3); font-weight: 600; }
+
+  /* MAIN */
+  main { margin-left: 260px; padding: 40px 48px; max-width: 1100px; }
+  section { margin-bottom: 80px; }
+  h2 { font-size: 28px; font-weight: 700; margin-bottom: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 18px; font-weight: 600; margin: 28px 0 12px; color: var(--text); }
+  h4 { font-size: 14px; font-weight: 600; margin: 16px 0 8px; color: var(--accent2); }
+  p { color: var(--text2); margin-bottom: 12px; font-size: 14px; }
+
+  /* HERO */
+  .hero { background: linear-gradient(135deg, rgba(108,99,255,0.15), rgba(0,210,255,0.1)); border: 1px solid rgba(108,99,255,0.3); border-radius: 16px; padding: 36px; margin-bottom: 48px; }
+  .hero h1 { font-size: 36px; font-weight: 800; background: linear-gradient(135deg, #fff, var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+  .hero p { font-size: 15px; color: var(--text2); max-width: 600px; margin: 0; }
+  .hero-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+  .chip { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+  .chip-go { background: rgba(0,210,255,0.15); color: var(--accent2); border: 1px solid rgba(0,210,255,0.3); }
+  .chip-gin { background: rgba(74,222,128,0.15); color: var(--green); border: 1px solid rgba(74,222,128,0.3); }
+  .chip-pg { background: rgba(251,191,36,0.15); color: var(--yellow); border: 1px solid rgba(251,191,36,0.3); }
+  .chip-redis { background: rgba(248,113,113,0.15); color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
+
+  /* ROADMAP */
+  .roadmap { display: flex; flex-direction: column; gap: 0; }
+  .roadmap-step { display: flex; gap: 20px; position: relative; }
+  .roadmap-step:not(:last-child)::after { content: ''; position: absolute; left: 19px; top: 48px; bottom: -16px; width: 2px; background: var(--border); }
+  .roadmap-num { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex-shrink: 0; margin-top: 8px; }
+  .roadmap-body { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; margin-bottom: 16px; cursor: pointer; transition: border-color 0.2s; }
+  .roadmap-body:hover { border-color: var(--accent); }
+  .roadmap-body h4 { margin: 0 0 6px; font-size: 15px; color: var(--text); }
+  .roadmap-body p { margin: 0 0 8px; font-size: 13px; }
+  .roadmap-body .files { display: flex; flex-wrap: wrap; gap: 6px; }
+  .file-tag { font-family: 'Courier New', monospace; font-size: 11px; padding: 2px 8px; background: rgba(108,99,255,0.15); color: var(--accent); border: 1px solid rgba(108,99,255,0.2); border-radius: 4px; }
+  .roadmap-step.phase1 .roadmap-num { background: rgba(108,99,255,0.2); color: var(--accent); }
+  .roadmap-step.phase2 .roadmap-num { background: rgba(0,210,255,0.2); color: var(--accent2); }
+  .roadmap-step.phase3 .roadmap-num { background: rgba(74,222,128,0.2); color: var(--green); }
+  .roadmap-step.phase4 .roadmap-num { background: rgba(251,191,36,0.2); color: var(--yellow); }
+  .roadmap-step.phase5 .roadmap-num { background: rgba(232,121,249,0.2); color: var(--pink); }
+  .phase-label { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 20px; margin-bottom: 20px; }
+  .phase-label.p1 { background: rgba(108,99,255,0.2); color: var(--accent); }
+  .phase-label.p2 { background: rgba(0,210,255,0.2); color: var(--accent2); }
+  .phase-label.p3 { background: rgba(74,222,128,0.2); color: var(--green); }
+  .phase-label.p4 { background: rgba(251,191,36,0.2); color: var(--yellow); }
+  .phase-label.p5 { background: rgba(232,121,249,0.2); color: var(--pink); }
+
+  /* ARCH DIAGRAM */
+  .arch-diagram { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; }
+  .arch-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .arch-box { padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; text-align: center; border: 1px solid; }
+  .arch-layer { margin-bottom: 24px; }
+  .arch-layer-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text3); font-weight: 600; margin-bottom: 10px; }
+  .arch-boxes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .box-handler { background: rgba(108,99,255,0.1); border-color: rgba(108,99,255,0.4); color: var(--accent); }
+  .box-service { background: rgba(0,210,255,0.1); border-color: rgba(0,210,255,0.4); color: var(--accent2); }
+  .box-repo { background: rgba(74,222,128,0.1); border-color: rgba(74,222,128,0.4); color: var(--green); }
+  .box-infra { background: rgba(251,191,36,0.1); border-color: rgba(251,191,36,0.4); color: var(--yellow); }
+  .box-external { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.4); color: var(--red); }
+  .arch-arrow { color: var(--text3); font-size: 20px; display: flex; align-items: center; justify-content: center; margin: 8px 0; }
+
+  /* PACKAGE CARDS */
+  .pkg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+  .pkg-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.2s; }
+  .pkg-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .pkg-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .pkg-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .pkg-card h4 { margin: 0; font-size: 15px; color: var(--text); }
+  .pkg-card p { font-size: 12px; color: var(--text2); margin: 0 0 12px; }
+  .pkg-card .route-count { font-size: 11px; color: var(--text3); }
+
+  /* PACKAGE DETAIL */
+  .pkg-detail { display: none; }
+  .pkg-detail.open { display: block; }
+  .pkg-detail-inner { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-top: 12px; }
+
+  /* CODE */
+  pre { background: #0d0f1a; border: 1px solid var(--border); border-radius: 8px; padding: 16px; overflow-x: auto; font-size: 13px; margin: 12px 0; }
+  code { font-family: 'Courier New', monospace; }
+  .kw { color: #c792ea; }
+  .fn { color: #82aaff; }
+  .str { color: #c3e88d; }
+  .cm { color: #546e7a; font-style: italic; }
+  .type { color: #ffcb6b; }
+  .num { color: #f78c6c; }
+
+  /* FLOW */
+  .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 16px; background: var(--surface); border-radius: 10px; margin: 12px 0; }
+  .flow-box { padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 500; }
+  .flow-arrow { color: var(--text3); font-size: 18px; }
+  .s-new { background: rgba(94,234,212,0.15); color: #5eead4; }
+  .s-pick { background: rgba(251,191,36,0.15); color: var(--yellow); }
+  .s-assem { background: rgba(251,146,60,0.15); color: var(--orange); }
+  .s-wait { background: rgba(108,99,255,0.15); color: var(--accent); }
+  .s-deliv { background: rgba(0,210,255,0.15); color: var(--accent2); }
+  .s-done { background: rgba(74,222,128,0.15); color: var(--green); }
+  .s-cancel { background: rgba(248,113,113,0.15); color: var(--red); }
+
+  /* TABLE */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: var(--surface2); padding: 10px 14px; text-align: left; color: var(--text2); font-weight: 600; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 14px; border-bottom: 1px solid rgba(46,51,80,0.5); color: var(--text2); vertical-align: top; }
+  tr:hover td { background: rgba(108,99,255,0.04); }
+  td code { background: rgba(108,99,255,0.1); padding: 1px 6px; border-radius: 3px; color: var(--accent); font-size: 12px; }
+  .method { font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 3px; }
+  .get { background: rgba(74,222,128,0.2); color: var(--green); }
+  .post { background: rgba(251,191,36,0.2); color: var(--yellow); }
+  .put { background: rgba(0,210,255,0.2); color: var(--accent2); }
+  .delete { background: rgba(248,113,113,0.2); color: var(--red); }
+  .patch { background: rgba(232,121,249,0.2); color: var(--pink); }
+
+  /* TIPS */
+  .tip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .tip-card { background: var(--surface); border-left: 4px solid; border-radius: 0 10px 10px 0; padding: 16px; }
+  .tip-card.best { border-color: var(--green); }
+  .tip-card.pattern { border-color: var(--accent); }
+  .tip-card.gotcha { border-color: var(--yellow); }
+  .tip-card.security { border-color: var(--red); }
+  .tip-card h4 { font-size: 13px; margin-bottom: 6px; }
+  .tip-card.best h4 { color: var(--green); }
+  .tip-card.pattern h4 { color: var(--accent); }
+  .tip-card.gotcha h4 { color: var(--yellow); }
+  .tip-card.security h4 { color: var(--red); }
+  .tip-card p { font-size: 12px; margin: 0; }
+
+  /* MIGRATION timeline */
+  .migration-list { list-style: none; }
+  .migration-list li { display: flex; gap: 16px; padding: 12px 0; border-bottom: 1px solid rgba(46,51,80,0.5); align-items: flex-start; }
+  .migration-num { font-size: 11px; color: var(--text3); font-family: monospace; white-space: nowrap; }
+  .migration-title { font-size: 13px; color: var(--text); font-weight: 500; }
+  .migration-desc { font-size: 12px; color: var(--text2); }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 900px) {
+    nav { display: none; }
+    main { margin-left: 0; padding: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">
+    <h1>Laman Backend</h1>
+    <p>Гайд для разработчика</p>
+  </div>
+  <div class="nav-section">Начало</div>
+  <a href="#overview" class="active">Обзор проекта</a>
+  <a href="#roadmap">Роадмапа изучения</a>
+  <a href="#architecture">Архитектура</a>
+  <div class="nav-section">Пакеты</div>
+  <a href="#entry">Точка входа (main.go)</a>
+  <a href="#auth">auth — авторизация</a>
+  <a href="#users">users — профиль</a>
+  <a href="#catalog">catalog — каталог</a>
+  <a href="#orders">orders — заказы</a>
+  <a href="#picker">picker — сборщик</a>
+  <a href="#courier">courier — курьер</a>
+  <a href="#admin">admin — администратор</a>
+  <a href="#middleware">middleware</a>
+  <a href="#infra">инфраструктура</a>
+  <div class="nav-section">Справочник</div>
+  <a href="#endpoints">Все эндпоинты</a>
+  <a href="#migrations">Миграции БД</a>
+  <a href="#patterns">Паттерны и советы</a>
+</nav>
+
+<main>
+
+<!-- HERO -->
+<div class="hero">
+  <h1>Laman Backend</h1>
+  <p>Полная документация Go-бэкенда сервиса доставки. Здесь всё: архитектура, пакеты, API, паттерны и роадмапа для изучения с нуля.</p>
+  <div class="hero-chips">
+    <span class="chip chip-go">Go 1.21</span>
+    <span class="chip chip-gin">Gin</span>
+    <span class="chip chip-pg">PostgreSQL 15</span>
+    <span class="chip chip-redis">Redis 7</span>
+  </div>
+</div>
+
+<!-- OVERVIEW -->
+<section id="overview">
+  <h2>Обзор проекта</h2>
+  <p>Laman — стартап универсальной доставки в Грозном (400к население). Бэкенд написан на Go, обрабатывает заказы, авторизацию, трекинг курьеров и сборку товаров.</p>
+
+  <h3>Кто пользуется системой</h3>
+  <div class="pkg-grid">
+    <div class="pkg-card" style="border-color: rgba(0,210,255,0.3);">
+      <div class="pkg-card-header">
+        <div class="pkg-icon" style="background: rgba(0,210,255,0.15);">📱</div>
+        <h4>CLIENT</h4>
+      </div>
+      <p>Покупатель. Делает заказы через iOS или веб. Авторизуется по SMS OTP.</p>
+    </div>
+    <div class="pkg-card" style="border-color: rgba(74,222,128,0.3);">
+      <div class="pkg-card-header">
+        <div class="pkg-icon" style="background: rgba(74,222,128,0.15);">🛵</div>
+        <h4>COURIER</h4>
+      </div>
+      <p>Курьер. Доставляет заказы. Отправляет геолокацию, ведёт смены.</p>
+    </div>
+    <div class="pkg-card" style="border-color: rgba(251,191,36,0.3);">
+      <div class="pkg-card-header">
+        <div class="pkg-icon" style="background: rgba(251,191,36,0.15);">📦</div>
+        <h4>PICKER</h4>
+      </div>
+      <p>Сборщик в магазине. Собирает заказы, меняет статусы, добавляет замены.</p>
+    </div>
+    <div class="pkg-card" style="border-color: rgba(232,121,249,0.3);">
+      <div class="pkg-card-header">
+        <div class="pkg-icon" style="background: rgba(232,121,249,0.15);">🔧</div>
+        <h4>ADMIN</h4>
+      </div>
+      <p>Администратор. Управляет магазинами, товарами, видит статистику.</p>
+    </div>
+  </div>
+
+  <h3>Структура папок Backend/</h3>
+  <pre><code><span class="cm">Backend/
+├── cmd/api/
+│   └── main.go          ← точка входа, инициализация всего
+├── internal/            ← весь бизнес-код (не импортируется снаружи)
+│   ├── auth/            ← OTP SMS + JWT
+│   ├── users/           ← профиль пользователя
+│   ├── catalog/         ← категории, товары, магазины
+│   ├── orders/          ← заказы (самый сложный пакет)
+│   ├── picker/          ← панель сборщика
+│   ├── courier/         ← трекинг курьеров через Redis GEO
+│   ├── admin/           ← административная панель
+│   ├── favorites/       ← избранные товары
+│   ├── payments/        ← статусы оплаты
+│   ├── delivery/        ← информация о доставке
+│   ├── models/          ← общие модели (Order, User, Product...)
+│   ├── middleware/      ← auth, cors, logging, metrics
+│   ├── events/          ← SSE hub (real-time уведомления)
+│   ├── cache/           ← Redis клиент
+│   ├── database/        ← PostgreSQL клиент
+│   ├── config/          ← env переменные
+│   └── observability/   ← Zap logging, Jaeger tracing, Telegram
+└── migrations/          ← SQL миграции (Goose)</span></code></pre>
+</section>
+
+<!-- ROADMAP -->
+<section id="roadmap">
+  <h2>Роадмапа изучения</h2>
+  <p>Изучай в этом порядке — от основ к сложному. Каждый шаг строится на предыдущем.</p>
+
+  <span class="phase-label p1">ФАЗА 1 — Основа (день 1-2)</span>
+  <div class="roadmap">
+    <div class="roadmap-step phase1">
+      <div class="roadmap-num">1</div>
+      <div class="roadmap-body">
+        <h4>Конфигурация и подключения</h4>
+        <p>Начни с того, как приложение получает настройки и подключается к БД и Redis. Это самый простой код.</p>
+        <div class="files">
+          <span class="file-tag">internal/config/config.go</span>
+          <span class="file-tag">internal/database/postgres.go</span>
+          <span class="file-tag">internal/cache/redis.go</span>
+        </div>
+      </div>
+    </div>
+    <div class="roadmap-step phase1">
+      <div class="roadmap-num">2</div>
+      <div class="roadmap-body">
+        <h4>Общие модели</h4>
+        <p>Посмотри какие основные сущности есть в системе: User, Order, Product. Здесь нет логики — только данные.</p>
+        <div class="files">
+          <span class="file-tag">internal/models/</span>
+        </div>
+      </div>
+    </div>
+    <div class="roadmap-step phase1">
+      <div class="roadmap-num">3</div>
+      <div class="roadmap-body">
+        <h4>Точка входа</h4>
+        <p>Теперь посмотри main.go — как всё собирается воедино. Увидишь паттерн dependency injection: сначала создаём репозитории, потом сервисы, потом хэндлеры.</p>
+        <div class="files">
+          <span class="file-tag">cmd/api/main.go</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <br>
+  <span class="phase-label p2">ФАЗА 2 — HTTP слой (день 3-4)</span>
+  <div class="roadmap">
+    <div class="roadmap-step phase2">
+      <div class="roadmap-num">4</div>
+      <div class="roadmap-body">
+        <h4>Middleware — сквозная логика</h4>
+        <p>Изучи как работает middleware-цепочка. Каждый запрос проходит через: логирование → метрики → CORS → auth → handler.</p>
+        <div class="files">
+          <span class="file-tag">internal/middleware/auth.go</span>
+          <span class="file-tag">internal/middleware/logging.go</span>
+          <span class="file-tag">internal/middleware/cors.go</span>
+        </div>
+      </div>
+    </div>
+    <div class="roadmap-step phase2">
+      <div class="roadmap-num">5</div>
+      <div class="roadmap-body">
+        <h4>Простой пакет: каталог</h4>
+        <p>Catalog — хороший пример базового CRUD. Нет авторизации, нет сложной логики. Посмотри как связаны handler → service → repository.</p>
+        <div class="files">
+          <span class="file-tag">internal/catalog/handler.go</span>
+          <span class="file-tag">internal/catalog/service.go</span>
+          <span class="file-tag">internal/catalog/repository.go</span>
+        </div>
+      </div>
+    </div>
+    <div class="roadmap-step phase2">
+      <div class="roadmap-num">6</div>
+      <div class="roadmap-body">
+        <h4>Авторизация</h4>
+        <p>Как работает OTP через SMS и JWT токены. Обрати внимание на rate limiting и sentinel errors.</p>
+        <div class="files">
+          <span class="file-tag">internal/auth/service.go</span>
+          <span class="file-tag">internal/auth/handler.go</span>
+          <span class="file-tag">internal/auth/repository.go</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <br>
+  <span class="phase-label p3">ФАЗА 3 — Бизнес-логика (день 5-7)</span>
+  <div class="roadmap">
+    <div class="roadmap-step phase3">
+      <div class="roadmap-num">7</div>
+      <div class="roadmap-body">
+        <h4>Курьер и Redis GEO</h4>
+        <p>Один из самых интересных модулей. Узнай как хранить координаты в Redis и искать ближайшего курьера через GEO команды.</p>
+        <div class="files">
+          <span class="file-tag">internal/courier/repository.go</span>
+          <span class="file-tag">internal/courier/service.go</span>
+        </div>
+      </div>
+    </div>
+    <div class="roadmap-step phase3">
+      <div class="roadmap-num">8</div>
+      <div class="roadmap-body">
+        <h4>Пикер — сборка заказов</h4>
+        <p>Посмотри как сборщик взаимодействует с заказами, добавляет замены товаров и получает real-time уведомления через SSE.</p>
+        <div class="files">
+          <span class="file-tag">internal/picker/handler.go</span>
+          <span class="file-tag">internal/picker/service.go</span>
+          <span class="file-tag">internal/events/hub.go</span>
+        </div>
+      </div>
+    </div>
+    <div class="roadmap-step phase3">
+      <div class="roadmap-num">9</div>
+      <div class="roadmap-body">
+        <h4>Заказы — самый сложный пакет</h4>
+        <p>Здесь собрана вся бизнес-логика: создание заказа, расчёт цен, поиск курьера, state machine статусов. Читай медленно.</p>
+        <div class="files">
+          <span class="file-tag">internal/orders/service.go</span>
+          <span class="file-tag">internal/orders/handler.go</span>
+          <span class="file-tag">internal/orders/repository.go</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <br>
+  <span class="phase-label p4">ФАЗА 4 — Инфраструктура (день 8-9)</span>
+  <div class="roadmap">
+    <div class="roadmap-step phase4">
+      <div class="roadmap-num">10</div>
+      <div class="roadmap-body">
+        <h4>Observability</h4>
+        <p>Как работают логирование (Zap), трейсинг (Jaeger/OpenTelemetry) и метрики (Prometheus).</p>
+        <div class="files">
+          <span class="file-tag">internal/observability/</span>
+          <span class="file-tag">internal/middleware/metrics.go</span>
+        </div>
+      </div>
+    </div>
+    <div class="roadmap-step phase4">
+      <div class="roadmap-num">11</div>
+      <div class="roadmap-body">
+        <h4>Миграции</h4>
+        <p>Прочитай все SQL миграции по порядку — это история эволюции схемы БД. Поймёшь как проект рос.</p>
+        <div class="files">
+          <span class="file-tag">migrations/*.sql</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <br>
+  <span class="phase-label p5">ФАЗА 5 — Полная картина (день 10+)</span>
+  <div class="roadmap">
+    <div class="roadmap-step phase5">
+      <div class="roadmap-num">12</div>
+      <div class="roadmap-body">
+        <h4>Admin panel + интеграции</h4>
+        <p>Админка, импорт из Excel, Telegram уведомления. Посмотри как выглядит "боевой" административный слой.</p>
+        <div class="files">
+          <span class="file-tag">internal/admin/</span>
+          <span class="file-tag">internal/observability/telegram.go</span>
+        </div>
+      </div>
+    </div>
+    <div class="roadmap-step phase5">
+      <div class="roadmap-num">13</div>
+      <div class="roadmap-body">
+        <h4>Graceful Shutdown и деплой</h4>
+        <p>Вернись к main.go и Dockerfile. Пойми как приложение запускается в Docker и корректно завершает работу.</p>
+        <div class="files">
+          <span class="file-tag">cmd/api/main.go (конец файла)</span>
+          <span class="file-tag">Dockerfile</span>
+          <span class="file-tag">docker-compose.yml</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section id="architecture">
+  <h2>Архитектура</h2>
+  <h3>Слоистая архитектура</h3>
+  <p>Каждый запрос проходит строго сверху вниз. Слои не пропускают — handler не ходит напрямую в БД.</p>
+
+  <div class="arch-diagram">
+    <div class="arch-layer">
+      <div class="arch-layer-label">HTTP Запрос</div>
+      <div class="arch-boxes">
+        <div class="arch-box box-external">iOS App</div>
+        <div class="arch-box box-external">Next.js</div>
+        <div class="arch-box box-external">Picker Panel</div>
+        <div class="arch-box box-external">Admin Panel</div>
+      </div>
+    </div>
+    <div class="arch-arrow">↓ HTTP (port 8080)</div>
+    <div class="arch-layer">
+      <div class="arch-layer-label">Middleware (применяется к каждому запросу)</div>
+      <div class="arch-boxes">
+        <div class="arch-box box-infra">RequestID</div>
+        <div class="arch-box box-infra">Logging</div>
+        <div class="arch-box box-infra">Metrics</div>
+        <div class="arch-box box-infra">CORS</div>
+        <div class="arch-box box-infra">Recovery</div>
+        <div class="arch-box box-infra">Auth (JWT)</div>
+      </div>
+    </div>
+    <div class="arch-arrow">↓</div>
+    <div class="arch-layer">
+      <div class="arch-layer-label">Handler Layer — принимает запрос, отдаёт ответ</div>
+      <div class="arch-boxes">
+        <div class="arch-box box-handler">auth.Handler</div>
+        <div class="arch-box box-handler">catalog.Handler</div>
+        <div class="arch-box box-handler">orders.Handler</div>
+        <div class="arch-box box-handler">picker.Handler</div>
+        <div class="arch-box box-handler">courier.Handler</div>
+        <div class="arch-box box-handler">admin.Handler</div>
+      </div>
+    </div>
+    <div class="arch-arrow">↓</div>
+    <div class="arch-layer">
+      <div class="arch-layer-label">Service Layer — бизнес-логика</div>
+      <div class="arch-boxes">
+        <div class="arch-box box-service">auth.Service</div>
+        <div class="arch-box box-service">catalog.Service</div>
+        <div class="arch-box box-service">orders.Service</div>
+        <div class="arch-box box-service">picker.Service</div>
+        <div class="arch-box box-service">courier.Service</div>
+        <div class="arch-box box-service">admin.Service</div>
+      </div>
+    </div>
+    <div class="arch-arrow">↓</div>
+    <div class="arch-layer">
+      <div class="arch-layer-label">Repository Layer — работа с данными (через интерфейсы)</div>
+      <div class="arch-boxes">
+        <div class="arch-box box-repo">postgres.AuthRepo</div>
+        <div class="arch-box box-repo">postgres.CatalogRepo</div>
+        <div class="arch-box box-repo">postgres.OrdersRepo</div>
+        <div class="arch-box box-repo">redis.CourierRepo</div>
+        <div class="arch-box box-repo">redis.OTPLimiter</div>
+      </div>
+    </div>
+    <div class="arch-arrow">↓</div>
+    <div class="arch-layer">
+      <div class="arch-layer-label">Infrastructure</div>
+      <div class="arch-boxes">
+        <div class="arch-box box-external">PostgreSQL</div>
+        <div class="arch-box box-external">Redis</div>
+        <div class="arch-box box-external">SMS.ru</div>
+        <div class="arch-box box-external">Telegram Bot</div>
+        <div class="arch-box box-external">Jaeger</div>
+        <div class="arch-box box-external">Prometheus</div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Dependency Injection — как всё связывается</h3>
+  <p>В main.go зависимости создаются снизу вверх и передаются в конструкторы. Это позволяет легко менять реализации.</p>
+  <pre><code><span class="cm">// Порядок инициализации в main.go:</span>
+
+<span class="cm">// 1. Инфраструктура</span>
+db := database.New(cfg.Database)
+redis := cache.New(cfg.Redis)
+
+<span class="cm">// 2. Репозитории (получают db/redis)</span>
+authRepo := auth.NewPostgresRepository(db)
+orderRepo := orders.NewPostgresRepository(db)
+courierRepo := courier.NewRedisRepository(redis)
+
+<span class="cm">// 3. Сервисы (получают репозитории)</span>
+authService := auth.NewService(authRepo, jwtSecret, smsProvider, otpLimiter)
+orderService := orders.NewService(orderRepo, catalogService, courierService, ...)
+
+<span class="cm">// 4. Хэндлеры (получают сервисы)</span>
+authHandler := auth.NewHandler(authService)
+orderHandler := orders.NewHandler(orderService)
+
+<span class="cm">// 5. Роутер (регистрирует хэндлеры)</span>
+router.RegisterRoutes(authHandler, orderHandler, ...)
+</code></pre>
+</section>
+
+<!-- ENTRY POINT -->
+<section id="entry">
+  <h2>Точка входа — main.go</h2>
+  <p>Файл <code>cmd/api/main.go</code> — дирижёр всего приложения. Он ничего не делает сам, только собирает части.</p>
+
+  <h3>Порядок запуска</h3>
+  <table>
+    <tr><th>#</th><th>Что происходит</th><th>Если не удалось</th></tr>
+    <tr><td>1</td><td>Загрузка конфигурации из env переменных</td><td>Panic — без конфига нельзя</td></tr>
+    <tr><td>2</td><td>Инициализация Zap логгера</td><td>Panic</td></tr>
+    <tr><td>3</td><td>Подключение к Jaeger (трейсинг)</td><td>Предупреждение, продолжаем</td></tr>
+    <tr><td>4</td><td>Подключение к PostgreSQL + пинг</td><td>Panic — БД обязательна</td></tr>
+    <tr><td>5</td><td>Подключение к Redis</td><td>Panic — Redis обязателен</td></tr>
+    <tr><td>6</td><td>Создание Telegram нотификатора</td><td>Noop-заглушка, продолжаем</td></tr>
+    <tr><td>7</td><td>Создание SMS провайдера</td><td>Noop-заглушка в dev режиме</td></tr>
+    <tr><td>8</td><td>Инициализация всех репозиториев</td><td>Panic</td></tr>
+    <tr><td>9</td><td>Инициализация всех сервисов</td><td>Panic</td></tr>
+    <tr><td>10</td><td>Регистрация роутов Gin</td><td>Panic</td></tr>
+    <tr><td>11</td><td>Запуск HTTP сервера</td><td>Panic</td></tr>
+    <tr><td>12</td><td>Ожидание SIGINT/SIGTERM для graceful shutdown</td><td>—</td></tr>
+  </table>
+
+  <h3>Graceful Shutdown</h3>
+  <pre><code><span class="cm">// При получении Ctrl+C или kill сигнала:</span>
+<span class="kw">quit</span> := make(chan os.Signal, 1)
+signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+&lt;-quit <span class="cm">// ждём сигнал</span>
+
+ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+<span class="kw">defer</span> cancel()
+
+<span class="cm">// Даём серверу 5 секунд завершить текущие запросы</span>
+srv.Shutdown(ctx)
+db.Close()
+redis.Close()
+</code></pre>
+  <p>Это важно: без graceful shutdown запросы могут оборваться на середине. 5 секунд — время чтобы завершить текущие соединения.</p>
+</section>
+
+<!-- AUTH -->
+<section id="auth">
+  <h2>auth — авторизация</h2>
+  <p>OTP авторизация через SMS (SMS.ru API) + JWT токены для всех ролей. Для пикеров — дополнительно логин по паролю.</p>
+
+  <h3>Как работает OTP</h3>
+  <div class="flow">
+    <div class="flow-box s-new">Пользователь вводит телефон</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-box s-pick">POST /request-code</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-box s-assem">4-знач. код сохраняется в БД (5 мин TTL)</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-box s-wait">SMS через SMS.ru</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-box s-deliv">POST /verify-code + код</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-box s-done">JWT токен</div>
+  </div>
+
+  <h3>Rate Limiting через Redis</h3>
+  <pre><code><span class="cm">// Redis atomically считает попытки:</span>
+<span class="kw">key</span> := fmt.Sprintf(<span class="str">"otp:attempts:%s"</span>, phone)
+count, _ := redis.INCR(key)       <span class="cm">// атомарный инкремент</span>
+redis.EXPIRE(key, 15*time.Minute) <span class="cm">// сброс через 15 минут</span>
+
+<span class="kw">if</span> count > 5 {
+    <span class="kw">return</span> ErrOTPBlocked <span class="cm">// sentinel error</span>
+}
+</code></pre>
+
+  <h3>JWT токен</h3>
+  <pre><code><span class="cm">// Payload содержит только user_id</span>
+claims := jwt.MapClaims{
+    <span class="str">"user_id"</span>: user.ID,
+    <span class="str">"exp"</span>:     time.Now().Add(30 * 24 * time.Hour).Unix(),
+}
+
+<span class="cm">// Middleware достаёт user из токена и кладёт в context:</span>
+ctx.Set(<span class="str">"userID"</span>, claims[<span class="str">"user_id"</span>])
+ctx.Set(<span class="str">"userRole"</span>, user.Role)
+</code></pre>
+
+  <h3>Sentinel Errors</h3>
+  <p>Именованные ошибки позволяют проверять тип ошибки без парсинга строк:</p>
+  <pre><code><span class="kw">var</span> (
+    ErrOTPBlocked       = errors.New(<span class="str">"otp: too many attempts"</span>)
+    ErrUserAlreadyExists = errors.New(<span class="str">"user: already exists"</span>)
+    ErrInvalidCode      = errors.New(<span class="str">"auth: invalid code"</span>)
+)
+
+<span class="cm">// В handler'е:</span>
+<span class="kw">if</span> errors.Is(err, auth.ErrOTPBlocked) {
+    c.JSON(429, gin.H{<span class="str">"error"</span>: <span class="str">"too many attempts"</span>})
+}
+</code></pre>
+
+  <h3>Эндпоинты</h3>
+  <table>
+    <tr><th>Метод</th><th>Путь</th><th>Описание</th><th>Auth</th></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/auth/request-code</code></td><td>Отправить SMS с кодом</td><td>Нет</td></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/auth/verify-code</code></td><td>Проверить код, получить JWT</td><td>Нет</td></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/auth/login</code></td><td>Логин по телефону (без OTP)</td><td>Нет</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/auth/me</code></td><td>Текущий пользователь</td><td>JWT</td></tr>
+  </table>
+</section>
+
+<!-- CATALOG -->
+<section id="catalog">
+  <h2>catalog — каталог товаров</h2>
+  <p>Самый простой пакет для изучения паттерна handler → service → repository. Нет авторизации, нет сложной логики.</p>
+
+  <h3>Структура данных</h3>
+  <pre><code><span class="type">Category</span>      <span class="cm">// Продукты, Бытовые товары, Стройматериалы, Электроника...</span>
+    └── <span class="type">Subcategory</span>  <span class="cm">// Молочные, Мясо, Хлеб (внутри Продуктов)</span>
+           └── <span class="type">Product</span>  <span class="cm">// Конкретный товар со ценой и фото</span>
+
+<span class="type">Store</span>  <span class="cm">// Магазин (FOOD, CLOTHES, BUILDING, AUTO, HOME, PHARMACY)</span>
+    └── <span class="type">Product</span>  <span class="cm">// Товары магазина</span>
+</code></pre>
+
+  <h3>Как выглядит типичный Repository метод</h3>
+  <pre><code><span class="kw">func</span> (r *postgresRepository) <span class="fn">GetProducts</span>(ctx context.Context, filter ProductFilter) ([]Product, error) {
+    query := <span class="str">`SELECT id, name, price, image_url, is_available
+               FROM products WHERE 1=1`</span>
+
+    <span class="kw">var</span> args []<span class="type">interface</span>{}
+    argNum := 1
+
+    <span class="cm">// Динамически строим WHERE в зависимости от фильтров</span>
+    <span class="kw">if</span> filter.CategoryID != nil {
+        query += fmt.Sprintf(<span class="str">" AND category_id = $%d"</span>, argNum)
+        args = append(args, *filter.CategoryID)
+        argNum++
+    }
+    <span class="kw">if</span> filter.Search != <span class="str">""</span> {
+        query += fmt.Sprintf(<span class="str">" AND name ILIKE $%d"</span>, argNum)
+        args = append(args, <span class="str">"%"</span>+filter.Search+<span class="str">"%"</span>)
+    }
+
+    <span class="kw">var</span> products []Product
+    err := r.db.SelectContext(ctx, &products, query, args...)
+    <span class="kw">return</span> products, err
+}
+</code></pre>
+
+  <h3>Эндпоинты</h3>
+  <table>
+    <tr><th>Метод</th><th>Путь</th><th>Query параметры</th></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/catalog/categories</code></td><td>—</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/catalog/products</code></td><td>category_id, subcategory_id, search, available_only</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/stores</code></td><td>type, search</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/stores/:id</code></td><td>—</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/stores/:id/products</code></td><td>—</td></tr>
+  </table>
+</section>
+
+<!-- ORDERS -->
+<section id="orders">
+  <h2>orders — заказы</h2>
+  <p>Самый сложный пакет. Здесь живёт основная бизнес-логика: создание заказов, расчёт стоимости, state machine статусов, интеграция с курьерами и SSE.</p>
+
+  <h3>State Machine статусов заказа</h3>
+  <p>Заказ может переходить только по разрешённым путям. Нельзя перейти из DELIVERED обратно.</p>
+  <div class="flow" style="flex-direction: column; align-items: flex-start; gap: 12px;">
+    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+      <div class="flow-box s-new">NEW</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box s-pick">ACCEPTED_BY_PICKER</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box s-assem">ASSEMBLING</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box s-assem">ASSEMBLED</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box s-wait">WAITING_COURIER</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+      <div class="flow-box s-wait">WAITING_COURIER</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box s-deliv">COURIER_PICKED_UP</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box s-deliv">DELIVERING</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box s-done">DELIVERED ✓</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+      <div class="flow-box s-pick">ACCEPTED_BY_PICKER</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box s-assem" style="background:rgba(251,146,60,0.2)">NEEDS_CONFIRMATION</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box s-cancel">CANCELLED ✗</div>
+    </div>
+  </div>
+
+  <h3>Что происходит при CreateOrder()</h3>
+  <pre><code><span class="cm">// orders/service.go — упрощённо:</span>
+<span class="kw">func</span> (s *Service) <span class="fn">CreateOrder</span>(ctx context.Context, req CreateOrderRequest) (*Order, error) {
+    <span class="cm">// 1. Валидация: либо user_id, либо гостевые данные</span>
+    <span class="kw">if</span> req.UserID == nil && req.GuestName == <span class="str">""</span> {
+        <span class="kw">return</span> nil, ErrInvalidRequest
+    }
+
+    <span class="cm">// 2. Загружаем товары и считаем сумму</span>
+    products, _ := s.catalog.GetProductsByIDs(ctx, req.ProductIDs)
+    itemsTotal := calculateTotal(products, req.Items)
+    serviceFee := itemsTotal * <span class="num">0.05</span>   <span class="cm">// 5% сервисный сбор</span>
+    deliveryFee := <span class="num">200.0</span>            <span class="cm">// фиксированная доставка</span>
+    finalTotal := itemsTotal + serviceFee + deliveryFee
+
+    <span class="cm">// 3. Сохраняем заказ в транзакции</span>
+    order, _ := s.repo.CreateOrder(ctx, Order{...})
+    s.repo.CreateOrderItems(ctx, order.ID, items)
+
+    <span class="cm">// 4. Создаём записи оплаты и доставки</span>
+    s.payments.Create(ctx, order.ID, req.PaymentMethod, finalTotal)
+    s.delivery.Create(ctx, order.ID, req.Address)
+
+    <span class="cm">// 5. Ищем ближайшего курьера (5км → 10км → Telegram)</span>
+    courier, _ := s.courier.FindNearest(ctx, store.Lat, store.Lng, 5000)
+
+    <span class="cm">// 6. Уведомляем через SSE и Telegram</span>
+    s.hub.Notify(order.StoreID, orderEvent)
+    s.telegram.Notify(ctx, "Новый заказ #"+order.ID)
+
+    <span class="kw">return</span> order, nil
+}
+</code></pre>
+
+  <h3>Гостевые заказы</h3>
+  <p>Заказ можно сделать без авторизации — важно для конверсии. В этом случае в заказе сохраняются <code>guest_name</code>, <code>guest_phone</code>, <code>guest_address</code> вместо <code>user_id</code>.</p>
+
+  <h3>Эндпоинты</h3>
+  <table>
+    <tr><th>Метод</th><th>Путь</th><th>Auth</th><th>Описание</th></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/orders</code></td><td>Опционально</td><td>Создать заказ (гостевой или авторизованный)</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/orders/:id</code></td><td>Нет</td><td>Получить заказ по ID</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/orders</code></td><td>JWT</td><td>История заказов пользователя</td></tr>
+    <tr><td><span class="method put">PUT</span></td><td><code>/api/v1/orders/:id/status</code></td><td>JWT</td><td>Обновить статус</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/orders/events</code></td><td>JWT / ?token=</td><td>SSE поток уведомлений</td></tr>
+  </table>
+</section>
+
+<!-- PICKER -->
+<section id="picker">
+  <h2>picker — панель сборщика</h2>
+  <p>Сборщик работает в конкретном магазине, видит только свои заказы, и получает real-time уведомления через SSE.</p>
+
+  <h3>SSE (Server-Sent Events) — что это</h3>
+  <p>SSE — это постоянное HTTP соединение, по которому сервер может отправлять события клиенту в любой момент. Используется вместо WebSockets когда поток данных только сервер → клиент.</p>
+  <pre><code><span class="cm">// events/hub.go — in-memory pub/sub по store_id</span>
+<span class="kw">type</span> <span class="type">Hub</span> <span class="kw">struct</span> {
+    subscribers map[<span class="type">string</span>][]chan <span class="type">string</span> <span class="cm">// store_id → каналы</span>
+    mu          sync.RWMutex
+}
+
+<span class="cm">// Picker подписывается:</span>
+ch := hub.Subscribe(storeID)
+<span class="kw">defer</span> hub.Unsubscribe(storeID, ch)
+
+<span class="cm">// Когда создаётся заказ, orders уведомляет всех пикеров магазина:</span>
+hub.Notify(storeID, <span class="str">`{"type":"new_order","order_id":"..."}`</span>)
+</code></pre>
+
+  <h3>Ручные позиции (замены товаров)</h3>
+  <p>Если товара нет в наличии, сборщик может добавить замену вручную — без product_id из БД. Это делает <code>product_id</code> в <code>order_items</code> nullable.</p>
+  <pre><code>POST /api/v1/picker/orders/:id/items
+{
+    "product_name": "Молоко Простоквашино 1л", <span class="cm">// замена вручную</span>
+    "price": 89.90,
+    "quantity": 2
+    <span class="cm">// product_id отсутствует — это нормально!</span>
+}
+</code></pre>
+
+  <h3>Авторизация пикера</h3>
+  <p>В отличие от клиентов, пикеры логинятся по телефону + паролю (bcrypt), а не через OTP. Пароль устанавливается администратором.</p>
+
+  <h3>Эндпоинты</h3>
+  <table>
+    <tr><th>Метод</th><th>Путь</th><th>Описание</th></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/picker/auth/login</code></td><td>Логин телефон+пароль</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/picker</code></td><td>Заказы магазина (без позиций)</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/picker/orders/:id</code></td><td>Заказ с позициями и фото товаров</td></tr>
+    <tr><td><span class="method put">PUT</span></td><td><code>/api/v1/picker/orders/:id/status</code></td><td>Обновить статус</td></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/picker/orders/:id/items</code></td><td>Добавить замену вручную</td></tr>
+    <tr><td><span class="method delete">DELETE</span></td><td><code>/api/v1/picker/orders/:id/items/:itemId</code></td><td>Удалить позицию</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/picker/events</code></td><td>SSE уведомления</td></tr>
+  </table>
+</section>
+
+<!-- COURIER -->
+<section id="courier">
+  <h2>courier — трекинг курьеров</h2>
+  <p>Redis GEO — специализированная структура данных для геопространственных запросов. Позволяет хранить координаты и делать запросы "найди всё в радиусе X км от точки".</p>
+
+  <h3>Redis GEO команды</h3>
+  <pre><code><span class="cm">// Добавить курьера в геоиндекс:</span>
+GEOADD active_couriers 45.7754 43.3059 "courier-uuid-123"
+
+<span class="cm">// Найти курьеров в 5 км от точки:</span>
+GEORADIUS active_couriers 45.7754 43.3059 5 km ASC COUNT 1
+
+<span class="cm">// Удалить курьера (конец смены):</span>
+ZREM active_couriers "courier-uuid-123"
+</code></pre>
+
+  <h3>Алгоритм поиска курьера</h3>
+  <div class="flow">
+    <div class="flow-box s-new">Новый заказ</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-box s-pick">Поиск в 5 км</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-box s-assem">Нет? → 10 км</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-box s-cancel">Нет? → Telegram admin</div>
+  </div>
+
+  <h3>Смены курьеров</h3>
+  <p>Курьер начинает смену → попадает в геоиндекс Redis → становится видим для поиска. Конец смены → удаляется из индекса.</p>
+
+  <h3>Эндпоинты</h3>
+  <table>
+    <tr><th>Метод</th><th>Путь</th><th>Описание</th></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/courier/location</code></td><td>Обновить координаты</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/courier/location/:courierId</code></td><td>Получить координаты</td></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/courier/shift/start</code></td><td>Начать смену</td></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/courier/shift/end</code></td><td>Закончить смену</td></tr>
+  </table>
+</section>
+
+<!-- ADMIN -->
+<section id="admin">
+  <h2>admin — административная панель</h2>
+
+  <h3>Авторизация: HTTP Basic Auth</h3>
+  <p>В отличие от остальных (JWT), admin использует HTTP Basic Auth — логин:пароль в заголовке. Это проще для внутренних инструментов.</p>
+  <pre><code>Authorization: Basic <span class="str">base64("admin:password")</span></code></pre>
+
+  <h3>Импорт товаров из Excel</h3>
+  <p>Хороший пример работы с файлами в Go. Используется библиотека excelize.</p>
+  <pre><code>POST /api/v1/admin/products/import
+Content-Type: multipart/form-data
+file: products.xlsx   <span class="cm">← Excel файл</span>
+
+<span class="cm">// Парсит колонки: name, price, category, store_id, image_url</span>
+<span class="cm">// Создаёт все товары разом</span>
+</code></pre>
+
+  <h3>Эндпоинты</h3>
+  <table>
+    <tr><th>Метод</th><th>Путь</th><th>Описание</th></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/admin/dashboard/stats</code></td><td>Статистика: юзеры, заказы, выручка</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/admin/orders/active</code></td><td>Активные заказы</td></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/admin/stores</code></td><td>Создать магазин</td></tr>
+    <tr><td><span class="method delete">DELETE</span></td><td><code>/api/v1/admin/stores/:id</code></td><td>Удалить магазин</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/admin/products</code></td><td>Все товары</td></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/admin/products</code></td><td>Создать товар</td></tr>
+    <tr><td><span class="method patch">PATCH</span></td><td><code>/api/v1/admin/products/:id</code></td><td>Обновить товар</td></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/admin/products/import</code></td><td>Импорт из Excel</td></tr>
+    <tr><td><span class="method delete">DELETE</span></td><td><code>/api/v1/admin/products/:id</code></td><td>Удалить товар</td></tr>
+    <tr><td><span class="method patch">PATCH</span></td><td><code>/api/v1/admin/orders/:id</code></td><td>Принудительно сменить статус</td></tr>
+  </table>
+</section>
+
+<!-- MIDDLEWARE -->
+<section id="middleware">
+  <h2>middleware — сквозная логика</h2>
+  <p>Middleware — это функции которые обрабатывают каждый запрос до или после handler'а. В Gin они регистрируются через <code>router.Use()</code>.</p>
+
+  <h3>Цепочка middleware</h3>
+  <pre><code><span class="cm">// main.go — порядок важен:</span>
+router.Use(
+    middleware.RequestIDMiddleware(),  <span class="cm">// 1. Присваивает X-Request-ID</span>
+    middleware.LoggingMiddleware(log), <span class="cm">// 2. Логирует запрос</span>
+    middleware.MetricsMiddleware(),    <span class="cm">// 3. Prometheus счётчики</span>
+    middleware.CORSMiddleware(cfg),    <span class="cm">// 4. CORS заголовки</span>
+    middleware.RecoveryMiddleware(log),<span class="cm">// 5. Перехватывает panic</span>
+)
+
+<span class="cm">// Для защищённых роутов:</span>
+protected := router.Group(<span class="str">"/api/v1"</span>)
+protected.Use(middleware.AuthMiddleware(authService))
+</code></pre>
+
+  <h3>AuthMiddleware — как читать токен</h3>
+  <pre><code><span class="cm">// Поддерживает два способа передачи токена:</span>
+<span class="cm">// 1. Заголовок: Authorization: Bearer &lt;token&gt;</span>
+<span class="cm">// 2. Query param: ?token=&lt;token&gt; (для SSE — браузер не шлёт заголовки)</span>
+
+token := c.GetHeader(<span class="str">"Authorization"</span>)
+<span class="kw">if</span> token == <span class="str">""</span> {
+    token = c.Query(<span class="str">"token"</span>)
+}
+token = strings.TrimPrefix(token, <span class="str">"Bearer "</span>)
+</code></pre>
+
+  <h3>Логирование запросов</h3>
+  <pre><code><span class="cm">// Каждый запрос логируется структурированно:</span>
+{
+  "method": "POST",
+  "path": "/api/v1/orders",
+  "status": 201,
+  "latency": "42ms",
+  "request_id": "f3a7b2c1-...",
+  "ip": "192.168.1.5"
+}
+</code></pre>
+</section>
+
+<!-- INFRA -->
+<section id="infra">
+  <h2>Инфраструктурные пакеты</h2>
+
+  <h3>config — конфигурация</h3>
+  <p>Все настройки через переменные окружения. Это стандарт для 12-factor apps.</p>
+  <pre><code><span class="cm">// Пример: DB_HOST=postgres DB_PORT=5432 DB_NAME=laman</span>
+<span class="kw">type</span> <span class="type">Config</span> <span class="kw">struct</span> {
+    Server   ServerConfig    <span class="cm">// HOST, PORT</span>
+    Database DatabaseConfig  <span class="cm">// DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME</span>
+    JWT      JWTConfig       <span class="cm">// JWT_SECRET</span>
+    SMS      SMSConfig       <span class="cm">// SMSRU_API_KEY, SMSRU_TEST_MODE</span>
+    Redis    RedisConfig     <span class="cm">// REDIS_HOST, REDIS_PORT</span>
+    Telegram TelegramConfig  <span class="cm">// TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID</span>
+    Admin    AdminConfig     <span class="cm">// ADMIN_USERNAME, ADMIN_PASSWORD</span>
+}
+</code></pre>
+
+  <h3>database — транзакции</h3>
+  <pre><code><span class="cm">// WithTx — запускает несколько операций в одной транзакции</span>
+<span class="cm">// Если любая упала — всё откатывается</span>
+err := db.WithTx(ctx, <span class="kw">func</span>(tx *sqlx.Tx) error {
+    <span class="kw">if</span> err := createOrder(tx, order); err != nil {
+        <span class="kw">return</span> err <span class="cm">// автоматический ROLLBACK</span>
+    }
+    <span class="kw">if</span> err := createPayment(tx, payment); err != nil {
+        <span class="kw">return</span> err <span class="cm">// автоматический ROLLBACK</span>
+    }
+    <span class="kw">return</span> nil <span class="cm">// COMMIT</span>
+})
+</code></pre>
+
+  <h3>observability — мониторинг</h3>
+  <table>
+    <tr><th>Инструмент</th><th>Для чего</th><th>Порт</th></tr>
+    <tr><td>Zap</td><td>Структурированные логи (JSON)</td><td>stdout</td></tr>
+    <tr><td>Prometheus</td><td>Метрики (RPS, latency, errors)</td><td>9090</td></tr>
+    <tr><td>Grafana</td><td>Дашборды для метрик</td><td>3000</td></tr>
+    <tr><td>Jaeger</td><td>Distributed tracing (путь запроса)</td><td>16686</td></tr>
+    <tr><td>Telegram</td><td>Уведомления о событиях</td><td>Bot API</td></tr>
+  </table>
+</section>
+
+<!-- ENDPOINTS -->
+<section id="endpoints">
+  <h2>Все API эндпоинты</h2>
+  <p>База: <code>http://HOST_IP:8080</code></p>
+  <table>
+    <tr><th>Метод</th><th>Путь</th><th>Auth</th><th>Кто использует</th></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/auth/request-code</code></td><td>—</td><td>iOS, Web</td></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/auth/verify-code</code></td><td>—</td><td>iOS, Web</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/auth/me</code></td><td>JWT</td><td>iOS, Web</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/catalog/categories</code></td><td>—</td><td>iOS, Web</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/catalog/products</code></td><td>—</td><td>iOS, Web</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/stores</code></td><td>—</td><td>iOS, Web</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/stores/:id/products</code></td><td>—</td><td>iOS, Web</td></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/orders</code></td><td>Optional</td><td>iOS, Web</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/orders/:id</code></td><td>—</td><td>iOS, Web</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/orders</code></td><td>JWT</td><td>iOS, Web</td></tr>
+    <tr><td><span class="method put">PUT</span></td><td><code>/api/v1/orders/:id/status</code></td><td>JWT</td><td>Admin, System</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/orders/events</code></td><td>JWT/?token</td><td>iOS (SSE)</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/favorites</code></td><td>JWT</td><td>iOS, Web</td></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/favorites</code></td><td>JWT</td><td>iOS, Web</td></tr>
+    <tr><td><span class="method delete">DELETE</span></td><td><code>/api/v1/favorites/:product_id</code></td><td>JWT</td><td>iOS, Web</td></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/courier/location</code></td><td>JWT</td><td>iOS (курьер)</td></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/courier/shift/start</code></td><td>JWT</td><td>iOS (курьер)</td></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/courier/shift/end</code></td><td>JWT</td><td>iOS (курьер)</td></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/picker/auth/login</code></td><td>—</td><td>Picker Panel</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/picker</code></td><td>JWT</td><td>Picker Panel</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/picker/orders/:id</code></td><td>JWT</td><td>Picker Panel</td></tr>
+    <tr><td><span class="method put">PUT</span></td><td><code>/api/v1/picker/orders/:id/status</code></td><td>JWT</td><td>Picker Panel</td></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/picker/orders/:id/items</code></td><td>JWT</td><td>Picker Panel</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/picker/events</code></td><td>JWT/?token</td><td>Picker Panel (SSE)</td></tr>
+    <tr><td><span class="method get">GET</span></td><td><code>/api/v1/admin/dashboard/stats</code></td><td>Basic</td><td>Admin Panel</td></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/admin/stores</code></td><td>Basic</td><td>Admin Panel</td></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/admin/products</code></td><td>Basic</td><td>Admin Panel</td></tr>
+    <tr><td><span class="method post">POST</span></td><td><code>/api/v1/admin/products/import</code></td><td>Basic</td><td>Admin Panel</td></tr>
+  </table>
+</section>
+
+<!-- MIGRATIONS -->
+<section id="migrations">
+  <h2>Миграции БД — история проекта</h2>
+  <p>Читая миграции по порядку, ты видишь как проект рос. Каждая миграция — это новая фича или исправление.</p>
+  <ul class="migration-list">
+    <li>
+      <span class="migration-num">000001</span>
+      <div>
+        <div class="migration-title">init_schema</div>
+        <div class="migration-desc">Создание всех основных таблиц: users, categories, products, stores, orders, order_items</div>
+      </div>
+    </li>
+    <li>
+      <span class="migration-num">000002</span>
+      <div>
+        <div class="migration-title">seed_data</div>
+        <div class="migration-desc">Начальные данные: категории, тестовые магазины, примеры товаров</div>
+      </div>
+    </li>
+    <li>
+      <span class="migration-num">000003</span>
+      <div>
+        <div class="migration-title">add_subcategories_and_payment_method</div>
+        <div class="migration-desc">Подкатегории товаров + поле payment_method в заказах (CASH/TRANSFER)</div>
+      </div>
+    </li>
+    <li>
+      <span class="migration-num">000004</span>
+      <div>
+        <div class="migration-title">marketplace_stores</div>
+        <div class="migration-desc">Расширение магазинов: rating, description, phone, тип магазина</div>
+      </div>
+    </li>
+    <li>
+      <span class="migration-num">000005-006</span>
+      <div>
+        <div class="migration-title">add_pharmacy</div>
+        <div class="migration-desc">Добавлен тип магазина PHARMACY, заполнены данные аптеки</div>
+      </div>
+    </li>
+    <li>
+      <span class="migration-num">000007</span>
+      <div>
+        <div class="migration-title">add_product_image_url</div>
+        <div class="migration-desc">Поле image_url у товаров для отображения фотографий</div>
+      </div>
+    </li>
+    <li>
+      <span class="migration-num">20260221</span>
+      <div>
+        <div class="migration-title">add_role_to_users</div>
+        <div class="migration-desc">Поле role у пользователей (CLIENT/COURIER/PICKER)</div>
+      </div>
+    </li>
+    <li>
+      <span class="migration-num">20260226</span>
+      <div>
+        <div class="migration-title">add_store_coordinates</div>
+        <div class="migration-desc">Координаты магазинов lat/lng — нужны для поиска ближайшего курьера</div>
+      </div>
+    </li>
+    <li>
+      <span class="migration-num">20260301</span>
+      <div>
+        <div class="migration-title">add_courier_id_to_orders</div>
+        <div class="migration-desc">Привязка курьера к заказу</div>
+      </div>
+    </li>
+    <li>
+      <span class="migration-num">20260307</span>
+      <div>
+        <div class="migration-title">add_picker_support</div>
+        <div class="migration-desc">picker_id в заказах, store_id у пользователей. Добавлен пароль (bcrypt)</div>
+      </div>
+    </li>
+    <li>
+      <span class="migration-num">20260404</span>
+      <div>
+        <div class="migration-title">add_favorites</div>
+        <div class="migration-desc">Таблица user_favorites (user_id + product_id)</div>
+      </div>
+    </li>
+    <li>
+      <span class="migration-num">20260407</span>
+      <div>
+        <div class="migration-title">reset_categories</div>
+        <div class="migration-desc">Пересоздание структуры категорий</div>
+      </div>
+    </li>
+    <li>
+      <span class="migration-num">20260408</span>
+      <div>
+        <div class="migration-title">allow_manual_order_items</div>
+        <div class="migration-desc">product_id становится nullable — позволяет добавлять ручные позиции в заказ (замены)</div>
+      </div>
+    </li>
+  </ul>
+</section>
+
+<!-- PATTERNS -->
+<section id="patterns">
+  <h2>Паттерны и советы</h2>
+
+  <h3>Лучшие практики в этом коде</h3>
+  <div class="tip-grid">
+    <div class="tip-card best">
+      <h4>Repository Pattern</h4>
+      <p>Весь SQL изолирован в repository. Service не знает про PostgreSQL — только про интерфейс. Это позволяет легко менять БД или писать моки для тестов.</p>
+    </div>
+    <div class="tip-card best">
+      <h4>Context propagation</h4>
+      <p>context.Context передаётся в каждый метод первым аргументом. Это позволяет отменять запросы, передавать trace ID и управлять таймаутами.</p>
+    </div>
+    <div class="tip-card best">
+      <h4>Early return</h4>
+      <p>Ошибки проверяются сразу и функция возвращается. Нет глубокой вложенности if-ов. Код читается сверху вниз как список шагов.</p>
+    </div>
+    <div class="tip-card best">
+      <h4>Graceful degradation</h4>
+      <p>SMS провайдер, Telegram, Jaeger — если не настроены, используются заглушки. Приложение стартует даже без них.</p>
+    </div>
+    <div class="tip-card pattern">
+      <h4>Dependency Injection</h4>
+      <p>Все зависимости передаются в конструктор, не через global state. Функция New(db, logger, ...) явно объявляет что нужно сервису.</p>
+    </div>
+    <div class="tip-card pattern">
+      <h4>Interface Segregation</h4>
+      <p>Интерфейсы маленькие и определяются там, где используются (consumer-driven). CourierService нужен orders только для FindNearest — именно этот метод и в интерфейсе.</p>
+    </div>
+    <div class="tip-card pattern">
+      <h4>Sentinel errors</h4>
+      <p>var ErrNotFound = errors.New(...) позволяет в handler'е делать errors.Is(err, ErrNotFound) и возвращать правильный HTTP статус без парсинга строк.</p>
+    </div>
+    <div class="tip-card pattern">
+      <h4>%w при оборачивании ошибок</h4>
+      <p>fmt.Errorf("create order: %w", err) — сохраняет оригинальную ошибку внутри. errors.Is/As могут её найти через всю цепочку.</p>
+    </div>
+    <div class="tip-card gotcha">
+      <h4>dist/ в picker-panel</h4>
+      <p>Папка dist/ — старый статичный билд. Docker запускает npm run dev, но исходники не маунтятся. При изменениях нужно пересобирать образ.</p>
+    </div>
+    <div class="tip-card gotcha">
+      <h4>Миграции вручную</h4>
+      <p>Миграции НЕ запускаются автоматически при старте. Нужно вручную: cd Backend && make migrate-up</p>
+    </div>
+    <div class="tip-card gotcha">
+      <h4>SSE и токен в query</h4>
+      <p>Браузеры не могут добавить Authorization заголовок к EventSource. Поэтому SSE эндпоинты принимают токен как ?token=... в URL.</p>
+    </div>
+    <div class="tip-card security">
+      <h4>JWT Secret в env</h4>
+      <p>JWT_SECRET должен быть сложным и никогда не коммититься. Если утечёт — все токены можно подделать.</p>
+    </div>
+  </div>
+
+  <h3>Типичная структура файлов пакета</h3>
+  <pre><code>internal/example/
+├── handler.go     ← HTTP: parse request → call service → write response
+├── service.go     ← Business logic: validation, orchestration, rules
+├── repository.go  ← Data access: SQL queries, Redis commands
+├── dto.go         ← Request/Response structs (Data Transfer Objects)
+└── errors.go      ← Sentinel errors: var ErrNotFound = errors.New(...)
+</code></pre>
+
+  <h3>Как читать handler</h3>
+  <pre><code><span class="kw">func</span> (h *Handler) <span class="fn">CreateOrder</span>(c *gin.Context) {
+    <span class="cm">// 1. Достаём данные из запроса</span>
+    <span class="kw">var</span> req CreateOrderRequest
+    <span class="kw">if</span> err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(400, gin.H{<span class="str">"error"</span>: err.Error()})
+        <span class="kw">return</span>
+    }
+
+    <span class="cm">// 2. Достаём контекст пользователя (из middleware)</span>
+    userID, _ := c.Get(<span class="str">"userID"</span>)
+
+    <span class="cm">// 3. Вызываем сервис (handler не знает про SQL)</span>
+    order, err := h.service.CreateOrder(c.Request.Context(), req)
+    <span class="kw">if</span> err != nil {
+        <span class="cm">// 4. Конвертируем бизнес-ошибку в HTTP статус</span>
+        <span class="kw">if</span> errors.Is(err, ErrInvalidRequest) {
+            c.JSON(400, gin.H{<span class="str">"error"</span>: err.Error()})
+        } <span class="kw">else</span> {
+            c.JSON(500, gin.H{<span class="str">"error"</span>: <span class="str">"internal error"</span>})
+        }
+        <span class="kw">return</span>
+    }
+
+    <span class="cm">// 5. Возвращаем результат</span>
+    c.JSON(201, order)
+}
+</code></pre>
+
+  <h3>Вопросы для самопроверки</h3>
+  <table>
+    <tr><th>Вопрос</th><th>Где найти ответ</th></tr>
+    <tr><td>Как JWT токен попадает в context и доступен в handler'е?</td><td>middleware/auth.go</td></tr>
+    <tr><td>Почему product_id в order_items может быть NULL?</td><td>migrations/20260408_allow_manual...</td></tr>
+    <tr><td>Как Redis атомарно считает OTP попытки?</td><td>auth/service.go + cache/redis.go</td></tr>
+    <tr><td>Как SSE hub знает какому пикеру отправить уведомление?</td><td>events/hub.go</td></tr>
+    <tr><td>Почему в заказе есть и user_id и guest_name?</td><td>orders/service.go CreateOrder()</td></tr>
+    <tr><td>Что происходит если Telegram бот не настроен?</td><td>observability/telegram.go + main.go</td></tr>
+    <tr><td>Почему admin использует Basic Auth, а не JWT?</td><td>middleware/admin_auth.go</td></tr>
+  </table>
+</section>
+
+</main>
+
+<script>
+  // Highlight active nav link on scroll
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('nav a');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        navLinks.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`nav a[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { threshold: 0.3 });
+
+  sections.forEach(s => observer.observe(s));
+
+  // Smooth scroll
+  navLinks.forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      const id = link.getAttribute('href').slice(1);
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+    });
+  });
+</script>
+</body>
+</html>

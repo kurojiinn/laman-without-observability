@@ -42,8 +42,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .finally(() => setHydrated(true));
     } else {
       setHydrated(true);
-      const dismissed = sessionStorage.getItem("authModalDismissed");
-      if (!dismissed) setIsAuthModalOpen(true);
     }
   }, []);
 
@@ -51,12 +49,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const closeAuthModal = useCallback(() => {
     setIsAuthModalOpen(false);
-    sessionStorage.setItem("authModalDismissed", "true");
   }, []);
 
   const login = useCallback((token: string, userData: AuthUser) => {
     localStorage.setItem("token", token);
-    sessionStorage.removeItem("authModalDismissed");
     setUser(userData);
     setIsAuthModalOpen(false);
   }, []);

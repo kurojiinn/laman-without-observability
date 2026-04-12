@@ -97,6 +97,66 @@ func (r *postgresPikerRepository) UpdateStatusAndAssignPicker(ctx context.Contex
 	return nil
 }
 
+func (r *postgresPikerRepository) GetOrderItemsByOrderID(ctx context.Context, orderID uuid.UUID) ([]PickerOrderItem, error) {
+	var items []PickerOrderItem
+	query := `
+		SELECT oi.id, oi.product_id, COALESCE(oi.product_name, p.name) AS product_name, p.image_url, oi.quantity, oi.price
+		FROM order_items oi
+		LEFT JOIN products p ON p.id = oi.product_id
+		WHERE oi.order_id = $1
+		ORDER BY oi.created_at
+	`
+	err := r.db.SelectContext(ctx, &items, query, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка получения товаров заказа: %w", err)
+	}
+	return items, nil
+}
+
+func (r *postgresPikerRepository) AddOrderItem(ctx context.Context, orderID uuid.UUID, name string, price float64, quantity int) (*PickerOrderItem, error) {
+	var item PickerOrderItem
+	query := `
+		INSERT INTO order_items (order_id, product_name, price, quantity)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, product_id, product_name, quantity, price
+	`
+	err := r.db.GetContext(ctx, &item, query, orderID, name, price, quantity)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка добавления товара: %w", err)
+	}
+	return &item, nil
+}
+
+func (r *postgresPikerRepository) RemoveOrderItem(ctx context.Context, itemID uuid.UUID) error {
+	result, err := r.db.ExecContext(ctx, `DELETE FROM order_items WHERE id = $1`, itemID)
+	if err != nil {
+		return fmt.Errorf("ошибка удаления товара: %w", err)
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("товар не найден")
+	}
+	return nil
+}
+
+func (r *postgresPikerRepository) RecalcOrderTotals(ctx context.Context, orderID uuid.UUID, serviceFeePercent float64) error {
+	query := `
+		UPDATE orders
+		SET items_total = COALESCE((SELECT SUM(price * quantity) FROM order_items WHERE order_id = $1), 0),
+		    service_fee = COALESCE((SELECT SUM(price * quantity) FROM order_items WHERE order_id = $1), 0) * $2 / 100,
+		    final_total = COALESCE((SELECT SUM(price * quantity) FROM order_items WHERE order_id = $1), 0)
+		              + COALESCE((SELECT SUM(price * quantity) FROM order_items WHERE order_id = $1), 0) * $2 / 100
+		              + delivery_fee,
+		    updated_at = NOW()
+		WHERE id = $1
+	`
+	_, err := r.db.ExecContext(ctx, query, orderID, serviceFeePercent)
+	if err != nil {
+		return fmt.Errorf("ошибка пересчёта суммы заказа: %w", err)
+	}
+	return nil
+}
+
 func (r *postgresPikerRepository) AssignPicker(ctx context.Context, orderID uuid.UUID, pickerID uuid.UUID) error {
 	query := `UPDATE orders SET picker_id = $1, updated_at = NOW() WHERE id = $2 AND (picker_id IS NULL OR picker_id = $1)`
 

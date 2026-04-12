@@ -1,7 +1,12 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AppShell } from "../../shared/ui/AppShell";
-import { usePickerOrder, useUpdateOrderStatus } from "../../features/orders/hooks";
+import {
+  usePickerOrder,
+  useUpdateOrderStatus,
+  useAddOrderItem,
+  useRemoveOrderItem,
+} from "../../features/orders/hooks";
 import { formatDate, formatPrice, shortId } from "../../shared/lib/format";
 import { getPickerActions, statusLabel } from "../../entities/order/model";
 
@@ -9,16 +14,48 @@ export function OrderDetailsPage() {
   const { id = "" } = useParams();
   const orderQuery = usePickerOrder(id);
   const mutation = useUpdateOrderStatus(id);
+  const addItem = useAddOrderItem(id);
+  const removeItem = useRemoveOrderItem(id);
+
+  const [editing, setEditing] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newPrice, setNewPrice] = useState("");
+  const [newQty, setNewQty] = useState("1");
 
   const actions = useMemo(() => {
     if (!orderQuery.data) return [];
     return getPickerActions(orderQuery.data.status);
   }, [orderQuery.data]);
 
+  function handleAdd() {
+    const price = parseFloat(newPrice);
+    const quantity = parseInt(newQty, 10);
+    if (!newName.trim() || isNaN(price) || price <= 0 || isNaN(quantity) || quantity <= 0) return;
+
+    addItem.mutate(
+      { product_name: newName.trim(), price, quantity },
+      {
+        onSuccess: () => {
+          setNewName("");
+          setNewPrice("");
+          setNewQty("1");
+          setShowAddForm(false);
+        },
+      },
+    );
+  }
+
+  function handleRemove(itemId: string) {
+    removeItem.mutate(itemId);
+  }
+
+  const isPending = addItem.isPending || removeItem.isPending;
+
   return (
     <AppShell title={`Заказ #${shortId(id)}`}>
       <p>
-        <Link to="/orders">← Назад к очереди</Link>
+        <Link to="/orders">&larr; Назад к очереди</Link>
       </p>
 
       <section className="card">
@@ -68,6 +105,177 @@ export function OrderDetailsPage() {
               </p>
             </div>
           </div>
+        ) : null}
+      </section>
+
+      <section className="card">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2>Состав заказа</h2>
+          {orderQuery.data ? (
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(!editing);
+                setShowAddForm(false);
+              }}
+              style={{
+                background: editing ? "#6b7280" : "#3b82f6",
+                color: "#fff",
+                border: "none",
+                padding: "6px 16px",
+                borderRadius: 6,
+                cursor: "pointer",
+              }}
+            >
+              {editing ? "Готово" : "Изменить заказ"}
+            </button>
+          ) : null}
+        </div>
+
+        {editing ? (
+          <div style={{ margin: "12px 0" }}>
+            {showAddForm ? (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 13, marginBottom: 2 }}>Название</label>
+                  <input
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="Молоко 3.2%"
+                    style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #d1d5db", width: 180 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 13, marginBottom: 2 }}>Цена</label>
+                  <input
+                    value={newPrice}
+                    onChange={(e) => setNewPrice(e.target.value)}
+                    placeholder="0"
+                    type="number"
+                    min="1"
+                    style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #d1d5db", width: 90 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 13, marginBottom: 2 }}>Кол-во</label>
+                  <input
+                    value={newQty}
+                    onChange={(e) => setNewQty(e.target.value)}
+                    type="number"
+                    min="1"
+                    style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #d1d5db", width: 60 }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAdd}
+                  disabled={isPending}
+                  style={{
+                    background: "#22c55e",
+                    color: "#fff",
+                    border: "none",
+                    padding: "8px 18px",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                  }}
+                >
+                  Добавить
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddForm(false)}
+                  style={{
+                    background: "#e5e7eb",
+                    border: "none",
+                    padding: "8px 14px",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                  }}
+                >
+                  Отмена
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowAddForm(true)}
+                style={{
+                  background: "#22c55e",
+                  color: "#fff",
+                  border: "none",
+                  padding: "8px 18px",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontSize: 16,
+                }}
+              >
+                + Добавить товар
+              </button>
+            )}
+          </div>
+        ) : null}
+
+        {orderQuery.isLoading ? null : orderQuery.data?.items.length === 0 ? (
+          <p className="empty-text">Товары не найдены</p>
+        ) : (
+          <table className="orders-table">
+            <thead>
+              <tr>
+                <th>Фото</th>
+                <th>Товар</th>
+                <th>Кол-во</th>
+                <th>Цена</th>
+                <th>Сумма</th>
+                {editing ? <th></th> : null}
+              </tr>
+            </thead>
+            <tbody>
+              {orderQuery.data?.items.map((item) => (
+                <tr key={item.id}>
+                  <td>
+                    {item.imageUrl ? (
+                      <img
+                        src={item.imageUrl}
+                        alt={item.productName}
+                        style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 6 }}
+                      />
+                    ) : (
+                      <div style={{ width: 56, height: 56, background: "#f0f0f0", borderRadius: 6 }} />
+                    )}
+                  </td>
+                  <td>{item.productName}</td>
+                  <td>{item.quantity}</td>
+                  <td>{formatPrice(item.price)}</td>
+                  <td>{formatPrice(item.price * item.quantity)}</td>
+                  {editing ? (
+                    <td>
+                      <button
+                        type="button"
+                        onClick={() => handleRemove(item.id)}
+                        disabled={isPending}
+                        title="Удалить товар"
+                        style={{
+                          background: "#ef4444",
+                          color: "#fff",
+                          border: "none",
+                          padding: "6px 10px",
+                          borderRadius: 6,
+                          cursor: "pointer",
+                          fontSize: 16,
+                        }}
+                      >
+                        🗑
+                      </button>
+                    </td>
+                  ) : null}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {(addItem.isError || removeItem.isError) ? (
+          <p className="error-text">Ошибка изменения заказа</p>
         ) : null}
       </section>
 

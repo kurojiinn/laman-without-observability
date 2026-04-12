@@ -8,9 +8,11 @@ import {
   fetchActiveOrders,
   fetchCategories,
   fetchDashboardStats,
+  fetchProducts,
   fetchStores,
   importProducts,
   updateOrderStatusAdmin,
+  updateProduct,
 } from "./api/admin";
 import type { AdminOrder, StoreCategoryType } from "./types";
 import { StatCard } from "./components/StatCard";
@@ -50,6 +52,17 @@ export const App = () => {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [deleteProductId, setDeleteProductId] = useState("");
   const [deleteStoreId, setDeleteStoreId] = useState("");
+  const [productsStoreId, setProductsStoreId] = useState("");
+  const [editingProduct, setEditingProduct] = useState<null | {
+    id: string;
+    name: string;
+    price: number;
+    description: string;
+    is_available: boolean;
+    image_url: string | null;
+  }>(null);
+  const [editImage, setEditImage] = useState<File | null>(null);
+  const [editPreview, setEditPreview] = useState<string | null>(null);
   const [orderStatusForm, setOrderStatusForm] = useState({
     order_id: "",
     status: "IN_PROGRESS",
@@ -144,6 +157,31 @@ export const App = () => {
     mutationFn: () => deleteProduct(auth.user, auth.password, deleteProductId),
     onSuccess: () => {
       setDeleteProductId("");
+    },
+  });
+
+  const productsQuery = useQuery({
+    queryKey: ["products", productsStoreId],
+    queryFn: () => fetchProducts(auth.user, auth.password, productsStoreId),
+    enabled: Boolean(productsStoreId) && canAuth,
+  });
+
+  const updateProductMutation = useMutation({
+    mutationFn: () => {
+      if (!editingProduct) throw new Error("нет товара для редактирования");
+      return updateProduct(auth.user, auth.password, editingProduct.id, {
+        name: editingProduct.name,
+        price: editingProduct.price,
+        description: editingProduct.description,
+        is_available: editingProduct.is_available,
+        image: editImage,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products", productsStoreId] });
+      setEditingProduct(null);
+      setEditImage(null);
+      setEditPreview(null);
     },
   });
 
@@ -464,6 +502,187 @@ export const App = () => {
             </div>
           </div>
         </section>
+
+        {/* ── Товары магазина ── */}
+        <section className="rounded-xl bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-semibold mb-4">Товары магазина</h2>
+          <div className="flex gap-3 mb-4">
+            <select
+              className="flex-1 rounded-md border border-slate-200 px-3 py-2"
+              value={productsStoreId}
+              onChange={(e) => setProductsStoreId(e.target.value)}
+            >
+              <option value="">Выбери магазин</option>
+              {storesQuery.data?.map((store) => (
+                <option key={store.id} value={store.id}>{store.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {productsQuery.isLoading && <p className="text-slate-400 text-sm">Загрузка...</p>}
+
+          {productsQuery.data && productsQuery.data.length === 0 && (
+            <p className="text-slate-400 text-sm">Товаров нет</p>
+          )}
+
+          {productsQuery.data && productsQuery.data.length > 0 && (
+            <div className="overflow-auto">
+              <table className="min-w-full text-sm">
+                <thead className="text-left text-slate-500 border-b border-slate-100">
+                  <tr>
+                    <th className="py-2 pr-3">Фото</th>
+                    <th className="py-2 pr-3">Название</th>
+                    <th className="py-2 pr-3">Цена</th>
+                    <th className="py-2 pr-3">Доступен</th>
+                    <th className="py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {productsQuery.data.map((product: any) => (
+                    <tr key={product.id} className="border-t border-slate-50">
+                      <td className="py-2 pr-3">
+                        {product.image_url ? (
+                          <img
+                            src={product.image_url}
+                            alt={product.name}
+                            className="w-12 h-12 rounded-lg object-cover"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-slate-300 text-xs">
+                            нет
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2 pr-3 font-medium">{product.name}</td>
+                      <td className="py-2 pr-3">{product.price} ₽</td>
+                      <td className="py-2 pr-3">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${product.is_available ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                          {product.is_available ? "Да" : "Нет"}
+                        </span>
+                      </td>
+                      <td className="py-2">
+                        <button
+                          className="rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1 text-xs font-medium"
+                          onClick={() => {
+                            setEditingProduct({
+                              id: product.id,
+                              name: product.name,
+                              price: product.price,
+                              description: product.description ?? "",
+                              is_available: product.is_available,
+                              image_url: product.image_url ?? null,
+                            });
+                            setEditImage(null);
+                            setEditPreview(null);
+                          }}
+                        >
+                          Редактировать
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* ── Модалка редактирования ── */}
+        {editingProduct && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+            onClick={() => setEditingProduct(null)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-semibold mb-4">Редактировать товар</h3>
+
+              <div className="grid gap-3">
+                <input
+                  className="rounded-md border border-slate-200 px-3 py-2"
+                  placeholder="Название"
+                  value={editingProduct.name}
+                  onChange={(e) => setEditingProduct((p) => p && ({ ...p, name: e.target.value }))}
+                />
+                <input
+                  className="rounded-md border border-slate-200 px-3 py-2"
+                  placeholder="Цена"
+                  type="number"
+                  value={editingProduct.price}
+                  onChange={(e) => setEditingProduct((p) => p && ({ ...p, price: Number(e.target.value) }))}
+                />
+                <textarea
+                  className="rounded-md border border-slate-200 px-3 py-2"
+                  placeholder="Описание"
+                  value={editingProduct.description}
+                  onChange={(e) => setEditingProduct((p) => p && ({ ...p, description: e.target.value }))}
+                />
+                <label className="flex items-center gap-2 text-sm text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={editingProduct.is_available}
+                    onChange={(e) => setEditingProduct((p) => p && ({ ...p, is_available: e.target.checked }))}
+                  />
+                  Доступен к продаже
+                </label>
+
+                {/* Фото */}
+                <div
+                  className="flex min-h-[120px] cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-center text-sm text-slate-500 hover:border-slate-400"
+                  onClick={() => document.getElementById("edit-image-input")?.click()}
+                >
+                  <input
+                    id="edit-image-input"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setEditImage(file);
+                        setEditPreview(URL.createObjectURL(file));
+                      }
+                    }}
+                  />
+                  {editPreview || editingProduct.image_url ? (
+                    <img
+                      src={editPreview ?? editingProduct.image_url!}
+                      alt="preview"
+                      className="h-24 w-24 rounded-lg object-cover"
+                    />
+                  ) : (
+                    <span className="text-slate-400 text-xs">Нажми чтобы загрузить фото</span>
+                  )}
+                  {(editPreview || editingProduct.image_url) && (
+                    <span className="mt-1 text-xs text-slate-400">Нажми чтобы сменить</span>
+                  )}
+                </div>
+              </div>
+
+              {updateProductMutation.isError && (
+                <p className="mt-2 text-sm text-red-500">Ошибка сохранения</p>
+              )}
+
+              <div className="mt-4 flex gap-3">
+                <button
+                  className="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-white text-sm font-medium disabled:opacity-50"
+                  disabled={updateProductMutation.isPending}
+                  onClick={() => updateProductMutation.mutate()}
+                >
+                  {updateProductMutation.isPending ? "Сохранение..." : "Сохранить"}
+                </button>
+                <button
+                  className="rounded-md border border-slate-200 px-4 py-2 text-sm"
+                  onClick={() => { setEditingProduct(null); setEditImage(null); setEditPreview(null); }}
+                >
+                  Отмена
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <section className="rounded-xl bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold">Изменить статус заказа</h2>

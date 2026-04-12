@@ -1,6 +1,7 @@
 package orders
 
 import (
+	"Laman/internal/events"
 	"Laman/internal/middleware"
 	"net/http"
 
@@ -12,6 +13,7 @@ import (
 type Handler struct {
 	orderService *OrderService
 	authService  AuthService
+	hub          *events.Hub
 }
 
 // AuthService определяет интерфейс, необходимый из модуля auth.
@@ -20,10 +22,11 @@ type AuthService interface {
 }
 
 // NewHandler создает новый обработчик заказов.
-func NewHandler(orderService *OrderService, authService AuthService) *Handler {
+func NewHandler(orderService *OrderService, authService AuthService, hub *events.Hub) *Handler {
 	return &Handler{
 		orderService: orderService,
 		authService:  authService,
+		hub:          hub,
 	}
 }
 
@@ -35,6 +38,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 		orders.GET("/:id", h.GetOrder)
 		orders.GET("", middleware.AuthMiddleware(h.authService), h.GetUserOrders)
 		orders.PUT("/:id/status", middleware.AuthMiddleware(h.authService), h.UpdateOrderStatus)
+		orders.GET("/events", middleware.AuthMiddleware(h.authService), h.Events)
 	}
 }
 
@@ -103,6 +107,36 @@ func (h *Handler) GetUserOrders(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, orders)
+}
+
+// Events обрабатывает GET /orders/events — SSE поток уведомлений для клиента.
+func (h *Handler) Events(c *gin.Context) {
+	userIDRaw, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "пользователь не аутентифицирован"})
+		return
+	}
+	userID := userIDRaw.(uuid.UUID)
+
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+
+	ch := h.hub.Subscribe(userID)
+	defer h.hub.Unsubscribe(userID)
+
+	for {
+		select {
+		case message, ok := <-ch:
+			if !ok {
+				return
+			}
+			c.SSEvent("order_updated", message)
+			c.Writer.Flush()
+		case <-c.Request.Context().Done():
+			return
+		}
+	}
 }
 
 // UpdateOrderStatus обрабатывает PUT /orders/:id/status

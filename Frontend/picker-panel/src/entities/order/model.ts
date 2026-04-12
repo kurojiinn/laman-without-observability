@@ -10,6 +10,15 @@ export type OrderStatus =
   | "CANCELLED"
   | "NEEDS_CONFIRMATION";
 
+export type OrderItem = {
+  id: string;
+  productId: string | null;
+  productName: string;
+  imageUrl: string | null;
+  quantity: number;
+  price: number;
+};
+
 export type PickerOrder = {
   id: string;
   userId?: string | null;
@@ -30,6 +39,7 @@ export type PickerOrder = {
   createdAt: string;
   updatedAt: string;
   pickerId?: string | null;
+  items: OrderItem[];
 };
 
 const transitions: Record<OrderStatus, OrderStatus[]> = {

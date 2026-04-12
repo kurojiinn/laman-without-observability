@@ -135,14 +135,14 @@ func main() {
 		logger,
 		hub,
 	)
-	pickerService := picker.NewPickerService(pickerRepo, userRepo, cfg.JWT.Secret, logger)
+	pickerService := picker.NewPickerService(pickerRepo, userRepo, cfg.JWT.Secret, 5.0, logger)
 	favoritesService := favorites.NewService(favoritesRepo, logger)
 
 	// Инициализация обработчиков
 	authHandler := auth.NewHandler(authService, logger)
 	userHandler := users.NewHandler(userService, authService)
 	catalogHandler := catalog.NewHandler(catalogService, logger)
-	orderHandler := orders.NewHandler(orderService, authService)
+	orderHandler := orders.NewHandler(orderService, authService, hub)
 	adminRepo := admin.NewPostgresRepository(db)
 	adminService := admin.NewService(adminRepo, logger)
 	adminHandler := admin.NewHandler(adminService, logger, cfg.Server.PublicURL)
