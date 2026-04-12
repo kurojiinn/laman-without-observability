@@ -1,4 +1,4 @@
-.PHONY: help build run test migrate-up migrate-down migrate-create docker-up docker-down docker-build docker-logs clean
+.PHONY: help build run test migrate-up migrate-down migrate-docker-up migrate-docker-down migrate-create docker-up docker-down docker-build docker-logs clean
 
 # Variables
 DB_HOST ?= localhost
@@ -33,13 +33,23 @@ test-coverage: ## Run tests with coverage
 	@go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 
-migrate-up: ## Run database migrations up
+migrate-up: ## Run database migrations up (postgres must be accessible on localhost:5432)
 	@echo "Running migrations up..."
 	@$(GOOSE_CMD) up
 
-migrate-down: ## Run database migrations down
+migrate-down: ## Run database migrations down (postgres must be accessible on localhost:5432)
 	@echo "Running migrations down..."
 	@$(GOOSE_CMD) down
+
+migrate-docker-up: ## Run database migrations up inside api container (use when postgres port is not exposed)
+	@echo "Running migrations up via Docker..."
+	@docker exec laman-api goose -dir ./migrations postgres \
+		"postgres://$(DB_USER):$(DB_PASSWORD)@postgres:$(DB_PORT)/$(DB_NAME)?sslmode=disable" up
+
+migrate-docker-down: ## Run database migrations down inside api container
+	@echo "Running migrations down via Docker..."
+	@docker exec laman-api goose -dir ./migrations postgres \
+		"postgres://$(DB_USER):$(DB_PASSWORD)@postgres:$(DB_PORT)/$(DB_NAME)?sslmode=disable" down
 
 migrate-force: ## Force migration version (use VERSION=xxx)
 	@echo "Forcing migration version $(VERSION)..."

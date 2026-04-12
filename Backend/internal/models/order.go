@@ -23,14 +23,10 @@ const (
 )
 
 // Order представляет заказ в системе.
-// Поддерживает как зарегистрированных пользователей, так и гостевые заказы.
 type Order struct {
-	ID            uuid.UUID     `db:"id" json:"id"`
-	UserID        *uuid.UUID    `db:"user_id" json:"user_id,omitempty"`
-	CourierID     *uuid.UUID    `db:"courier_id" json:"courier_id,omitempty"`
-	GuestName       *string       `db:"guest_name" json:"guest_name,omitempty"`
-	GuestPhone      *string       `db:"guest_phone" json:"guest_phone,omitempty"`
-	GuestAddress    *string       `db:"guest_address" json:"guest_address,omitempty"`
+	ID              uuid.UUID     `db:"id" json:"id"`
+	UserID          *uuid.UUID    `db:"user_id" json:"user_id,omitempty"`
+	CourierID       *uuid.UUID    `db:"courier_id" json:"courier_id,omitempty"`
 	CustomerPhone   *string       `db:"customer_phone" json:"customer_phone,omitempty"`
 	DeliveryAddress *string       `db:"delivery_address" json:"delivery_address,omitempty"`
 	Comment         *string       `db:"comment" json:"comment,omitempty"`

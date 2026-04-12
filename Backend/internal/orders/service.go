@@ -88,10 +88,7 @@ func NewOrderService(
 
 // CreateOrderRequest представляет запрос на создание заказа.
 type CreateOrderRequest struct {
-	UserID          *uuid.UUID               `json:"user_id,omitempty"`
-	GuestName       *string                  `json:"guest_name,omitempty"`
-	GuestPhone      *string                  `json:"guest_phone,omitempty"`
-	GuestAddress    *string                  `json:"guest_address,omitempty"`
+	UserID          uuid.UUID                `json:"user_id"`
 	CustomerPhone   *string                  `json:"customer_phone,omitempty"`
 	Comment         *string                  `json:"comment,omitempty"`
 	Items           []CreateOrderItemRequest `json:"items" binding:"required"`
@@ -107,10 +104,6 @@ type CreateOrderItemRequest struct {
 
 // CreateOrder создает новый заказ с товарами, доставкой и оплатой.
 func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) (*models.OrderWithItems, error) {
-	// Валидация запроса
-	if req.UserID == nil && (req.GuestName == nil || req.GuestPhone == nil || req.GuestAddress == nil) {
-		return nil, fmt.Errorf("должен быть указан либо user_id, либо информация о госте")
-	}
 
 	// Получение товаров
 	productIDs := make([]uuid.UUID, len(req.Items))
@@ -183,19 +176,10 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 	if storeID == nil {
 		return nil, fmt.Errorf("не удалось определить магазин заказа")
 	}
-	// Определяем телефон клиента: явно переданный > guest_phone
-	customerPhone := req.CustomerPhone
-	if customerPhone == nil {
-		customerPhone = req.GuestPhone
-	}
-
 	order := &models.Order{
 		ID:            uuid.New(),
-		UserID:        req.UserID,
-		GuestName:     req.GuestName,
-		GuestPhone:    req.GuestPhone,
-		GuestAddress:  req.GuestAddress,
-		CustomerPhone: customerPhone,
+		UserID:        &req.UserID,
+		CustomerPhone: req.CustomerPhone,
 		Comment:       req.Comment,
 		Status:        models.OrderStatusNew,
 		StoreID:       *storeID,
@@ -258,14 +242,20 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 
 	if s.notifier != nil {
 		itemsText := strings.Join(itemLines, ", ")
-		customerText := buildCustomerText(req, order.ID)
-		addressText := buildAddressText(req)
+		phone := ""
+		if req.CustomerPhone != nil {
+			phone = *req.CustomerPhone
+		}
+		comment := ""
+		if req.Comment != nil {
+			comment = *req.Comment
+		}
 
 		notifyCtx := observability.WithOrderMessageMeta(ctx, observability.OrderMessageMeta{
-			Customer: customerText,
-			Phone:    buildPhoneText(req),
-			Comment:  buildCommentText(req),
-			Address:  addressText,
+			Customer: fmt.Sprintf("Пользователь %s", shortUUID(req.UserID)),
+			Phone:    phone,
+			Comment:  comment,
+			Address:  req.DeliveryAddress,
 			Items:    itemsText,
 		})
 
@@ -322,45 +312,6 @@ func (s *OrderService) assignCourier(ctx context.Context, order *models.Order) *
 	return nil
 }
 
-func buildCustomerText(req CreateOrderRequest, orderID uuid.UUID) string {
-	if req.GuestName != nil && *req.GuestName != "" {
-		return *req.GuestName
-	}
-
-	if req.UserID != nil {
-		return fmt.Sprintf("Пользователь %s", shortUUID(*req.UserID))
-	}
-
-	return fmt.Sprintf("Гость %s", shortUUID(orderID))
-}
-
-func buildPhoneText(req CreateOrderRequest) string {
-	if req.CustomerPhone != nil && *req.CustomerPhone != "" {
-		return *req.CustomerPhone
-	}
-	if req.GuestPhone != nil && *req.GuestPhone != "" {
-		return *req.GuestPhone
-	}
-	return ""
-}
-
-func buildCommentText(req CreateOrderRequest) string {
-	if req.Comment != nil && *req.Comment != "" {
-		return *req.Comment
-	}
-	return ""
-}
-
-func buildAddressText(req CreateOrderRequest) string {
-	if req.DeliveryAddress != "" {
-		return req.DeliveryAddress
-	}
-	if req.GuestAddress != nil && *req.GuestAddress != "" {
-		return *req.GuestAddress
-	}
-	return ""
-}
-
 func shortUUID(id uuid.UUID) string {
 	value := id.String()
 	if len(value) <= 8 {
@@ -369,39 +320,6 @@ func shortUUID(id uuid.UUID) string {
 	return value[:8]
 }
 
-func buildCustomerTextFromOrder(order *models.Order) string {
-	if order.GuestName != nil && *order.GuestName != "" {
-		return *order.GuestName
-	}
-	if order.UserID != nil {
-		return fmt.Sprintf("Пользователь %s", shortUUID(*order.UserID))
-	}
-	return fmt.Sprintf("Гость %s", shortUUID(order.ID))
-}
-
-func buildPhoneTextFromOrder(order *models.Order) string {
-	if order.CustomerPhone != nil && *order.CustomerPhone != "" {
-		return *order.CustomerPhone
-	}
-	if order.GuestPhone != nil && *order.GuestPhone != "" {
-		return *order.GuestPhone
-	}
-	return ""
-}
-
-func buildCommentTextFromOrder(order *models.Order) string {
-	if order.Comment != nil && *order.Comment != "" {
-		return *order.Comment
-	}
-	return ""
-}
-
-func buildAddressTextFromOrder(order *models.Order) string {
-	if order.GuestAddress != nil && *order.GuestAddress != "" {
-		return *order.GuestAddress
-	}
-	return ""
-}
 
 func (s *OrderService) buildItemsText(ctx context.Context, orderID uuid.UUID) string {
 	items, err := s.orderItemRepo.GetByOrderID(ctx, orderID)
@@ -493,11 +411,23 @@ func (s *OrderService) UpdateOrderStatus(ctx context.Context, id uuid.UUID, newS
 
 	if newStatus == models.OrderStatusCancelled && s.notifier != nil {
 		itemsText := s.buildItemsText(ctx, order.ID)
+		customer := fmt.Sprintf("Пользователь %s", shortUUID(order.ID))
+		if order.UserID != nil {
+			customer = fmt.Sprintf("Пользователь %s", shortUUID(*order.UserID))
+		}
+		phone := ""
+		if order.CustomerPhone != nil {
+			phone = *order.CustomerPhone
+		}
+		comment := ""
+		if order.Comment != nil {
+			comment = *order.Comment
+		}
 		notifyCtx := observability.WithOrderMessageMeta(ctx, observability.OrderMessageMeta{
-			Customer: buildCustomerTextFromOrder(order),
-			Phone:    buildPhoneTextFromOrder(order),
-			Comment:  buildCommentTextFromOrder(order),
-			Address:  buildAddressTextFromOrder(order),
+			Customer: customer,
+			Phone:    phone,
+			Comment:  comment,
+			Address:  "",
 			Items:    itemsText,
 		})
 

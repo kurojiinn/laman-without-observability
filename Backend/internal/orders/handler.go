@@ -33,32 +33,27 @@ func NewHandler(orderService *OrderService, authService AuthService, hub *events
 // RegisterRoutes регистрирует маршруты заказов.
 func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	orders := router.Group("/orders")
+	auth := middleware.AuthMiddleware(h.authService)
 	{
-		orders.POST("", h.CreateOrder)
-		orders.GET("/:id", h.GetOrder)
-		orders.GET("", middleware.AuthMiddleware(h.authService), h.GetUserOrders)
-		orders.PUT("/:id/status", middleware.AuthMiddleware(h.authService), h.UpdateOrderStatus)
-		orders.GET("/events", middleware.AuthMiddleware(h.authService), h.Events)
+		orders.POST("", auth, h.CreateOrder)
+		orders.GET("/:id", auth, h.GetOrder)
+		orders.GET("", auth, h.GetUserOrders)
+		orders.PUT("/:id/status", auth, h.UpdateOrderStatus)
+		orders.GET("/events", auth, h.Events)
 	}
 }
 
 // CreateOrder обрабатывает POST /orders
 func (h *Handler) CreateOrder(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+	userIDUUID := userID.(uuid.UUID)
+
 	var req CreateOrderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	// Если пользователь аутентифицирован, устанавливаем user_id
-	if authHeader := c.GetHeader("Authorization"); authHeader != "" {
-		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
-			userID, err := h.authService.ValidateToken(authHeader[7:])
-			if err == nil {
-				req.UserID = &userID
-			}
-		}
-	}
+	req.UserID = userIDUUID
 
 	order, err := h.orderService.CreateOrder(c.Request.Context(), req)
 	if err != nil {
@@ -71,6 +66,9 @@ func (h *Handler) CreateOrder(c *gin.Context) {
 
 // GetOrder обрабатывает GET /orders/:id
 func (h *Handler) GetOrder(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+	userIDUUID := userID.(uuid.UUID)
+
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID заказа"})
@@ -80,6 +78,11 @@ func (h *Handler) GetOrder(c *gin.Context) {
 	order, err := h.orderService.GetOrder(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	if order.UserID == nil || *order.UserID != userIDUUID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "доступ запрещён"})
 		return
 	}
 

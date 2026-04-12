@@ -16,6 +16,9 @@ COPY . .
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/bin/api ./cmd/api
 
+# Build goose migration tool
+RUN go install github.com/pressly/goose/v3/cmd/goose@v3.19.2
+
 # Final stage
 FROM alpine:latest
 
@@ -24,6 +27,9 @@ WORKDIR /root/
 
 # Copy the binary from builder
 COPY --from=builder /app/bin/api .
+
+# Copy goose binary
+COPY --from=builder /go/bin/goose /usr/local/bin/goose
 
 # Copy migrations
 COPY --from=builder /app/migrations ./migrations
