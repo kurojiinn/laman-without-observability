@@ -213,6 +213,10 @@ func setupRouter(
 	router.Use(middleware.RequestIDMiddleware())
 	router.Use(middleware.MetricsMiddleware())
 	router.Use(middleware.CORSMiddleware(cfg.CORS.Origins))
+	router.Use(func(c *gin.Context) {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20) // 1MB
+		c.Next()
+	})
 
 	// Статика для загруженных файлов
 	router.Static("/uploads", "./uploads")
