@@ -166,6 +166,23 @@ func (r *postgresProductRepository) GetByIDs(ctx context.Context, ids []uuid.UUI
 	return products, err
 }
 
+func (r *postgresProductRepository) Update(ctx context.Context, id uuid.UUID, name string, price float64, description *string, isAvailable bool) (*models.Product, error) {
+	query := `
+UPDATE products
+SET name=$1, price=$2, description=$3, is_available=$4, updated_at=NOW()
+WHERE id=$5
+RETURNING id, category_id, subcategory_id, store_id, name, description, image_url, price, weight, is_available, created_at, updated_at`
+	var product models.Product
+	err := r.db.GetContext(ctx, &product, query, name, price, description, isAvailable, id)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("товар не найден")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &product, nil
+}
+
 // postgresStoreRepository реализует StoreRepository используя PostgreSQL.
 type postgresStoreRepository struct {
 	db *database.DB
@@ -178,7 +195,7 @@ func NewPostgresStoreRepository(db *database.DB) StoreRepository {
 
 func (r *postgresStoreRepository) GetAll(ctx context.Context, categoryType *models.StoreCategoryType, search *string) ([]models.Store, error) {
 	var stores []models.Store
-	query := `SELECT id, name, address, phone, description, image_url, rating, category_type, created_at, updated_at, lat, lng FROM stores WHERE 1=1`
+	query := `SELECT id, name, address, city, phone, description, image_url, rating, category_type, opens_at, closes_at, created_at, updated_at, lat, lng FROM stores WHERE 1=1`
 	args := []interface{}{}
 
 	if categoryType != nil {
@@ -199,7 +216,7 @@ func (r *postgresStoreRepository) GetAll(ctx context.Context, categoryType *mode
 
 func (r *postgresStoreRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Store, error) {
 	var store models.Store
-	query := `SELECT id, name, address, phone, description, image_url, rating, category_type, created_at, updated_at, lat, lng FROM stores WHERE id = $1`
+	query := `SELECT id, name, address, city, phone, description, image_url, rating, category_type, opens_at, closes_at, created_at, updated_at, lat, lng FROM stores WHERE id = $1`
 	err := r.db.GetContext(ctx, &store, query, id)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("магазин не найден")
@@ -208,4 +225,102 @@ func (r *postgresStoreRepository) GetByID(ctx context.Context, id uuid.UUID) (*m
 		return nil, err
 	}
 	return &store, nil
+}
+
+func (r *postgresStoreRepository) Update(ctx context.Context, id uuid.UUID, name string, address string, description *string, opensAt *string, closesAt *string) (*models.Store, error) {
+	query := `
+UPDATE stores
+SET name=$1, address=$2, description=$3, opens_at=$4, closes_at=$5, updated_at=NOW()
+WHERE id=$6
+RETURNING id, name, address, city, phone, description, image_url, rating, category_type, opens_at, closes_at, created_at, updated_at, lat, lng`
+	var store models.Store
+	err := r.db.GetContext(ctx, &store, query, name, address, description, opensAt, closesAt, id)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("магазин не найден")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &store, nil
+}
+
+// postgresReviewRepository реализует ReviewRepository используя PostgreSQL.
+type postgresReviewRepository struct {
+	db *database.DB
+}
+
+// NewPostgresReviewRepository создает новый PostgreSQL репозиторий отзывов.
+func NewPostgresReviewRepository(db *database.DB) ReviewRepository {
+	return &postgresReviewRepository{db: db}
+}
+
+func (r *postgresReviewRepository) GetByStoreID(ctx context.Context, storeID uuid.UUID) ([]models.Review, error) {
+	var reviews []models.Review
+	query := `
+SELECT rv.id, rv.store_id, rv.user_id, u.phone AS user_phone, rv.rating, rv.comment, rv.created_at
+FROM reviews rv
+JOIN users u ON u.id = rv.user_id
+WHERE rv.store_id = $1
+ORDER BY rv.created_at DESC`
+	err := r.db.SelectContext(ctx, &reviews, query, storeID)
+	if err != nil {
+		return nil, err
+	}
+	if reviews == nil {
+		reviews = []models.Review{}
+	}
+	return reviews, nil
+}
+
+func (r *postgresReviewRepository) Create(ctx context.Context, review *models.Review) error {
+	query := `
+INSERT INTO reviews (store_id, user_id, rating, comment)
+VALUES ($1, $2, $3, $4)
+RETURNING id, created_at`
+	return r.db.QueryRowContext(ctx, query, review.StoreID, review.UserID, review.Rating, review.Comment).
+		Scan(&review.ID, &review.CreatedAt)
+}
+
+func (r *postgresReviewRepository) HasUserReviewed(ctx context.Context, storeID uuid.UUID, userID uuid.UUID) (bool, error) {
+	var exists bool
+	query := `SELECT EXISTS(SELECT 1 FROM reviews WHERE store_id = $1 AND user_id = $2)`
+	err := r.db.QueryRowContext(ctx, query, storeID, userID).Scan(&exists)
+	return exists, err
+}
+
+func (r *postgresReviewRepository) HasDeliveredOrder(ctx context.Context, storeID uuid.UUID, userID uuid.UUID) (bool, error) {
+	var exists bool
+	query := `SELECT EXISTS(SELECT 1 FROM orders WHERE store_id = $1 AND user_id = $2 AND status != 'CANCELLED')`
+	err := r.db.QueryRowContext(ctx, query, storeID, userID).Scan(&exists)
+	return exists, err
+}
+
+func (r *postgresReviewRepository) Delete(ctx context.Context, reviewID uuid.UUID) error {
+	query := `DELETE FROM reviews WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, reviewID)
+	return err
+}
+
+// postgresFeaturedProductRepository реализует FeaturedProductRepository.
+type postgresFeaturedProductRepository struct {
+	db *database.DB
+}
+
+// NewPostgresFeaturedProductRepository создаёт репозиторий блоков витрины.
+func NewPostgresFeaturedProductRepository(db *database.DB) FeaturedProductRepository {
+	return &postgresFeaturedProductRepository{db: db}
+}
+
+func (r *postgresFeaturedProductRepository) GetByBlock(ctx context.Context, blockType models.FeaturedBlockType) ([]models.Product, error) {
+	var products []models.Product
+	query := `
+		SELECT p.id, p.category_id, p.subcategory_id, p.store_id, p.name, p.description,
+		       p.image_url, p.price, p.weight, p.is_available, p.created_at, p.updated_at
+		FROM products p
+		JOIN featured_products fp ON fp.product_id = p.id
+		WHERE fp.block_type = $1 AND p.is_available = TRUE
+		ORDER BY fp.position ASC
+	`
+	err := r.db.SelectContext(ctx, &products, query, blockType)
+	return products, err
 }

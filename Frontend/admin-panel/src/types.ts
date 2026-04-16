@@ -33,9 +33,45 @@ export type DashboardStats = {
 
 export type AdminOrder = {
   id: string;
-  guest_name?: string | null;
-  guest_phone?: string | null;
+  user_id?: string | null;
+  customer_phone?: string | null;
+  delivery_address?: string | null;
+  comment?: string | null;
   status: string;
+  store_id: string;
+  payment_method: string;
+  items_total: number;
+  service_fee: number;
+  delivery_fee: number;
   final_total: number;
   created_at: string;
+  updated_at: string;
 };
+
+export type FeaturedBlockType = "new_items" | "hits" | "movie_night";
+
+export const FEATURED_BLOCK_LABELS: Record<FeaturedBlockType, string> = {
+  new_items: "Новинки",
+  hits: "Хиты",
+  movie_night: "На вечернее кино",
+};
+
+export type FeaturedItem = {
+  id: string;
+  product_id: string;
+  block_type: FeaturedBlockType;
+  position: number;
+  created_at: string;
+};
+
+export type OrderStatus =
+  | "NEW"
+  | "ACCEPTED_BY_PICKER"
+  | "ASSEMBLING"
+  | "ASSEMBLED"
+  | "WAITING_COURIER"
+  | "COURIER_PICKED_UP"
+  | "DELIVERING"
+  | "DELIVERED"
+  | "CANCELLED"
+  | "NEEDS_CONFIRMATION";

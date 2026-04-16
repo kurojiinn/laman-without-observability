@@ -4,6 +4,7 @@ import (
 	"Laman/internal/middleware"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -35,6 +36,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 		auth.POST("/register", h.Register)
 		auth.POST("/login", h.Login)
 		auth.GET("/me", middleware.AuthMiddleware(h.authService), h.GetMe)
+		auth.POST("/logout", middleware.AuthMiddleware(h.authService), h.Logout)
 	}
 }
 
@@ -217,6 +219,22 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, response)
+}
+
+// Logout handles POST /auth/logout.
+func (h *Handler) Logout(c *gin.Context) {
+	// Достаём токен из заголовка — AuthMiddleware уже проверил что он валиден,
+	// поэтому здесь просто передаём его в Logout без повторной валидации.
+	authHeader := c.GetHeader("Authorization")
+	parts := strings.Split(authHeader, " ")
+	token := parts[1] // AuthMiddleware гарантирует формат "Bearer <token>"
+
+	if err := h.authService.Logout(c.Request.Context(), token); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "не удалось выйти"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "успешный выход"})
 }
 
 // GetMe обрабатывает GET /auth/me

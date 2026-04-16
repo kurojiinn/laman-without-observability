@@ -1,7 +1,9 @@
 package users
 
 import (
+	"context"
 	"net/http"
+
 	"Laman/internal/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -15,7 +17,7 @@ type Handler struct {
 
 // AuthService определяет интерфейс, необходимый из модуля auth.
 type AuthService interface {
-	ValidateToken(token string) (uuid.UUID, error)
+	ValidateToken(ctx context.Context, token string) (uuid.UUID, string, error)
 }
 
 // NewHandler создает новый обработчик пользователей.

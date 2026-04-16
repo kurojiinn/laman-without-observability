@@ -15,7 +15,7 @@ async function readPayload(response: Response): Promise<ApiErrorPayload | undefi
 }
 
 type RequestOptions = {
-  method?: "GET" | "POST" | "PUT";
+  method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: unknown;
   authorized?: boolean;
   signal?: AbortSignal;

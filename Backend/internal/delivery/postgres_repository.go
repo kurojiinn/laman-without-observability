@@ -4,9 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
 	"Laman/internal/database"
 	"Laman/internal/models"
+
 	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
 )
 
 // postgresDeliveryRepository реализует DeliveryRepository используя PostgreSQL.
@@ -19,12 +22,24 @@ func NewPostgresDeliveryRepository(db *database.DB) DeliveryRepository {
 	return &postgresDeliveryRepository{db: db}
 }
 
+const insertDeliveryQuery = `
+	INSERT INTO deliveries (id, order_id, address, distance, weight, created_at, updated_at)
+	VALUES (:id, :order_id, :address, :distance, :weight, :created_at, :updated_at)
+`
+
 func (r *postgresDeliveryRepository) Create(ctx context.Context, delivery *models.Delivery) error {
-	query := `
-		INSERT INTO deliveries (id, order_id, address, distance, weight, created_at, updated_at)
-		VALUES (:id, :order_id, :address, :distance, :weight, :created_at, :updated_at)
-	`
-	_, err := r.db.NamedExecContext(ctx, query, delivery)
+	_, err := r.db.NamedExecContext(ctx, insertDeliveryQuery, delivery)
+	return err
+}
+
+// CreateTx создаёт запись о доставке внутри транзакции.
+// Вызывается из OrderService.CreateOrder для атомарного создания заказа.
+func (r *postgresDeliveryRepository) CreateTx(ctx context.Context, tx *sqlx.Tx, delivery *models.Delivery) error {
+	query, args, err := tx.BindNamed(insertDeliveryQuery, delivery)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, query, args...)
 	return err
 }
 

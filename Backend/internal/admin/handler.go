@@ -1,8 +1,10 @@
 package admin
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -49,6 +51,10 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.Han
 		admin.POST("/products/import", h.ImportProducts)
 		admin.DELETE("/products/:id", h.DeleteProduct)
 		admin.PATCH("/orders/:id", h.UpdateOrderStatus)
+		// Витрина
+		admin.GET("/featured", h.GetFeatured)
+		admin.POST("/featured", h.AddFeatured)
+		admin.DELETE("/featured/:id", h.DeleteFeatured)
 	}
 }
 
@@ -63,11 +69,14 @@ type DashboardStats struct {
 type CreateStoreRequest struct {
 	Name         string                   `json:"name"`
 	Address      string                   `json:"address"`
+	City         string                   `json:"city"`
 	Phone        *string                  `json:"phone,omitempty"`
 	Description  *string                  `json:"description,omitempty"`
 	ImageURL     *string                  `json:"image_url,omitempty"`
 	Rating       *float64                 `json:"rating,omitempty"`
 	CategoryType models.StoreCategoryType `json:"category_type"`
+	OpensAt      *string                  `json:"opens_at,omitempty"`
+	ClosesAt     *string                  `json:"closes_at,omitempty"`
 }
 
 // CreateProductRequest описывает payload для создания товара.
@@ -411,6 +420,35 @@ func (h *Handler) buildCreateProductRequestFromForm(ctx context.Context, c *gin.
 	return req, nil
 }
 
+// allowedMIMETypes содержит разрешённые сигнатуры магических байтов изображений.
+var allowedMIMETypes = []struct {
+	magic []byte
+	ext   string
+}{
+	{[]byte{0xFF, 0xD8, 0xFF}, ".jpg"},
+	{[]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, ".png"},
+	{[]byte{0x47, 0x49, 0x46, 0x38}, ".gif"},
+	{[]byte{0x52, 0x49, 0x46, 0x46}, ".webp"}, // RIFF prefix — webp дополнительно проверяется ниже
+}
+
+// detectImageExt определяет расширение файла по магическим байтам.
+// Возвращает ошибку, если файл не является допустимым изображением.
+func detectImageExt(header []byte) (string, error) {
+	for _, t := range allowedMIMETypes {
+		if len(header) >= len(t.magic) && bytes.Equal(header[:len(t.magic)], t.magic) {
+			// Дополнительная проверка WebP: RIFF????WEBP
+			if t.ext == ".webp" {
+				if len(header) >= 12 && string(header[8:12]) == "WEBP" {
+					return ".webp", nil
+				}
+				return "", fmt.Errorf("недопустимый тип файла")
+			}
+			return t.ext, nil
+		}
+	}
+	return "", fmt.Errorf("недопустимый тип файла: разрешены только JPEG, PNG, GIF, WebP")
+}
+
 // saveUploadedImage сохраняет файл изображения и возвращает публичный URL.
 func (h *Handler) saveUploadedImage(ctx context.Context, c *gin.Context) (string, error) {
 	_, span := observability.StartSpan(ctx, "admin.save_product_image")
@@ -422,13 +460,29 @@ func (h *Handler) saveUploadedImage(ctx context.Context, c *gin.Context) (string
 		return "", nil
 	}
 
+	// Проверяем MIME-тип по магическим байтам (не доверяем расширению из имени файла).
+	f, err := fileHeader.Open()
+	if err != nil {
+		return "", fmt.Errorf("не удалось открыть файл")
+	}
+	defer f.Close()
+
+	header := make([]byte, 12)
+	if _, err := io.ReadFull(f, header); err != nil && err != io.ErrUnexpectedEOF {
+		return "", fmt.Errorf("не удалось прочитать файл")
+	}
+
+	ext, err := detectImageExt(header)
+	if err != nil {
+		return "", err
+	}
+
 	if err := os.MkdirAll("uploads", 0o755); err != nil {
 		h.logger.Error("Не удалось создать папку uploads", zap.Error(err))
 		return "", fmt.Errorf("не удалось подготовить папку загрузок")
 	}
 
-	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
-	fileName := fmt.Sprintf("%s%s", uuid.NewString(), ext)
+	fileName := uuid.NewString() + ext
 	targetPath := filepath.Join("uploads", fileName)
 
 	h.logger.Info("Загрузка изображения: сохранение файла",
@@ -456,4 +510,77 @@ func (h *Handler) respondError(c *gin.Context, status int, message string, detai
 		payload["details"] = details
 	}
 	c.JSON(status, payload)
+}
+
+// ── Витрина ────────────────────────────────────────────────────────────────────
+
+type AddFeaturedRequest struct {
+	ProductID uuid.UUID               `json:"product_id"`
+	BlockType models.FeaturedBlockType `json:"block_type"`
+	Position  int                     `json:"position"`
+}
+
+// GetFeatured возвращает список записей витрины по блоку.
+// GET /api/v1/admin/featured?block=new_items
+func (h *Handler) GetFeatured(c *gin.Context) {
+	blockType := models.FeaturedBlockType(c.Query("block"))
+	if !isValidFeaturedBlock(blockType) {
+		h.respondError(c, http.StatusBadRequest, "неверный тип блока", "допустимы: new_items, hits, movie_night")
+		return
+	}
+	items, err := h.service.repo.GetFeaturedList(c.Request.Context(), blockType)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, "ошибка получения витрины", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, items)
+}
+
+// AddFeatured добавляет товар в блок витрины.
+// POST /api/v1/admin/featured
+func (h *Handler) AddFeatured(c *gin.Context) {
+	var req AddFeaturedRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный запрос", err.Error())
+		return
+	}
+	if !isValidFeaturedBlock(req.BlockType) {
+		h.respondError(c, http.StatusBadRequest, "неверный тип блока", "допустимы: new_items, hits, movie_night")
+		return
+	}
+	fp := &models.FeaturedProduct{
+		ID:        uuid.New(),
+		ProductID: req.ProductID,
+		BlockType: req.BlockType,
+		Position:  req.Position,
+		CreatedAt: time.Now(),
+	}
+	if err := h.service.repo.AddFeatured(c.Request.Context(), fp); err != nil {
+		h.respondError(c, http.StatusInternalServerError, "ошибка добавления", err.Error())
+		return
+	}
+	c.JSON(http.StatusCreated, fp)
+}
+
+// DeleteFeatured удаляет товар из блока витрины.
+// DELETE /api/v1/admin/featured/:id
+func (h *Handler) DeleteFeatured(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID", "")
+		return
+	}
+	if err := h.service.repo.DeleteFeatured(c.Request.Context(), id); err != nil {
+		h.respondError(c, http.StatusNotFound, "запись не найдена", err.Error())
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func isValidFeaturedBlock(bt models.FeaturedBlockType) bool {
+	switch bt {
+	case models.FeaturedBlockNewItems, models.FeaturedBlockHits, models.FeaturedBlockMovieNight:
+		return true
+	}
+	return false
 }

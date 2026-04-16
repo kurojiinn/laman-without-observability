@@ -59,7 +59,7 @@ func (p *Service) Login(ctx context.Context, login LoginRequest) (LoginResponse,
 		return LoginResponse{}, fmt.Errorf("доступ запрещен, неверный пароль")
 	}
 
-	token, err := p.generateToken(user.ID)
+	token, err := p.generateToken(user.ID, user.Role)
 	if err != nil {
 		return LoginResponse{}, err
 	}
@@ -72,10 +72,19 @@ func (p *Service) Login(ctx context.Context, login LoginRequest) (LoginResponse,
 	}, nil
 }
 
-func (p *Service) GetOrder(ctx context.Context, orderID uuid.UUID) (*PickerOrderResponse, error) {
+func (p *Service) GetOrder(ctx context.Context, orderID uuid.UUID, pickerID uuid.UUID) (*PickerOrderResponse, error) {
 	order, err := p.pickerRepo.GetOrderByID(ctx, orderID)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось получить заказ: %w", err)
+	}
+
+	// Проверяем, что заказ принадлежит магазину сборщика.
+	pickerStoreID, err := p.getStoreID(ctx, pickerID)
+	if err != nil {
+		return nil, fmt.Errorf("не удалось получить магазин сборщика: %w", err)
+	}
+	if order.StoreID != pickerStoreID {
+		return nil, fmt.Errorf("заказ не принадлежит вашему магазину")
 	}
 
 	items, err := p.pickerRepo.GetOrderItemsByOrderID(ctx, orderID)
@@ -104,11 +113,15 @@ func (p *Service) GetOrdersByUserID(ctx context.Context, userID uuid.UUID) ([]mo
 }
 
 func (p *Service) UpdateStatus(ctx context.Context, orderID uuid.UUID, pickerID uuid.UUID, newStatus models.OrderStatus) error {
-	orderResp, err := p.GetOrder(ctx, orderID)
+	orderResp, err := p.GetOrder(ctx, orderID, pickerID)
 	if err != nil {
-		return fmt.Errorf("не удалось получить заказ")
+		return fmt.Errorf("не удалось получить заказ: %w", err)
 	}
 	order := &orderResp.Order
+
+	if isOrderFinalized(order.Status) {
+		return fmt.Errorf("нельзя изменить заказ со статусом %s", order.Status)
+	}
 	if order.PickerID != nil && *order.PickerID != pickerID {
 		return fmt.Errorf("заказ уже взят другим сборщиком")
 	}
@@ -131,7 +144,15 @@ func (p *Service) UpdateStatus(ctx context.Context, orderID uuid.UUID, pickerID 
 	return nil
 }
 
-func (p *Service) AddItem(ctx context.Context, orderID uuid.UUID, req AddItemRequest) (*PickerOrderItem, error) {
+func (p *Service) AddItem(ctx context.Context, orderID uuid.UUID, pickerID uuid.UUID, req AddItemRequest) (*PickerOrderItem, error) {
+	orderResp, err := p.GetOrder(ctx, orderID, pickerID)
+	if err != nil {
+		return nil, fmt.Errorf("не удалось получить заказ: %w", err)
+	}
+	if isOrderFinalized(orderResp.Order.Status) {
+		return nil, fmt.Errorf("нельзя изменить заказ со статусом %s", orderResp.Order.Status)
+	}
+
 	item, err := p.pickerRepo.AddOrderItem(ctx, orderID, req.ProductName, req.Price, req.Quantity)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось добавить товар: %w", err)
@@ -144,7 +165,15 @@ func (p *Service) AddItem(ctx context.Context, orderID uuid.UUID, req AddItemReq
 	return item, nil
 }
 
-func (p *Service) RemoveItem(ctx context.Context, orderID uuid.UUID, itemID uuid.UUID) error {
+func (p *Service) RemoveItem(ctx context.Context, orderID uuid.UUID, itemID uuid.UUID, pickerID uuid.UUID) error {
+	orderResp, err := p.GetOrder(ctx, orderID, pickerID)
+	if err != nil {
+		return fmt.Errorf("не удалось получить заказ: %w", err)
+	}
+	if isOrderFinalized(orderResp.Order.Status) {
+		return fmt.Errorf("нельзя изменить заказ со статусом %s", orderResp.Order.Status)
+	}
+
 	if err := p.pickerRepo.RemoveOrderItem(ctx, itemID); err != nil {
 		return fmt.Errorf("не удалось удалить товар: %w", err)
 	}
@@ -156,9 +185,10 @@ func (p *Service) RemoveItem(ctx context.Context, orderID uuid.UUID, itemID uuid
 	return nil
 }
 
-func (p *Service) generateToken(userID uuid.UUID) (string, error) {
+func (p *Service) generateToken(userID uuid.UUID, role string) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id": userID.String(),
+		"role":    role,
 		"exp":     time.Now().Add(24 * time.Hour).Unix(),
 		"iat":     time.Now().Unix(),
 	}
@@ -180,4 +210,9 @@ func (p *Service) getStoreID(ctx context.Context, userID uuid.UUID) (uuid.UUID, 
 		return uuid.Nil, fmt.Errorf("сборщик не привязан к магазину")
 	}
 	return *user.StoreID, nil
+}
+
+// isOrderFinalized возвращает true для финальных статусов (изменение запрещено).
+func isOrderFinalized(status models.OrderStatus) bool {
+	return status == models.OrderStatusCancelled || status == models.OrderStatusDelivered
 }

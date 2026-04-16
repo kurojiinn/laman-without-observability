@@ -41,7 +41,6 @@ function getAuthHeaders(): Record<string, string> {
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${getBaseUrl()}${path}`, {
     ...options,
-    credentials: "include",
     headers: { ...getAuthHeaders(), ...options.headers },
   });
 
@@ -100,21 +99,39 @@ export interface Store {
   id: string;
   name: string;
   address: string;
+  city: string;
   phone?: string;
   description?: string;
   image_url?: string;
   rating: number;
   category_type: string;
+  opens_at?: string;
+  closes_at?: string;
   lat?: number;
   lng?: number;
   created_at: string;
   updated_at: string;
 }
 
+/** Возвращает true если магазин сейчас открыт (или часы не заданы). */
+export function isStoreOpen(store: Store): boolean {
+  if (!store.opens_at || !store.closes_at) return true;
+  const now = new Date();
+  const [oh, om] = store.opens_at.split(":").map(Number);
+  const [ch, cm] = store.closes_at.split(":").map(Number);
+  const cur = now.getHours() * 60 + now.getMinutes();
+  const open = oh * 60 + om;
+  const close = ch * 60 + cm;
+  // Поддержка ночного режима (например 22:00 – 02:00)
+  if (open <= close) return cur >= open && cur < close;
+  return cur >= open || cur < close;
+}
+
 export interface OrderItem {
   id: string;
   order_id: string;
-  product_id: string;
+  product_id?: string;
+  name: string;
   quantity: number;
   price: number;
   created_at: string;
@@ -164,32 +181,21 @@ export const catalogApi = {
     if (params?.search) q.set("search", params.search);
     return api.get<Product[]>(`/v1/stores/${storeId}/products?${q}`);
   },
+
+  getFeatured: (block: "new_items" | "hits" | "movie_night") =>
+    api.get<Product[]>(`/v1/catalog/featured?block=${block}`),
 };
 
-// ─── Reviews (localStorage) ──────────────────────────────────────────────────
+// ─── Reviews ─────────────────────────────────────────────────────────────────
 
 export interface Review {
   id: string;
   store_id: string;
+  user_id: string;
   user_phone: string;
   rating: number;
   comment: string;
   created_at: string;
-}
-
-const REVIEWS_KEY = "laman_reviews";
-
-function loadReviews(): Review[] {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(localStorage.getItem(REVIEWS_KEY) ?? "[]") as Review[];
-  } catch {
-    return [];
-  }
-}
-
-function saveReviews(reviews: Review[]) {
-  localStorage.setItem(REVIEWS_KEY, JSON.stringify(reviews));
 }
 
 // ─── Favorites API (backend) ─────────────────────────────────────────────────
@@ -203,20 +209,17 @@ export const favoritesApi = {
 };
 
 export const reviewsApi = {
-  getByStore: (storeId: string): Review[] =>
-    loadReviews().filter((r) => r.store_id === storeId),
+  getByStore: (storeId: string) =>
+    api.get<Review[]>(`/v1/stores/${storeId}/reviews`),
 
-  add: (review: Omit<Review, "id" | "created_at">): Review => {
-    const all = loadReviews();
-    const newReview: Review = {
-      ...review,
-      id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
-    };
-    saveReviews([newReview, ...all]);
-    return newReview;
-  },
+  canReview: (storeId: string) =>
+    api.get<{ can_review: boolean }>(`/v1/stores/${storeId}/can-review`),
+
+  add: (storeId: string, rating: number, comment: string) =>
+    api.post<Review>(`/v1/stores/${storeId}/reviews`, { rating, comment }),
 };
+
+export type OutOfStockAction = "REMOVE" | "REPLACE" | "CALL";
 
 export interface CreateOrderPayload {
   delivery_address: string;
@@ -224,6 +227,7 @@ export interface CreateOrderPayload {
   items: { product_id: string; quantity: number }[];
   comment?: string;
   customer_phone?: string;   // телефон для пикера (и авторизованные, и гости)
+  out_of_stock_action?: OutOfStockAction;
   // guest-only (не нужны если есть JWT)
   guest_name?: string;
   guest_phone?: string;
@@ -235,6 +239,40 @@ export const ordersApi = {
   getOrder: (id: string) => api.get<Order>(`/v1/orders/${id}`),
   createOrder: (payload: CreateOrderPayload) =>
     api.post<Order>("/v1/orders", payload),
+  cancelOrder: (id: string) =>
+    api.post<{ message: string }>(`/v1/orders/${id}/cancel`, {}),
+};
+
+// ─── Users API ───────────────────────────────────────────────────────────────
+
+export interface UserProfile {
+  user_id: string;
+  name: string;
+  email?: string;
+  address?: string;
+}
+
+export const usersApi = {
+  getProfile: () => api.get<UserProfile>("/v1/users/profile"),
+  updateProfile: (data: { name: string; email?: string; address?: string }) =>
+    api.put<UserProfile>("/v1/users/profile", data),
+};
+
+// ─── Admin API (JWT + ADMIN role) ────────────────────────────────────────────
+
+export const adminApi = {
+  updateProduct: (
+    id: string,
+    payload: { name: string; price: number; description?: string; is_available: boolean }
+  ) => api.patch<Product>(`/v1/catalog/products/${id}`, payload),
+
+  updateStore: (
+    id: string,
+    payload: { name: string; address: string; description?: string; opens_at?: string; closes_at?: string }
+  ) => api.patch<Store>(`/v1/stores/${id}`, payload),
+
+  deleteReview: (storeId: string, reviewId: string) =>
+    api.delete<{ ok: boolean }>(`/v1/stores/${storeId}/reviews/${reviewId}`),
 };
 
 // ─── Auth types (зеркало Go-структур) ───────────────────────────────────────

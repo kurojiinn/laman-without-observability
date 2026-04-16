@@ -53,6 +53,14 @@ func (m *adminRepoMock) BulkInsertProducts(ctx context.Context, rows []ImportPro
 	return nil
 }
 
+func (m *adminRepoMock) GetProductsByStore(ctx context.Context, storeID uuid.UUID) ([]models.Product, error) {
+	return []models.Product{}, nil
+}
+
+func (m *adminRepoMock) UpdateProduct(ctx context.Context, id uuid.UUID, req *UpdateProductRequest) (*models.Product, error) {
+	return &models.Product{}, nil
+}
+
 func TestUpdateOrderStatus_Valid(t *testing.T) {
 	repo := &adminRepoMock{}
 	service := NewService(repo, zap.NewNop())

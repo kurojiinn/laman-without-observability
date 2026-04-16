@@ -4,9 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
 	"Laman/internal/database"
 	"Laman/internal/models"
+
 	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
 )
 
 // postgresPaymentRepository реализует PaymentRepository используя PostgreSQL.
@@ -19,12 +22,24 @@ func NewPostgresPaymentRepository(db *database.DB) PaymentRepository {
 	return &postgresPaymentRepository{db: db}
 }
 
+const insertPaymentQuery = `
+	INSERT INTO payments (id, order_id, method, status, amount, created_at, updated_at)
+	VALUES (:id, :order_id, :method, :status, :amount, :created_at, :updated_at)
+`
+
 func (r *postgresPaymentRepository) Create(ctx context.Context, payment *models.Payment) error {
-	query := `
-		INSERT INTO payments (id, order_id, method, status, amount, created_at, updated_at)
-		VALUES (:id, :order_id, :method, :status, :amount, :created_at, :updated_at)
-	`
-	_, err := r.db.NamedExecContext(ctx, query, payment)
+	_, err := r.db.NamedExecContext(ctx, insertPaymentQuery, payment)
+	return err
+}
+
+// CreateTx создаёт запись оплаты внутри транзакции.
+// Вызывается из OrderService.CreateOrder для атомарного создания заказа.
+func (r *postgresPaymentRepository) CreateTx(ctx context.Context, tx *sqlx.Tx, payment *models.Payment) error {
+	query, args, err := tx.BindNamed(insertPaymentQuery, payment)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, query, args...)
 	return err
 }
 

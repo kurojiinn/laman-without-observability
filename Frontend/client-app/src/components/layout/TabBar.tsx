@@ -50,10 +50,14 @@ const TABS: {
 interface TabBarProps {
   active: Tab;
   onChange: (tab: Tab) => void;
+  isAdmin?: boolean;
 }
 
-export default function TabBar({ active, onChange }: TabBarProps) {
+export default function TabBar({ active, onChange, isAdmin }: TabBarProps) {
   const { totalCount } = useCart();
+
+  const visibleTabs = isAdmin ? TABS.filter((t) => t.id === "home" || t.id === "categories") : TABS;
+  const colCount = visibleTabs.length;
 
   return (
     <>
@@ -62,8 +66,8 @@ export default function TabBar({ active, onChange }: TabBarProps) {
         className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-100 pb-safe"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
-        <div className="grid grid-cols-4 h-16">
-          {TABS.map((tab) => {
+        <div className={`grid h-16`} style={{ gridTemplateColumns: `repeat(${colCount}, 1fr)` }}>
+          {visibleTabs.map((tab) => {
             const isActive = active === tab.id;
             const showBadge = tab.id === "cart" && totalCount > 0;
             return (
@@ -94,7 +98,7 @@ export default function TabBar({ active, onChange }: TabBarProps) {
       {/* ── Десктоп: горизонтальные вкладки под хедером ── */}
       <nav className="hidden md:block bg-white border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-6 flex gap-1">
-          {TABS.map((tab) => {
+          {visibleTabs.map((tab) => {
             const isActive = active === tab.id;
             const showBadge = tab.id === "cart" && totalCount > 0;
             return (

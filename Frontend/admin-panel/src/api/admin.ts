@@ -1,5 +1,5 @@
 import { createAdminClient, publicClient } from "./client";
-import type { Category, DashboardStats, Store } from "../types";
+import type { Category, DashboardStats, FeaturedItem, Store } from "../types";
 
 export const fetchDashboardStats = async (user: string, password: string) => {
   const client = createAdminClient(user, password);
@@ -145,4 +145,34 @@ export const updateProduct = async (
     headers: { "Content-Type": "multipart/form-data" },
   });
   return data;
+};
+
+export const searchProductsByName = async (
+  query: string
+): Promise<{ id: string; name: string; price: number; store_id: string }[]> => {
+  const { data } = await publicClient.get(
+    `/catalog/products?search=${encodeURIComponent(query)}&available_only=true`
+  );
+  return data ?? [];
+};
+
+export const fetchFeatured = async (user: string, password: string, block: string) => {
+  const client = createAdminClient(user, password);
+  const { data } = await client.get<FeaturedItem[]>(`/featured?block=${block}`);
+  return data;
+};
+
+export const addFeatured = async (
+  user: string,
+  password: string,
+  payload: { product_id: string; block_type: string; position: number }
+) => {
+  const client = createAdminClient(user, password);
+  const { data } = await client.post("/featured", payload);
+  return data;
+};
+
+export const deleteFeatured = async (user: string, password: string, id: string) => {
+  const client = createAdminClient(user, password);
+  await client.delete(`/featured/${id}`);
 };

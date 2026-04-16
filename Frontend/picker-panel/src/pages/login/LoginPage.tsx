@@ -23,15 +23,17 @@ export function LoginPage() {
 
   return (
     <div className="login-page">
-      <form className="card login-form" onSubmit={submit}>
-        <h1>Панель сборщика</h1>
-        <p className="subtitle">Авторизация сотрудника магазина</p>
+      <form className="login-form" onSubmit={submit}>
+        <div className="login-logo">📦</div>
+        <h1 className="login-title">Laman</h1>
+        <p className="login-sub">Панель сборщика — авторизация</p>
         <label>
           Телефон
           <input
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
             placeholder="79640691596"
+            autoComplete="username"
           />
         </label>
         <label>
@@ -40,17 +42,22 @@ export function LoginPage() {
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            placeholder="******"
+            placeholder="••••••"
+            autoComplete="current-password"
           />
         </label>
         <button
           type="submit"
+          className="btn-primary"
+          style={{ marginTop: 4 }}
           disabled={mutation.isPending || phone.trim() === "" || password.trim() === ""}
         >
           {mutation.isPending ? "Входим..." : "Войти"}
         </button>
         {mutation.isError ? (
-          <p className="error-text">{mutation.error instanceof Error ? mutation.error.message : "Ошибка"}</p>
+          <p className="error-text">
+            {mutation.error instanceof Error ? mutation.error.message : "Неверный телефон или пароль"}
+          </p>
         ) : null}
       </form>
     </div>

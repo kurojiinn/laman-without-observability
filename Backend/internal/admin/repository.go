@@ -26,6 +26,10 @@ type Repository interface {
 	UpdateOrderStatus(ctx context.Context, id uuid.UUID, status models.OrderStatus) error
 	GetCategoryAndStoreMaps(ctx context.Context) (map[string]uuid.UUID, map[string]uuid.UUID, error)
 	BulkInsertProducts(ctx context.Context, rows []ImportProductRow) error
+	// Витрина: управление блоками на главном экране
+	GetFeaturedList(ctx context.Context, blockType models.FeaturedBlockType) ([]models.FeaturedProduct, error)
+	AddFeatured(ctx context.Context, fp *models.FeaturedProduct) error
+	DeleteFeatured(ctx context.Context, id uuid.UUID) error
 }
 
 // postgresRepository реализует Repository на PostgreSQL.
@@ -75,7 +79,7 @@ func (r *postgresRepository) GetDashboardStats(ctx context.Context) (*DashboardS
 func (r *postgresRepository) GetActiveOrders(ctx context.Context) ([]models.Order, error) {
 	var orders []models.Order
 	query := `
-		SELECT id, user_id, guest_name, guest_phone, guest_address, comment, status, store_id, payment_method,
+		SELECT id, user_id, customer_phone, comment, status, store_id, payment_method,
 		       items_total, service_fee, delivery_fee, final_total, created_at, updated_at
 		FROM orders
 		WHERE status <> 'DELIVERED'
@@ -88,8 +92,8 @@ func (r *postgresRepository) GetActiveOrders(ctx context.Context) ([]models.Orde
 // CreateStore сохраняет новый магазин.
 func (r *postgresRepository) CreateStore(ctx context.Context, store *models.Store) error {
 	query := `
-		INSERT INTO stores (id, name, address, phone, description, image_url, rating, category_type, created_at, updated_at, lat, lng)
-		VALUES (:id, :name, :address, :phone, :description, :image_url, :rating, :category_type, :created_at, :updated_at, :lat, :lng)
+		INSERT INTO stores (id, name, address, city, phone, description, image_url, rating, category_type, opens_at, closes_at, created_at, updated_at, lat, lng)
+		VALUES (:id, :name, :address, :city, :phone, :description, :image_url, :rating, :category_type, :opens_at, :closes_at, :created_at, :updated_at, :lat, :lng)
 		`
 	_, err := r.db.NamedExecContext(ctx, query, store)
 	return err
@@ -205,11 +209,14 @@ func newStoreFromRequest(req *CreateStoreRequest) *models.Store {
 		ID:           uuid.New(),
 		Name:         req.Name,
 		Address:      req.Address,
+		City:         req.City,
 		Phone:        req.Phone,
 		Description:  req.Description,
 		ImageURL:     req.ImageURL,
 		Rating:       rating,
 		CategoryType: req.CategoryType,
+		OpensAt:      req.OpensAt,
+		ClosesAt:     req.ClosesAt,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
@@ -313,6 +320,40 @@ func (r *postgresRepository) UpdateProduct(ctx context.Context, id uuid.UUID, re
 		return nil, fmt.Errorf("товар не найден или ошибка обновления: %w", err)
 	}
 	return &product, nil
+}
+
+// GetFeaturedList возвращает записи витрины по типу блока.
+func (r *postgresRepository) GetFeaturedList(ctx context.Context, blockType models.FeaturedBlockType) ([]models.FeaturedProduct, error) {
+	var items []models.FeaturedProduct
+	query := `SELECT id, product_id, block_type, position, created_at
+	          FROM featured_products WHERE block_type = $1 ORDER BY position ASC`
+	err := r.db.SelectContext(ctx, &items, query, blockType)
+	return items, err
+}
+
+// AddFeatured добавляет товар в блок витрины.
+func (r *postgresRepository) AddFeatured(ctx context.Context, fp *models.FeaturedProduct) error {
+	// UPSERT: если товар уже есть в этом блоке витрины,
+	// просто обновляем его позицию вместо ошибки unique violation.
+	query := `INSERT INTO featured_products (id, product_id, block_type, position, created_at)
+	          VALUES (:id, :product_id, :block_type, :position, :created_at)
+	          ON CONFLICT (block_type, product_id)
+	          DO UPDATE SET position = EXCLUDED.position`
+	_, err := r.db.NamedExecContext(ctx, query, fp)
+	return err
+}
+
+// DeleteFeatured удаляет запись витрины по ID.
+func (r *postgresRepository) DeleteFeatured(ctx context.Context, id uuid.UUID) error {
+	res, err := r.db.ExecContext(ctx, `DELETE FROM featured_products WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	affected, _ := res.RowsAffected()
+	if affected == 0 {
+		return fmt.Errorf("запись не найдена")
+	}
+	return nil
 }
 
 var errInvalidStatus = fmt.Errorf("некорректный статус заказа")

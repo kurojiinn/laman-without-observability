@@ -1,20 +1,25 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  addFeatured,
   createProduct,
   createStore,
+  deleteFeatured,
   deleteProduct,
   deleteStore,
   fetchActiveOrders,
   fetchCategories,
   fetchDashboardStats,
+  fetchFeatured,
   fetchProducts,
   fetchStores,
   importProducts,
+  searchProductsByName,
   updateOrderStatusAdmin,
   updateProduct,
 } from "./api/admin";
-import type { AdminOrder, StoreCategoryType } from "./types";
+import type { AdminOrder, FeaturedBlockType, FeaturedItem, StoreCategoryType } from "./types";
+import { FEATURED_BLOCK_LABELS } from "./types";
 import { StatCard } from "./components/StatCard";
 
 const categoryOptions: { label: string; value: StoreCategoryType }[] = [
@@ -67,6 +72,12 @@ export const App = () => {
     order_id: "",
     status: "IN_PROGRESS",
   });
+  const [featuredBlock, setFeaturedBlock] = useState<FeaturedBlockType>("new_items");
+  const [featuredSearch, setFeaturedSearch] = useState("");
+  const [featuredProductId, setFeaturedProductId] = useState("");
+  const [featuredProductName, setFeaturedProductName] = useState("");
+  const [featuredPosition, setFeaturedPosition] = useState("0");
+  const [showFeaturedResults, setShowFeaturedResults] = useState(false);
 
   const canAuth = auth.user.trim().length > 0 && auth.password.trim().length > 0;
 
@@ -203,6 +214,41 @@ export const App = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["active-orders"] });
     },
+  });
+
+  const featuredQuery = useQuery<FeaturedItem[]>({
+    queryKey: ["featured", featuredBlock, auth.user],
+    queryFn: () => fetchFeatured(auth.user, auth.password, featuredBlock),
+    enabled: canAuth,
+  });
+
+  const featuredSearchQuery = useQuery({
+    queryKey: ["product-search", featuredSearch],
+    queryFn: () => searchProductsByName(featuredSearch),
+    enabled: featuredSearch.trim().length >= 2,
+    staleTime: 10_000,
+  });
+
+  const addFeaturedMutation = useMutation({
+    mutationFn: () => {
+      const parsedPosition = Number.parseInt(featuredPosition, 10);
+      return addFeatured(auth.user, auth.password, {
+        product_id: featuredProductId.trim(),
+        block_type: featuredBlock,
+        position: Number.isNaN(parsedPosition) || parsedPosition < 0 ? 0 : parsedPosition,
+      });
+    },
+    onSuccess: () => {
+      setFeaturedProductId("");
+      setFeaturedProductName("");
+      setFeaturedPosition("0");
+      queryClient.invalidateQueries({ queryKey: ["featured", featuredBlock, auth.user] });
+    },
+  });
+
+  const deleteFeaturedMutation = useMutation({
+    mutationFn: (id: string) => deleteFeatured(auth.user, auth.password, id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["featured", featuredBlock, auth.user] }),
   });
 
   const revenue = useMemo(() => {
@@ -683,6 +729,163 @@ export const App = () => {
             </div>
           </div>
         )}
+
+        <section className="rounded-xl bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-semibold mb-4">Витрина на главной</h2>
+
+          <div className="grid gap-3 md:grid-cols-3 mb-4">
+            {(Object.keys(FEATURED_BLOCK_LABELS) as FeaturedBlockType[]).map((block) => (
+              <button
+                key={block}
+                type="button"
+                onClick={() => setFeaturedBlock(block)}
+                className={`rounded-md border px-3 py-2 text-sm transition-colors ${
+                  featuredBlock === block
+                    ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {FEATURED_BLOCK_LABELS[block]}
+              </button>
+            ))}
+          </div>
+
+          <div className="rounded-lg border border-slate-200 p-4">
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">
+              Добавить товар в «{FEATURED_BLOCK_LABELS[featuredBlock]}»
+            </h3>
+
+            <div className="grid gap-3 md:grid-cols-[1fr,140px,auto] items-end">
+              <div className="relative">
+                {featuredProductId ? (
+                  <div className="flex items-center justify-between px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-md">
+                    <span className="text-sm font-medium text-indigo-800">{featuredProductName}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFeaturedProductId("");
+                        setFeaturedProductName("");
+                        setFeaturedSearch("");
+                      }}
+                      className="text-xs text-indigo-500 hover:text-indigo-700"
+                    >
+                      Сменить
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      value={featuredSearch}
+                      onChange={(e) => {
+                        setFeaturedSearch(e.target.value);
+                        setShowFeaturedResults(true);
+                      }}
+                      onFocus={() => setShowFeaturedResults(true)}
+                      placeholder="Введите название товара..."
+                      className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                    />
+                    {showFeaturedResults && featuredSearch.trim().length >= 2 && (
+                      <div className="absolute z-10 top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-md shadow max-h-56 overflow-y-auto">
+                        {featuredSearchQuery.isLoading && (
+                          <p className="px-3 py-2 text-sm text-slate-400">Поиск...</p>
+                        )}
+                        {!featuredSearchQuery.isLoading && (featuredSearchQuery.data ?? []).length === 0 && (
+                          <p className="px-3 py-2 text-sm text-slate-400">Ничего не найдено</p>
+                        )}
+                        {(featuredSearchQuery.data ?? []).map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              setFeaturedProductId(p.id);
+                              setFeaturedProductName(p.name);
+                              setFeaturedSearch("");
+                              setShowFeaturedResults(false);
+                            }}
+                            className="w-full text-left px-3 py-2 hover:bg-slate-50 border-b border-slate-100 last:border-0"
+                          >
+                            <span className="font-medium text-slate-800 text-sm">{p.name}</span>
+                            <span className="ml-2 text-slate-400 text-xs">{p.price.toLocaleString("ru-RU")} ₽</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <input
+                type="number"
+                min="0"
+                value={featuredPosition}
+                onChange={(e) => setFeaturedPosition(e.target.value)}
+                className="rounded-md border border-slate-200 px-3 py-2 text-sm"
+                placeholder="Позиция"
+              />
+
+              <button
+                type="button"
+                disabled={!featuredProductId.trim() || addFeaturedMutation.isPending}
+                onClick={() => addFeaturedMutation.mutate()}
+                className="rounded-md bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-4 py-2 text-sm"
+              >
+                {addFeaturedMutation.isPending ? "Добавляем..." : "Добавить"}
+              </button>
+            </div>
+
+            {addFeaturedMutation.isError && (
+              <p className="mt-2 text-sm text-red-500">
+                {(addFeaturedMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error
+                  ?? "Ошибка добавления в витрину"}
+              </p>
+            )}
+          </div>
+
+          <div className="mt-4 rounded-lg border border-slate-200 overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 text-sm font-semibold text-slate-700">
+              Сейчас в «{FEATURED_BLOCK_LABELS[featuredBlock]}»
+            </div>
+            {featuredQuery.isLoading ? (
+              <p className="px-4 py-4 text-sm text-slate-400">Загрузка...</p>
+            ) : !featuredQuery.data || featuredQuery.data.length === 0 ? (
+              <p className="px-4 py-4 text-sm text-slate-400">Блок пуст</p>
+            ) : (
+              <table className="min-w-full text-sm">
+                <thead className="text-left text-slate-500 border-b border-slate-100">
+                  <tr>
+                    <th className="px-4 py-2">ID товара</th>
+                    <th className="px-4 py-2">Позиция</th>
+                    <th className="px-4 py-2">Добавлен</th>
+                    <th className="px-4 py-2 text-right">Действие</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {featuredQuery.data.map((item) => (
+                    <tr key={item.id} className="border-t border-slate-100">
+                      <td className="px-4 py-2 font-mono text-xs text-slate-600" title={item.product_id}>
+                        {item.product_id.slice(0, 8)}…
+                      </td>
+                      <td className="px-4 py-2">{item.position}</td>
+                      <td className="px-4 py-2 text-slate-500">
+                        {new Date(item.created_at).toLocaleString("ru-RU")}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => deleteFeaturedMutation.mutate(item.id)}
+                          disabled={deleteFeaturedMutation.isPending}
+                          className="text-red-600 hover:text-red-700 text-xs"
+                        >
+                          Удалить
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </section>
 
         <section className="rounded-xl bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold">Изменить статус заказа</h2>

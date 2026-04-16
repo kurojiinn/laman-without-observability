@@ -45,15 +45,47 @@ type Store struct {
 	ID           uuid.UUID         `db:"id" json:"id"`
 	Name         string            `db:"name" json:"name"`
 	Address      string            `db:"address" json:"address"`
+	City         string            `db:"city" json:"city"`
 	Phone        *string           `db:"phone" json:"phone,omitempty"`
 	Description  *string           `db:"description" json:"description,omitempty"`
 	ImageURL     *string           `db:"image_url" json:"image_url,omitempty"`
 	Rating       float64           `db:"rating" json:"rating"`
 	CategoryType StoreCategoryType `db:"category_type" json:"category_type"`
+	OpensAt      *string           `db:"opens_at" json:"opens_at,omitempty"`
+	ClosesAt     *string           `db:"closes_at" json:"closes_at,omitempty"`
 	CreatedAt    time.Time         `db:"created_at" json:"created_at"`
 	UpdatedAt    time.Time         `db:"updated_at" json:"updated_at"`
 	Lat          *float64          `db:"lat" json:"lat,omitempty"`
 	Lng          *float64          `db:"lng" json:"lng,omitempty"`
+}
+
+// Review представляет отзыв покупателя о магазине.
+type Review struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	StoreID   uuid.UUID `db:"store_id" json:"store_id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	UserPhone string    `db:"user_phone" json:"user_phone"`
+	Rating    int       `db:"rating" json:"rating"`
+	Comment   string    `db:"comment" json:"comment"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
+// FeaturedBlockType — тип блока витрины на главном экране.
+type FeaturedBlockType string
+
+const (
+	FeaturedBlockNewItems FeaturedBlockType = "new_items"
+	FeaturedBlockHits     FeaturedBlockType = "hits"
+	FeaturedBlockMovieNight FeaturedBlockType = "movie_night"
+)
+
+// FeaturedProduct связывает товар с блоком витрины.
+type FeaturedProduct struct {
+	ID        uuid.UUID         `db:"id"         json:"id"`
+	ProductID uuid.UUID         `db:"product_id" json:"product_id"`
+	BlockType FeaturedBlockType `db:"block_type" json:"block_type"`
+	Position  int               `db:"position"   json:"position"`
+	CreatedAt time.Time         `db:"created_at" json:"created_at"`
 }
 
 // StoreCategoryType представляет тип магазина.

@@ -22,9 +22,10 @@ func NewPostgresPikerRepository(db *database.DB) PickerRepository {
 func (r *postgresPikerRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*models.Order, error) {
 	var order models.Order
 	query := `
-		SELECT o.id, o.user_id, o.courier_id, o.guest_name, o.guest_phone, o.guest_address,
+		SELECT o.id, o.user_id, o.courier_id,
 		       o.customer_phone, o.comment, o.status, o.store_id, o.payment_method,
-		       o.items_total, o.service_fee, o.delivery_fee, o.final_total, o.created_at, o.updated_at,
+		       o.items_total, o.service_fee, o.delivery_fee, o.final_total,
+		       o.out_of_stock_action, o.created_at, o.updated_at,
 		       o.picker_id, d.address AS delivery_address
 		FROM orders o
 		LEFT JOIN deliveries d ON d.order_id = o.id
@@ -43,14 +44,15 @@ func (r *postgresPikerRepository) GetOrderByID(ctx context.Context, id uuid.UUID
 func (r *postgresPikerRepository) GetOrders(ctx context.Context, storeID uuid.UUID) ([]models.Order, error) {
 	var orders []models.Order
 	query := `
-		SELECT o.id, o.user_id, o.courier_id, o.guest_name, o.guest_phone, o.guest_address,
+		SELECT o.id, o.user_id, o.courier_id,
 		       o.customer_phone, o.comment, o.status, o.store_id, o.payment_method,
-		       o.items_total, o.service_fee, o.delivery_fee, o.final_total, o.created_at, o.updated_at,
+		       o.items_total, o.service_fee, o.delivery_fee, o.final_total,
+		       o.out_of_stock_action, o.created_at, o.updated_at,
 		       o.picker_id, d.address AS delivery_address
 		FROM orders o
 		LEFT JOIN deliveries d ON d.order_id = o.id
 		WHERE o.store_id = $1
-		  AND o.status IN ('NEW', 'ACCEPTED_BY_PICKER', 'ASSEMBLING', 'ASSEMBLED')
+		  AND o.status IN ('NEW', 'ACCEPTED_BY_PICKER', 'ASSEMBLING', 'ASSEMBLED', 'CANCELLED')
 		ORDER BY o.created_at ASC
 	`
 	err := r.db.SelectContext(ctx, &orders, query, storeID)

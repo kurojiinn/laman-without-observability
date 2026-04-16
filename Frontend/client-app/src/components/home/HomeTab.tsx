@@ -8,9 +8,11 @@ import ProductModal from "@/components/ui/ProductModal";
 
 interface Props {
   onOpenStore: (storeId: string, productId?: string) => void;
+  search: string;
+  activeCity: string;
 }
 
-export default function HomeTab({ onOpenStore }: Props) {
+export default function HomeTab({ onOpenStore, search, activeCity }: Props) {
   const [products, setProducts] = useState<Product[]>([]);
   const [storeMap, setStoreMap] = useState<Record<string, Store>>({});
   const [loading, setLoading] = useState(true);
@@ -19,11 +21,11 @@ export default function HomeTab({ onOpenStore }: Props) {
 
   useEffect(() => {
     Promise.all([
-      catalogApi.getProducts(),
+      catalogApi.getFeatured("new_items"),
       catalogApi.getStores(),
     ])
       .then(([prods, stores]) => {
-        setProducts((prods ?? []).slice(0, 12));
+        setProducts(prods ?? []);
         const map: Record<string, Store> = {};
         (stores ?? []).forEach((s) => { map[s.id] = s; });
         setStoreMap(map);
@@ -31,6 +33,19 @@ export default function HomeTab({ onOpenStore }: Props) {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const q = search.trim().toLowerCase();
+
+  // Оставляем только товары из магазинов выбранного города
+  const cityProducts = products.filter((p) => storeMap[p.store_id]?.city === activeCity);
+
+  const visibleProducts = q
+    ? cityProducts.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          (p.description ?? "").toLowerCase().includes(q),
+      )
+    : cityProducts;
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-6">
@@ -83,7 +98,9 @@ export default function HomeTab({ onOpenStore }: Props) {
 
       {/* ── Новинки ── */}
       <div>
-        <h2 className="text-base font-bold text-gray-900 mb-3">Новинки</h2>
+        <h2 className="text-base font-bold text-gray-900 mb-3">
+          {q ? "Результаты поиска" : "Новинки"}
+        </h2>
 
         {loading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -91,14 +108,14 @@ export default function HomeTab({ onOpenStore }: Props) {
               <div key={i} className="bg-gray-100 rounded-2xl h-52 animate-pulse" />
             ))}
           </div>
-        ) : products.length === 0 ? (
+        ) : visibleProducts.length === 0 ? (
           <div className="flex flex-col items-center py-16 text-gray-400">
-            <span className="text-5xl mb-3">🛍️</span>
-            <p className="text-sm">Товары скоро появятся</p>
+            <span className="text-5xl mb-3">{q ? "🔍" : "🛍️"}</span>
+            <p className="text-sm">{q ? "Ничего не найдено" : "Товары скоро появятся"}</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {products.map((product) => (
+            {visibleProducts.slice(0, 10).map((product) => (
               <HomeProductCard
                 key={product.id}
                 product={product}
@@ -178,7 +195,7 @@ function HomeProductCard({
         {storeName && (
           <p className="text-[10px] text-gray-400 font-medium truncate">{storeName}</p>
         )}
-        <p className="text-sm font-semibold text-gray-900 line-clamp-2 flex-1 leading-tight">{product.name}</p>
+        <p className="text-xs sm:text-sm font-semibold text-gray-900 line-clamp-2 flex-1 leading-tight break-words">{product.name}</p>
         <p className="text-sm font-bold text-gray-900 mt-1">
           {product.price.toLocaleString("ru-RU")} ₽
         </p>

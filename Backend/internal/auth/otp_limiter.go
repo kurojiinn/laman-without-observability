@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"Laman/internal/cache"
 	"context"
 	"errors"
 	"fmt"
@@ -54,26 +53,34 @@ type OTPLimiter interface {
 //
 // Именно так реализован rate limiting в Stripe API, GitHub API, Twilio Verify:
 // Redis + INCR + TTL — стандартный индустриальный паттерн для счётчиков.
+//
+// keyPattern — fmt-шаблон Redis-ключа, например "otp:attempts:%s".
+// Это позволяет переиспользовать одну реализацию для разных лимитеров
+// (верификация кода и отправка SMS) с разными ключами и лимитами.
 type RedisOTPLimiter struct {
 	rdb         *redis.Client
 	maxAttempts int
 	blockTTL    time.Duration
+	keyPattern  string
 }
 
 // NewRedisOTPLimiter создаёт новый лимитер попыток.
 //
+// keyPattern — шаблон Redis-ключа (например cache.OTPAttemptsKey или cache.OTPSendKey).
+//
 // Рекомендованные значения для продакшена:
-//   - maxAttempts = 5  (Twilio использует 5, Google Authenticator — 10)
-//   - blockTTL = 15 минут (баланс: достаточно неудобно для атаки, не слишком долго для пользователя)
+//   - verify-code: maxAttempts=5, blockTTL=15m  (Twilio-стандарт)
+//   - request-code: maxAttempts=3, blockTTL=10m (SMS дороже — лимит строже)
 //
 // Почему blockTTL важен:
 //   - Слишком короткий (1-2 мин) → злоумышленник просто ждёт и пробует снова
 //   - Слишком длинный (1 час+) → плохой UX: настоящий пользователь злится
-func NewRedisOTPLimiter(rdb *redis.Client, maxAttempts int, blockTTL time.Duration) OTPLimiter {
+func NewRedisOTPLimiter(rdb *redis.Client, maxAttempts int, blockTTL time.Duration, keyPattern string) OTPLimiter {
 	return &RedisOTPLimiter{
 		rdb:         rdb,
 		maxAttempts: maxAttempts,
 		blockTTL:    blockTTL,
+		keyPattern:  keyPattern,
 	}
 }
 
@@ -87,7 +94,7 @@ func NewRedisOTPLimiter(rdb *redis.Client, maxAttempts int, blockTTL time.Durati
 //
 //	Правильно: INCR — одна атомарная операция Redis, race condition невозможен.
 func (l *RedisOTPLimiter) CheckAndIncrement(ctx context.Context, phone string) (int, bool, error) {
-	key := fmt.Sprintf(cache.OTPAttemptsKey, phone)
+	key := fmt.Sprintf(l.keyPattern, phone)
 
 	// INCR атомарно:
 	//   - создаёт ключ со значением 1, если его нет
@@ -144,7 +151,7 @@ func (l *RedisOTPLimiter) CheckAndIncrement(ctx context.Context, phone string) (
 // Достаточно залогировать на стороне вызывающего кода.
 // Это паттерн "best-effort cleanup", используемый в Stripe и Twilio.
 func (l *RedisOTPLimiter) Reset(ctx context.Context, phone string) error {
-	key := fmt.Sprintf(cache.OTPAttemptsKey, phone)
+	key := fmt.Sprintf(l.keyPattern, phone)
 
 	// redis.Nil означает что ключ уже не существует — это нормально, не ошибка.
 	if err := l.rdb.Del(ctx, key).Err(); err != nil && !errors.Is(err, redis.Nil) {

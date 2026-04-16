@@ -1,7 +1,9 @@
 package catalog
 
 import (
+	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"Laman/internal/models"
@@ -12,9 +14,15 @@ import (
 	"go.uber.org/zap"
 )
 
+// TokenValidator абстрагирует валидацию JWT (избегаем import cycle).
+type TokenValidator interface {
+	ValidateToken(ctx context.Context, tokenString string) (uuid.UUID, string, error)
+}
+
 // Handler обрабатывает HTTP запросы для каталога.
 type Handler struct {
 	catalogService *CatalogService
+	authService    TokenValidator
 	logger         *zap.Logger
 }
 
@@ -26,6 +34,25 @@ func NewHandler(catalogService *CatalogService, logger *zap.Logger) *Handler {
 	}
 }
 
+// WithAuth добавляет TokenValidator для защищённых эндпоинтов отзывов.
+func (h *Handler) WithAuth(auth TokenValidator) *Handler {
+	h.authService = auth
+	return h
+}
+
+// RegisterAdminRoutes регистрирует защищённые маршруты каталога для ADMIN (JWT + AdminRole).
+func (h *Handler) RegisterAdminRoutes(router *gin.RouterGroup, authMW gin.HandlerFunc, adminMW gin.HandlerFunc) {
+	products := router.Group("/catalog/products", authMW, adminMW)
+	{
+		products.PATCH("/:id", h.AdminUpdateProduct)
+	}
+	stores := router.Group("/stores", authMW, adminMW)
+	{
+		stores.PATCH("/:id", h.AdminUpdateStore)
+		stores.DELETE("/:id/reviews/:review_id", h.AdminDeleteReview)
+	}
+}
+
 // RegisterRoutes регистрирует маршруты каталога.
 func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	catalog := router.Group("/catalog")
@@ -34,6 +61,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 		catalog.GET("/subcategories", h.GetSubcategories)
 		catalog.GET("/products", h.GetProducts)
 		catalog.GET("/products/:id", h.GetProduct)
+		catalog.GET("/featured", h.GetFeatured)
 	}
 
 	stores := router.Group("/stores")
@@ -42,6 +70,9 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 		stores.GET("/:id", h.GetStore)
 		stores.GET("/:id/subcategories", h.GetStoreSubcategories)
 		stores.GET("/:id/products", h.GetStoreProducts)
+		stores.GET("/:id/reviews", h.GetStoreReviews)
+		stores.GET("/:id/can-review", h.CanReview)
+		stores.POST("/:id/reviews", h.CreateReview)
 	}
 }
 
@@ -304,5 +335,228 @@ func (h *Handler) GetStoreProducts(c *gin.Context) {
 		zap.Bool("available_only", availableOnly),
 		zap.Duration("duration", time.Since(start)),
 	)
+	c.JSON(http.StatusOK, products)
+}
+
+// GetStoreReviews обрабатывает GET /stores/:id/reviews
+func (h *Handler) GetStoreReviews(c *gin.Context) {
+	ctx, span := observability.StartSpan(c.Request.Context(), "catalog.get_store_reviews")
+	defer span.End()
+
+	storeID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID магазина"})
+		return
+	}
+
+	reviews, err := h.catalogService.GetReviews(ctx, storeID)
+	if err != nil {
+		h.logger.Error("Не удалось получить отзывы", zap.String("store_id", storeID.String()), zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, reviews)
+}
+
+// CanReview обрабатывает GET /stores/:id/can-review
+// Требует авторизации; возвращает { "can_review": bool }
+func (h *Handler) CanReview(c *gin.Context) {
+	ctx, span := observability.StartSpan(c.Request.Context(), "catalog.can_review")
+	defer span.End()
+
+	storeID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID магазина"})
+		return
+	}
+
+	userID, ok := h.extractUserID(c)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"can_review": false})
+		return
+	}
+
+	canReview, err := h.catalogService.CanUserReview(ctx, storeID, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"can_review": canReview})
+}
+
+// CreateReview обрабатывает POST /stores/:id/reviews
+func (h *Handler) CreateReview(c *gin.Context) {
+	ctx, span := observability.StartSpan(c.Request.Context(), "catalog.create_review")
+	defer span.End()
+
+	storeID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID магазина"})
+		return
+	}
+
+	userID, ok := h.extractUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "требуется авторизация"})
+		return
+	}
+
+	var req struct {
+		Rating  int    `json:"rating"`
+		Comment string `json:"comment"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный формат запроса"})
+		return
+	}
+	if req.Rating < 1 || req.Rating > 5 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "оценка должна быть от 1 до 5"})
+		return
+	}
+	if strings.TrimSpace(req.Comment) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "комментарий не может быть пустым"})
+		return
+	}
+
+	review, err := h.catalogService.CreateReview(ctx, storeID, userID, req.Rating, strings.TrimSpace(req.Comment))
+	if err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "нет доставленного заказа") || strings.Contains(msg, "уже оставлен") {
+			c.JSON(http.StatusForbidden, gin.H{"error": msg})
+			return
+		}
+		h.logger.Error("Не удалось создать отзыв", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
+		return
+	}
+
+	c.JSON(http.StatusCreated, review)
+}
+
+// AdminUpdateProduct обрабатывает PATCH /catalog/products/:id (только для ADMIN)
+func (h *Handler) AdminUpdateProduct(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID товара"})
+		return
+	}
+
+	var req struct {
+		Name        string   `json:"name"`
+		Price       float64  `json:"price"`
+		Description *string  `json:"description"`
+		IsAvailable bool     `json:"is_available"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный формат запроса"})
+		return
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "название обязательно"})
+		return
+	}
+	if req.Price <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "цена должна быть больше 0"})
+		return
+	}
+
+	product, err := h.catalogService.UpdateProduct(c.Request.Context(), id, req.Name, req.Price, req.Description, req.IsAvailable)
+	if err != nil {
+		h.logger.Error("Не удалось обновить товар", zap.String("product_id", id.String()), zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, product)
+}
+
+// AdminUpdateStore обрабатывает PATCH /stores/:id (только для ADMIN)
+func (h *Handler) AdminUpdateStore(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID магазина"})
+		return
+	}
+
+	var req struct {
+		Name        string  `json:"name"`
+		Address     string  `json:"address"`
+		Description *string `json:"description"`
+		OpensAt     *string `json:"opens_at"`
+		ClosesAt    *string `json:"closes_at"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный формат запроса"})
+		return
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "название обязательно"})
+		return
+	}
+
+	store, err := h.catalogService.UpdateStore(c.Request.Context(), id, req.Name, req.Address, req.Description, req.OpensAt, req.ClosesAt)
+	if err != nil {
+		h.logger.Error("Не удалось обновить магазин", zap.String("store_id", id.String()), zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, store)
+}
+
+// AdminDeleteReview обрабатывает DELETE /stores/:id/reviews/:review_id (только для ADMIN)
+func (h *Handler) AdminDeleteReview(c *gin.Context) {
+	reviewID, err := uuid.Parse(c.Param("review_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID отзыва"})
+		return
+	}
+
+	if err := h.catalogService.DeleteReview(c.Request.Context(), reviewID); err != nil {
+		h.logger.Error("Не удалось удалить отзыв", zap.String("review_id", reviewID.String()), zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// extractUserID читает JWT из заголовка Authorization и возвращает userID.
+func (h *Handler) extractUserID(c *gin.Context) (uuid.UUID, bool) {
+	if h.authService == nil {
+		return uuid.Nil, false
+	}
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		return uuid.Nil, false
+	}
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		return uuid.Nil, false
+	}
+	userID, _, err := h.authService.ValidateToken(c.Request.Context(), parts[1])
+	if err != nil {
+		return uuid.Nil, false
+	}
+	return userID, true
+}
+
+// GetFeatured возвращает товары блока витрины.
+// GET /api/v1/catalog/featured?block=new_items
+func (h *Handler) GetFeatured(c *gin.Context) {
+	blockType := models.FeaturedBlockType(c.Query("block"))
+	switch blockType {
+	case models.FeaturedBlockNewItems, models.FeaturedBlockHits, models.FeaturedBlockMovieNight:
+		// валидный тип
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный тип блока: допустимы new_items, hits, movie_night"})
+		return
+	}
+
+	products, err := h.catalogService.GetFeaturedProducts(c.Request.Context(), blockType)
+	if err != nil {
+		h.logger.Error("GetFeatured", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "не удалось получить товары витрины"})
+		return
+	}
 	c.JSON(http.StatusOK, products)
 }

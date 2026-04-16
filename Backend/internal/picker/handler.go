@@ -5,6 +5,7 @@ import (
 	"Laman/internal/middleware"
 	"Laman/internal/models"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -12,6 +13,11 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
+
+// formatRubles форматирует сумму как целое число с символом рубля, например "1 500₽".
+func formatRubles(amount float64) string {
+	return fmt.Sprintf("%.0f₽", amount)
+}
 
 type Handler struct {
 	service     PickerService
@@ -23,30 +29,60 @@ type Handler struct {
 // RegisterRoutes регистрирует маршруты заказов.
 func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	pikers := router.Group("/picker")
+	auth := middleware.AuthMiddleware(h.authService)
+	pickerOnly := middleware.RoleRequired(models.UserRolePicker)
 	{
 		pikers.POST("/auth/login", h.Login)
-		pikers.GET("/orders/:id", middleware.AuthMiddleware(h.authService), h.GetOrder)
-		pikers.GET("", middleware.AuthMiddleware(h.authService), h.GetOrders)
-		pikers.GET("/events", middleware.AuthMiddleware(h.authService), h.Events)
-		pikers.PUT("/orders/:id/status", middleware.AuthMiddleware(h.authService), h.UpdateStatus)
-		pikers.POST("/orders/:id/items", middleware.AuthMiddleware(h.authService), h.AddItem)
-		pikers.DELETE("/orders/:id/items/:itemId", middleware.AuthMiddleware(h.authService), h.RemoveItem)
+		pikers.GET("/orders/:id", auth, pickerOnly, h.GetOrder)
+		pikers.GET("", auth, pickerOnly, h.GetOrders)
+		pikers.GET("/events", auth, pickerOnly, h.Events)
+		pikers.PUT("/orders/:id/status", auth, pickerOnly, h.UpdateStatus)
+		pikers.POST("/orders/:id/items", auth, pickerOnly, h.AddItem)
+		pikers.DELETE("/orders/:id/items/:itemId", auth, pickerOnly, h.RemoveItem)
 	}
 }
 
 // AuthService определяет интерфейс, необходимый из модуля auth.
 type AuthService interface {
-	ValidateToken(token string) (uuid.UUID, error)
+	ValidateToken(ctx context.Context, token string) (uuid.UUID, string, error)
 }
 
 type PickerService interface {
 	Login(ctx context.Context, login LoginRequest) (LoginResponse, error)
-	GetOrder(ctx context.Context, orderID uuid.UUID) (*PickerOrderResponse, error)
+	GetOrder(ctx context.Context, orderID uuid.UUID, pickerID uuid.UUID) (*PickerOrderResponse, error)
 	GetOrdersByUserID(ctx context.Context, storeID uuid.UUID) ([]models.Order, error)
 	UpdateStatus(ctx context.Context, orderID uuid.UUID, pickerID uuid.UUID, newStatus models.OrderStatus) error
 	GetStoreIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
-	AddItem(ctx context.Context, orderID uuid.UUID, req AddItemRequest) (*PickerOrderItem, error)
-	RemoveItem(ctx context.Context, orderID uuid.UUID, itemID uuid.UUID) error
+	AddItem(ctx context.Context, orderID uuid.UUID, pickerID uuid.UUID, req AddItemRequest) (*PickerOrderItem, error)
+	RemoveItem(ctx context.Context, orderID uuid.UUID, itemID uuid.UUID, pickerID uuid.UUID) error
+}
+
+// orderUpdatedEvent — структура SSE-уведомления об изменении заказа.
+// Используется вместо fmt.Sprintf чтобы гарантировать валидный JSON
+// даже если поля содержат кавычки, обратные слеши и другие спецсимволы.
+type orderUpdatedEvent struct {
+	Type       string  `json:"type"`
+	OrderID    string  `json:"order_id"`
+	Message    string  `json:"message"`
+	FinalTotal float64 `json:"final_total"`
+}
+
+// notifyOrderUpdated отправляет SSE-уведомление клиенту об изменении заказа.
+// Возвращает пустую строку и не паникует при ошибке сериализации.
+func notifyOrderUpdated(hub *events.Hub, userID uuid.UUID, orderID uuid.UUID, message string, finalTotal float64) {
+	event := orderUpdatedEvent{
+		Type:       "order_updated",
+		OrderID:    orderID.String(),
+		Message:    message,
+		FinalTotal: finalTotal,
+	}
+	data, err := json.Marshal(event)
+	if err != nil {
+		// json.Marshal на структуре без интерфейсных полей не может вернуть ошибку,
+		// но обрабатываем на случай будущих изменений структуры.
+		return
+	}
+	hub.Notify(userID, string(data))
 }
 
 func NewHandler(service PickerService, logger *zap.Logger, authService AuthService, hub *events.Hub) *Handler {
@@ -81,7 +117,10 @@ func (h *Handler) GetOrder(c *gin.Context) {
 		return
 	}
 
-	order, err := h.service.GetOrder(c.Request.Context(), id)
+	userIDRaw, _ := c.Get("user_id")
+	pickerID, _ := userIDRaw.(uuid.UUID)
+
+	order, err := h.service.GetOrder(c.Request.Context(), id, pickerID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
@@ -151,24 +190,24 @@ func (h *Handler) AddItem(c *gin.Context) {
 		return
 	}
 
+	pickerIDRaw, _ := c.Get("user_id")
+	pickerID, _ := pickerIDRaw.(uuid.UUID)
+
 	var req AddItemRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	item, err := h.service.AddItem(c.Request.Context(), orderID, req)
+	item, err := h.service.AddItem(c.Request.Context(), orderID, pickerID, req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	// Уведомляем клиента через SSE
-	order, err := h.service.GetOrder(c.Request.Context(), orderID)
+	order, err := h.service.GetOrder(c.Request.Context(), orderID, pickerID)
 	if err == nil && order.UserID != nil {
-		msg := fmt.Sprintf(`{"type":"order_updated","order_id":"%s","message":"Сборщик добавил товар «%s». Новая сумма: %.0f₽","final_total":%.2f}`,
-			orderID, req.ProductName, order.FinalTotal, order.FinalTotal)
-		h.hub.Notify(*order.UserID, msg)
+		msg := "Сборщик добавил товар «" + req.ProductName + "». Новая сумма: " + formatRubles(order.FinalTotal)
+		notifyOrderUpdated(h.hub, *order.UserID, orderID, msg, order.FinalTotal)
 	}
 
 	c.JSON(http.StatusCreated, item)
@@ -187,17 +226,17 @@ func (h *Handler) RemoveItem(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.RemoveItem(c.Request.Context(), orderID, itemID); err != nil {
+	pickerIDForRemove, _ := c.Get("user_id")
+	pickerIDUUID, _ := pickerIDForRemove.(uuid.UUID)
+
+	if err := h.service.RemoveItem(c.Request.Context(), orderID, itemID, pickerIDUUID); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	// Уведомляем клиента через SSE
-	order, err := h.service.GetOrder(c.Request.Context(), orderID)
+	order, err := h.service.GetOrder(c.Request.Context(), orderID, pickerIDUUID)
 	if err == nil && order.UserID != nil {
-		msg := fmt.Sprintf(`{"type":"order_updated","order_id":"%s","message":"Сборщик изменил состав заказа. Новая сумма: %.0f₽","final_total":%.2f}`,
-			orderID, order.FinalTotal, order.FinalTotal)
-		h.hub.Notify(*order.UserID, msg)
+		msg := "Сборщик изменил состав заказа. Новая сумма: " + formatRubles(order.FinalTotal)
+		notifyOrderUpdated(h.hub, *order.UserID, orderID, msg, order.FinalTotal)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "товар удалён"})

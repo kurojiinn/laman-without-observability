@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { catalogApi, reviewsApi, resolveImageUrl, type Store, type Product, type Review } from "@/lib/api";
+import { adminApi, catalogApi, reviewsApi, isStoreOpen, resolveImageUrl, type Store, type Product, type Review, type Subcategory } from "@/lib/api";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import ProductModal from "@/components/ui/ProductModal";
@@ -13,14 +13,19 @@ import StoreAvatar from "@/components/ui/StoreAvatar";
 export { CATEGORY_META as STORE_CATEGORY_META };
 
 export default function StoreDetailView({
-  store,
+  store: initialStore,
   onBack,
   targetProductId,
+  search = "",
+  isAdmin = false,
 }: {
   store: Store;
   onBack: () => void;
   targetProductId?: string;
+  search?: string;
+  isAdmin?: boolean;
 }) {
+  const [store, setStore] = useState<Store>(initialStore);
   const meta = CATEGORY_META[store.category_type] ?? DEFAULT_META;
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -29,11 +34,30 @@ export default function StoreDetailView({
   const [activeTab, setActiveTab] = useState<"products" | "reviews">("products");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
+  // Подкатегории внутри магазина (для фильтра)
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string | null>(null);
+  const [subcategoryMap, setSubcategoryMap] = useState<Map<string, string>>(new Map());
+  const [subcategoryIds, setSubcategoryIds] = useState<string[]>([]);
+
   const { items: cartItems, addItem } = useCart();
   const { isAuthenticated, user } = useAuth();
+  const effectiveIsAdmin = isAdmin || user?.role === "ADMIN";
+
+  // Admin store edit state
+  const [storeEditOpen, setStoreEditOpen] = useState(false);
+  const [editStoreName, setEditStoreName] = useState(store.name);
+  const [editStoreAddress, setEditStoreAddress] = useState(store.address);
+  const [editStoreDesc, setEditStoreDesc] = useState(store.description ?? "");
+  const [editStoreOpens, setEditStoreOpens] = useState(store.opens_at ?? "");
+  const [editStoreCloses, setEditStoreCloses] = useState(store.closes_at ?? "");
+  const [savingStore, setSavingStore] = useState(false);
+  const [storeEditError, setStoreEditError] = useState<string | null>(null);
 
   useEffect(() => {
     setProductsLoading(true);
+    setSelectedSubcategoryId(null);
+    setSubcategoryMap(new Map());
+    setSubcategoryIds([]);
     catalogApi
       .getStoreProducts(store.id)
       .then((data) => setProducts(Array.isArray(data) ? data : []))
@@ -41,8 +65,34 @@ export default function StoreDetailView({
       .finally(() => setProductsLoading(false));
   }, [store.id]);
 
+  // Загружаем подкатегории для товаров этого магазина
   useEffect(() => {
-    setReviews(reviewsApi.getByStore(store.id));
+    if (products.length === 0) return;
+
+    const uniqueSubcatIds = [...new Set(
+      products.map((p) => p.subcategory_id).filter((id): id is string => !!id)
+    )];
+    if (uniqueSubcatIds.length === 0) return;
+
+    const uniqueCatIds = [...new Set(products.map((p) => p.category_id).filter(Boolean))];
+
+    Promise.all(uniqueCatIds.map((cid) => catalogApi.getSubcategories(cid)))
+      .then((results) => {
+        const allSubcats: Subcategory[] = results.flat();
+        const map = new Map<string, string>();
+        for (const sc of allSubcats) {
+          if (uniqueSubcatIds.includes(sc.id)) map.set(sc.id, sc.name);
+        }
+        setSubcategoryMap(map);
+        setSubcategoryIds(uniqueSubcatIds.filter((id) => map.has(id)));
+      })
+      .catch(() => {});
+  }, [products]);
+
+  useEffect(() => {
+    reviewsApi.getByStore(store.id)
+      .then((data) => setReviews(Array.isArray(data) ? data : []))
+      .catch(() => setReviews([]));
   }, [store.id]);
 
   // Скроллим к целевому товару после загрузки
@@ -54,10 +104,42 @@ export default function StoreDetailView({
     }
   }, [targetProductId, productsLoading, products]);
 
+  async function handleSaveStore() {
+    setSavingStore(true);
+    setStoreEditError(null);
+    try {
+      const updated = await adminApi.updateStore(store.id, {
+        name: editStoreName.trim(),
+        address: editStoreAddress.trim(),
+        description: editStoreDesc.trim() || undefined,
+        opens_at: editStoreOpens || undefined,
+        closes_at: editStoreCloses || undefined,
+      });
+      setStore(updated);
+      setStoreEditOpen(false);
+    } catch (err) {
+      setStoreEditError(err instanceof Error ? err.message : "Ошибка сохранения");
+    } finally {
+      setSavingStore(false);
+    }
+  }
+
+  const visibleProducts = products
+    .filter((p) =>
+      !search.trim() ||
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      (p.description ?? "").toLowerCase().includes(search.toLowerCase())
+    )
+    .filter((p) =>
+      !selectedSubcategoryId || p.subcategory_id === selectedSubcategoryId
+    );
+
   const avgRating =
     reviews.length > 0
       ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
       : store.rating;
+
+  const storeOpen = isStoreOpen(store);
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
@@ -71,17 +153,34 @@ export default function StoreDetailView({
         Назад
       </button>
 
+      {/* Admin: store edit button */}
+      {effectiveIsAdmin && (
+        <button
+          onClick={() => { setStoreEditOpen(true); setEditStoreName(store.name); setEditStoreAddress(store.address); setEditStoreDesc(store.description ?? ""); setEditStoreOpens(store.opens_at ?? ""); setEditStoreCloses(store.closes_at ?? ""); }}
+          className="mb-3 flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-semibold rounded-xl transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          Редактировать магазин
+        </button>
+      )}
+
       {/* Шапка магазина */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-6 mb-5">
+      <div className={`relative bg-white rounded-2xl border p-6 mb-5 overflow-hidden ${storeOpen ? "border-gray-100" : "border-gray-200"}`}>
+        {/* Затухший оверлей когда магазин закрыт */}
+        {!storeOpen && (
+          <div className="absolute inset-0 bg-gray-100/60 z-10 pointer-events-none rounded-2xl" />
+        )}
         <div className="flex items-start gap-3 sm:gap-4">
           <StoreAvatar store={store} className="w-16 h-16 rounded-2xl" textClass="text-xl" />
           <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">{store.name}</h1>
-                <p className="text-sm text-gray-500 mt-0.5">{store.address}</p>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-xl font-bold text-gray-900 leading-tight">{store.name}</h1>
+                <p className="text-sm text-gray-500 mt-0.5 truncate">{store.address}</p>
               </div>
-              <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0 ${meta.badgeClass}`}>
+              <span className={`text-[11px] font-medium px-2 py-1 rounded-full flex-shrink-0 max-w-[100px] text-center leading-tight ${meta.badgeClass}`}>
                 {meta.label}
               </span>
             </div>
@@ -106,11 +205,19 @@ export default function StoreDetailView({
                 <span className="text-xs text-gray-400">({reviews.length} отзывов)</span>
               </div>
 
-              {store.phone && (
-                <a href={`tel:${store.phone}`} className="text-sm text-indigo-500 hover:text-indigo-700 transition-colors">
-                  {store.phone}
-                </a>
-              )}
+              {/* Часы работы */}
+              {store.opens_at && store.closes_at ? (
+                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                  storeOpen
+                    ? "bg-green-50 text-green-700"
+                    : "bg-red-50 text-red-600"
+                }`}>
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                  </svg>
+                  {storeOpen ? "Открыто" : "Закрыто"} · {store.opens_at}–{store.closes_at}
+                </div>
+              ) : null}
             </div>
 
             {store.description && (
@@ -130,7 +237,7 @@ export default function StoreDetailView({
               : "border-transparent text-gray-500 hover:text-gray-700"
           }`}
         >
-          Товары {products.length > 0 ? `(${products.length})` : ""}
+          Товары {!productsLoading && (search.trim() || selectedSubcategoryId) ? `(${visibleProducts.length} из ${products.length})` : products.length > 0 ? `(${products.length})` : ""}
         </button>
         <button
           onClick={() => setActiveTab("reviews")}
@@ -146,6 +253,35 @@ export default function StoreDetailView({
 
       {activeTab === "products" && (
         <>
+          {/* Фильтр по подкатегориям */}
+          {!productsLoading && subcategoryIds.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 mb-4 -mx-4 px-4">
+              <button
+                onClick={() => setSelectedSubcategoryId(null)}
+                className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  selectedSubcategoryId === null
+                    ? "bg-indigo-600 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                Все
+              </button>
+              {subcategoryIds.map((id) => (
+                <button
+                  key={id}
+                  onClick={() => setSelectedSubcategoryId(id)}
+                  className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    selectedSubcategoryId === id
+                      ? "bg-indigo-600 text-white"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  {subcategoryMap.get(id)}
+                </button>
+              ))}
+            </div>
+          )}
+
           {productsLoading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {Array.from({ length: 8 }).map((_, i) => (
@@ -157,9 +293,14 @@ export default function StoreDetailView({
               <span className="text-5xl mb-4">📦</span>
               <p className="text-sm">Товары пока не добавлены</p>
             </div>
+          ) : visibleProducts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+              <span className="text-5xl mb-4">🔍</span>
+              <p className="text-sm">Ничего не найдено</p>
+            </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {products.map((product) => {
+              {visibleProducts.map((product) => {
                 const cartItem = cartItems.find((i) => i.product.id === product.id);
                 return (
                   <StoreProductCard
@@ -169,6 +310,8 @@ export default function StoreDetailView({
                     onAdd={() => addItem(product)}
                     onOpen={() => setSelectedProduct(product)}
                     isTarget={product.id === targetProductId}
+                    storeOpen={storeOpen}
+                    isAdmin={effectiveIsAdmin}
                   />
                 );
               })}
@@ -182,9 +325,58 @@ export default function StoreDetailView({
           storeId={store.id}
           reviews={reviews}
           isAuthenticated={isAuthenticated}
-          userPhone={user?.phone ?? ""}
+          isAdmin={effectiveIsAdmin}
           onReviewAdded={(r) => setReviews((prev) => [r, ...prev])}
+          onReviewDeleted={(id) => setReviews((prev) => prev.filter((r) => r.id !== id))}
         />
+      )}
+
+      {/* Admin store edit modal */}
+      {storeEditOpen && (
+        <>
+          <div className="fixed inset-0 z-[9998] bg-black/50" onClick={() => setStoreEditOpen(false)} />
+          <div className="fixed inset-x-0 bottom-0 sm:inset-0 z-[9999] flex items-end sm:items-center justify-center pointer-events-none">
+            <div className="pointer-events-auto bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl max-h-[92dvh] flex flex-col">
+              <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+                <h3 className="text-base font-bold text-gray-900">Редактировать магазин</h3>
+                <button onClick={() => setStoreEditOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                  <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none"><path d="M2 2l12 12M14 2L2 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+                </button>
+              </div>
+              <div className="overflow-y-auto px-5 py-4 flex flex-col gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Название</label>
+                  <input value={editStoreName} onChange={(e) => setEditStoreName(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" style={{ fontSize: 16 }} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Адрес</label>
+                  <input value={editStoreAddress} onChange={(e) => setEditStoreAddress(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" style={{ fontSize: 16 }} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Описание</label>
+                  <textarea value={editStoreDesc} onChange={(e) => setEditStoreDesc(e.target.value)} rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 resize-none" style={{ fontSize: 16 }} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Открытие</label>
+                    <input type="time" value={editStoreOpens} onChange={(e) => setEditStoreOpens(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" style={{ fontSize: 16 }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Закрытие</label>
+                    <input type="time" value={editStoreCloses} onChange={(e) => setEditStoreCloses(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" style={{ fontSize: 16 }} />
+                  </div>
+                </div>
+                {storeEditError && <p className="text-xs text-red-500">{storeEditError}</p>}
+                <div className="flex gap-2 pt-1 pb-2">
+                  <button onClick={() => setStoreEditOpen(false)} className="flex-1 py-3 border border-gray-200 text-gray-600 text-sm font-semibold rounded-2xl hover:bg-gray-50 transition-colors">Отмена</button>
+                  <button onClick={handleSaveStore} disabled={savingStore} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold rounded-2xl transition-colors">
+                    {savingStore ? "Сохранение..." : "Сохранить"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {selectedProduct && (
@@ -192,6 +384,7 @@ export default function StoreDetailView({
           product={selectedProduct}
           storeName={store.name}
           onClose={() => setSelectedProduct(null)}
+          onProductUpdated={(updated) => setProducts((prev) => prev.map((p) => p.id === updated.id ? updated : p))}
         />
       )}
     </div>
@@ -206,12 +399,16 @@ function StoreProductCard({
   onAdd,
   onOpen,
   isTarget,
+  storeOpen = true,
+  isAdmin = false,
 }: {
   product: Product;
   cartQty: number;
   onAdd: () => void;
   onOpen: () => void;
   isTarget?: boolean;
+  storeOpen?: boolean;
+  isAdmin?: boolean;
 }) {
   const { isFavorite, toggleFavorite } = useFavorites();
   const { isAuthenticated, openAuthModal } = useAuth();
@@ -241,14 +438,16 @@ function StoreProductCard({
       }`}
       onClick={onOpen}
     >
-      <button
-        onClick={handleFav}
-        className="absolute top-3 right-3 z-10 w-7 h-7 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow-sm transition-colors"
-      >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill={fav ? "#ef4444" : "none"} stroke={fav ? "#ef4444" : "#9ca3af"} strokeWidth="2">
-          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-        </svg>
-      </button>
+      {!isAdmin && (
+        <button
+          onClick={handleFav}
+          className="absolute top-3 right-3 z-10 w-7 h-7 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow-sm transition-colors"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill={fav ? "#ef4444" : "none"} stroke={fav ? "#ef4444" : "#9ca3af"} strokeWidth="2">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+          </svg>
+        </button>
+      )}
       <div className="w-full h-28 bg-gray-50 rounded-xl overflow-hidden flex items-center justify-center">
         {product.image_url ? (
           <img src={resolveImageUrl(product.image_url)} alt={product.name} className="w-full h-full object-cover" />
@@ -256,23 +455,41 @@ function StoreProductCard({
           <span className="text-3xl">🛍️</span>
         )}
       </div>
-      <div className="flex-1">
-        <p className="text-xs font-semibold text-gray-900 line-clamp-2 leading-tight">{product.name}</p>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-semibold text-gray-900 line-clamp-2 leading-tight break-words">{product.name}</p>
       </div>
       <div className="flex items-center justify-between gap-2 mt-auto">
-        <span className="text-sm font-bold text-gray-900">
+        <span className="text-sm font-bold text-gray-900 truncate">
           {product.price.toLocaleString("ru-RU")} ₽
         </span>
-        <button
-          onClick={(e) => { e.stopPropagation(); onAdd(); }}
-          className="w-7 h-7 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center transition-colors flex-shrink-0"
-        >
-          <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-          </svg>
-        </button>
+        {isAdmin ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); onOpen(); }}
+            title="Редактировать товар"
+            className="w-7 h-7 rounded-full flex items-center justify-center transition-colors flex-shrink-0 bg-gray-100 hover:bg-indigo-50 hover:text-indigo-600 text-gray-500"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </button>
+        ) : (
+          <button
+            onClick={(e) => { e.stopPropagation(); if (storeOpen) onAdd(); }}
+            disabled={!storeOpen}
+            title={!storeOpen ? "Магазин закрыт" : undefined}
+            className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${
+              storeOpen
+                ? "bg-indigo-600 hover:bg-indigo-700 text-white"
+                : "bg-gray-200 text-gray-400 cursor-not-allowed"
+            }`}
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+          </button>
+        )}
       </div>
-      {cartQty > 0 && (
+      {!isAdmin && cartQty > 0 && (
         <p className="text-xs text-indigo-500 font-medium">В корзине: {cartQty} шт.</p>
       )}
     </div>
@@ -285,103 +502,152 @@ function ReviewsSection({
   storeId,
   reviews,
   isAuthenticated,
-  userPhone,
+  isAdmin = false,
   onReviewAdded,
+  onReviewDeleted,
 }: {
   storeId: string;
   reviews: Review[];
   isAuthenticated: boolean;
-  userPhone: string;
+  isAdmin?: boolean;
   onReviewAdded: (r: Review) => void;
+  onReviewDeleted: (id: string) => void;
 }) {
   const { openAuthModal } = useAuth();
+  const [canReview, setCanReview] = useState<boolean | null>(null);
   const [rating, setRating] = useState(5);
   const [hovered, setHovered] = useState(0);
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  useEffect(() => {
+    if (!isAuthenticated) { setCanReview(false); return; }
+    reviewsApi.canReview(storeId)
+      .then((res) => setCanReview(res.can_review))
+      .catch(() => setCanReview(false));
+  }, [storeId, isAuthenticated]);
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!comment.trim()) return;
     setSubmitting(true);
-    const review = reviewsApi.add({
-      store_id: storeId,
-      user_phone: userPhone,
-      rating,
-      comment: comment.trim(),
-    });
-    onReviewAdded(review);
-    setComment("");
-    setRating(5);
-    setSubmitting(false);
+    setSubmitError(null);
+    try {
+      const review = await reviewsApi.add(storeId, rating, comment.trim());
+      onReviewAdded(review);
+      setComment("");
+      setRating(5);
+      setCanReview(false); // уже оставил отзыв
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Не удалось отправить отзыв");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function renderForm() {
+    if (!isAuthenticated) {
+      return (
+        <div className="flex flex-col items-center py-6 gap-3">
+          <p className="text-sm text-gray-500">Войдите, чтобы оставить отзыв</p>
+          <button
+            onClick={openAuthModal}
+            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors"
+          >
+            Войти
+          </button>
+        </div>
+      );
+    }
+
+    if (canReview === null) {
+      // загрузка
+      return <div className="h-10 bg-gray-100 rounded-xl animate-pulse" />;
+    }
+
+    if (canReview === false) {
+      // уже оставил отзыв или нет заказа
+      const alreadyReviewed = reviews.some((r) => r.store_id === storeId);
+      return (
+        <div className="flex flex-col items-center py-6 gap-2 text-center">
+          {alreadyReviewed ? (
+            <>
+              <span className="text-2xl">✅</span>
+              <p className="text-sm text-gray-500">Вы уже оставили отзыв на этот магазин</p>
+            </>
+          ) : (
+            <>
+              <span className="text-2xl">🛍️</span>
+              <p className="text-sm text-gray-500">
+                Оставить отзыв могут только те, кто делал заказ из этого магазина
+              </p>
+            </>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-2">Оценка</label>
+          <div className="flex gap-1">
+            {[1, 2, 3, 4, 5].map((s) => (
+              <button
+                key={s}
+                type="button"
+                onMouseEnter={() => setHovered(s)}
+                onMouseLeave={() => setHovered(0)}
+                onClick={() => setRating(s)}
+                className="p-0.5 transition-transform hover:scale-110"
+              >
+                <svg
+                  className={`w-8 h-8 transition-colors ${
+                    s <= (hovered || rating) ? "text-yellow-400" : "text-gray-200"
+                  }`}
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+              </button>
+            ))}
+            <span className="ml-2 self-center text-sm text-gray-500">
+              {["", "Плохо", "Так себе", "Нормально", "Хорошо", "Отлично"][hovered || rating]}
+            </span>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1.5">Комментарий</label>
+          <textarea
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="Расскажите о своём опыте..."
+            rows={3}
+            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none"
+          />
+        </div>
+
+        {submitError && <p className="text-xs text-red-500">{submitError}</p>}
+
+        <button
+          type="submit"
+          disabled={!comment.trim() || submitting}
+          className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors"
+        >
+          {submitting ? "Отправка..." : "Отправить отзыв"}
+        </button>
+      </form>
+    );
   }
 
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-gray-100 p-5">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">Оставить отзыв</h3>
-
-        {!isAuthenticated ? (
-          <div className="flex flex-col items-center py-6 gap-3">
-            <p className="text-sm text-gray-500">Войдите, чтобы оставить отзыв</p>
-            <button
-              onClick={openAuthModal}
-              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors"
-            >
-              Войти
-            </button>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-2">Оценка</label>
-              <div className="flex gap-1">
-                {[1, 2, 3, 4, 5].map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onMouseEnter={() => setHovered(s)}
-                    onMouseLeave={() => setHovered(0)}
-                    onClick={() => setRating(s)}
-                    className="p-0.5 transition-transform hover:scale-110"
-                  >
-                    <svg
-                      className={`w-8 h-8 transition-colors ${
-                        s <= (hovered || rating) ? "text-yellow-400" : "text-gray-200"
-                      }`}
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  </button>
-                ))}
-                <span className="ml-2 self-center text-sm text-gray-500">
-                  {["", "Плохо", "Так себе", "Нормально", "Хорошо", "Отлично"][hovered || rating]}
-                </span>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">Комментарий</label>
-              <textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="Расскажите о своём опыте..."
-                rows={3}
-                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={!comment.trim() || submitting}
-              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors"
-            >
-              Отправить отзыв
-            </button>
-          </form>
-        )}
+        {renderForm()}
       </div>
 
       {reviews.length === 0 ? (
@@ -392,7 +658,13 @@ function ReviewsSection({
       ) : (
         <div className="space-y-3">
           {reviews.map((review) => (
-            <ReviewCard key={review.id} review={review} />
+            <ReviewCard
+              key={review.id}
+              review={review}
+              storeId={storeId}
+              isAdmin={isAdmin}
+              onDelete={onReviewDeleted}
+            />
           ))}
         </div>
       )}
@@ -400,11 +672,35 @@ function ReviewsSection({
   );
 }
 
-function ReviewCard({ review }: { review: Review }) {
+function ReviewCard({
+  review,
+  storeId,
+  isAdmin = false,
+  onDelete,
+}: {
+  review: Review;
+  storeId: string;
+  isAdmin?: boolean;
+  onDelete: (id: string) => void;
+}) {
+  const [deleting, setDeleting] = useState(false);
   const date = new Date(review.created_at).toLocaleDateString("ru-RU", {
     day: "numeric",
     month: "long",
   });
+
+  async function handleDelete() {
+    if (!confirm("Удалить этот отзыв?")) return;
+    setDeleting(true);
+    try {
+      await adminApi.deleteReview(storeId, review.id);
+      onDelete(review.id);
+    } catch {
+      // ignore
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-4">
@@ -422,17 +718,31 @@ function ReviewCard({ review }: { review: Review }) {
             <p className="text-xs text-gray-400">{date}</p>
           </div>
         </div>
-        <div className="flex">
-          {[1, 2, 3, 4, 5].map((s) => (
-            <svg
-              key={s}
-              className={`w-3.5 h-3.5 ${s <= review.rating ? "text-yellow-400" : "text-gray-200"}`}
-              viewBox="0 0 20 20"
-              fill="currentColor"
+        <div className="flex items-center gap-2">
+          <div className="flex">
+            {[1, 2, 3, 4, 5].map((s) => (
+              <svg
+                key={s}
+                className={`w-3.5 h-3.5 ${s <= review.rating ? "text-yellow-400" : "text-gray-200"}`}
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+              </svg>
+            ))}
+          </div>
+          {isAdmin && (
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="w-6 h-6 flex items-center justify-center rounded-full text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-40"
+              title="Удалить отзыв"
             >
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-            </svg>
-          ))}
+              <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
       <p className="text-sm text-gray-700 leading-relaxed">{review.comment}</p>

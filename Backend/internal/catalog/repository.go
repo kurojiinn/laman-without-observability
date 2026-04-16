@@ -37,6 +37,15 @@ type ProductRepository interface {
 
 	// GetByIDs получает несколько товаров по их ID.
 	GetByIDs(ctx context.Context, ids []uuid.UUID) ([]models.Product, error)
+
+	// Update обновляет поля товара.
+	Update(ctx context.Context, id uuid.UUID, name string, price float64, description *string, isAvailable bool) (*models.Product, error)
+}
+
+// FeaturedProductRepository определяет доступ к блокам витрины.
+type FeaturedProductRepository interface {
+	// GetByBlock возвращает товары блока, отсортированные по position.
+	GetByBlock(ctx context.Context, blockType models.FeaturedBlockType) ([]models.Product, error)
 }
 
 // StoreRepository определяет интерфейс для доступа к данным магазинов.
@@ -46,4 +55,25 @@ type StoreRepository interface {
 
 	// GetByID получает магазин по ID.
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Store, error)
+
+	// Update обновляет поля магазина.
+	Update(ctx context.Context, id uuid.UUID, name string, address string, description *string, opensAt *string, closesAt *string) (*models.Store, error)
+}
+
+// ReviewRepository определяет интерфейс для работы с отзывами.
+type ReviewRepository interface {
+	// GetByStoreID возвращает все отзывы для магазина (с телефоном пользователя).
+	GetByStoreID(ctx context.Context, storeID uuid.UUID) ([]models.Review, error)
+
+	// Create сохраняет новый отзыв.
+	Create(ctx context.Context, review *models.Review) error
+
+	// HasUserReviewed проверяет, оставлял ли пользователь отзыв на этот магазин.
+	HasUserReviewed(ctx context.Context, storeID uuid.UUID, userID uuid.UUID) (bool, error)
+
+	// HasDeliveredOrder проверяет, есть ли у пользователя доставленный заказ из этого магазина.
+	HasDeliveredOrder(ctx context.Context, storeID uuid.UUID, userID uuid.UUID) (bool, error)
+
+	// Delete удаляет отзыв по ID.
+	Delete(ctx context.Context, reviewID uuid.UUID) error
 }

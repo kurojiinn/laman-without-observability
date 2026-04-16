@@ -1,3 +1,5 @@
+// Package database предоставляет обёртку над sqlx.DB с утилитами для работы
+// с транзакциями и управления подключением к PostgreSQL.
 package database
 
 import (
@@ -10,12 +12,14 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// DB оборачивает sqlx.DB с дополнительными методами.
+// DB оборачивает sqlx.DB и добавляет вспомогательные методы,
+// в частности транзакционный хелпер WithTx.
 type DB struct {
 	*sqlx.DB
 }
 
-// New создает новое подключение к базе данных.
+// New открывает подключение к PostgreSQL и проверяет его через Ping.
+// Возвращает ошибку если соединение установить не удалось.
 func New(cfg *config.DatabaseConfig) (*DB, error) {
 	db, err := sqlx.Connect("postgres", cfg.DSN())
 	if err != nil {
@@ -34,24 +38,43 @@ func (db *DB) Close() error {
 	return db.DB.Close()
 }
 
-// WithTx выполняет функцию в рамках транзакции.
-func (db *DB) WithTx(ctx context.Context, fn func(*sqlx.Tx) error) error {
+// WithTx выполняет fn внутри транзакции и гарантирует атомарный исход:
+//   - если fn вернула ошибку → транзакция откатывается, ошибка fn пробрасывается наверх
+//   - если fn вернула nil → транзакция коммитится; ошибка Commit() тоже пробрасывается
+//   - если внутри fn случилась паника → транзакция откатывается, паника продолжается
+//
+// Именованный возврат (err error) — ключевой момент реализации.
+// Он позволяет defer-замыканию перезаписать возвращаемое значение после return,
+// что необходимо чтобы ошибка tx.Commit() не терялась.
+//
+// Порядок выполнения в Go при именованном возврате:
+//  1. err = fn(tx)         — выполняем бизнес-логику
+//  2. return               — Go фиксирует, что вернём именованную переменную err
+//  3. defer запускается    — может изменить err (например, err = tx.Commit())
+//  4. фактический возврат  — уже изменённое defer-ом значение err
+func (db *DB) WithTx(ctx context.Context, fn func(*sqlx.Tx) error) (err error) {
 	tx, err := db.BeginTxx(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("не удалось начать транзакцию: %w", err)
 	}
 
 	defer func() {
 		if p := recover(); p != nil {
+			// Паника внутри fn — откатываем и продолжаем панику.
 			_ = tx.Rollback()
 			panic(p)
-		} else if err != nil {
-			_ = tx.Rollback()
-		} else {
-			err = tx.Commit()
 		}
+		if err != nil {
+			// fn вернула ошибку — откатываем транзакцию.
+			// Ошибку Rollback намеренно игнорируем: основная ошибка из fn важнее.
+			_ = tx.Rollback()
+			return
+		}
+		// fn успешна — коммитим. Ошибка Commit (дедлок, сетевой сбой)
+		// теперь корректно возвращается вызывающему через именованный err.
+		err = tx.Commit()
 	}()
 
 	err = fn(tx)
-	return err
+	return
 }

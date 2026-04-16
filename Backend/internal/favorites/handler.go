@@ -1,6 +1,7 @@
 package favorites
 
 import (
+	"context"
 	"net/http"
 
 	"Laman/internal/middleware"
@@ -12,7 +13,7 @@ import (
 
 // AuthService — минимальный интерфейс для валидации токена.
 type AuthService interface {
-	ValidateToken(token string) (uuid.UUID, error)
+	ValidateToken(ctx context.Context, token string) (uuid.UUID, string, error)
 }
 
 // Handler обрабатывает HTTP-запросы для избранного.

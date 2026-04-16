@@ -1,28 +1,30 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
-import { useCart } from "@/context/CartContext";
 
 interface HeaderProps {
   search: string;
   onSearchChange: (v: string) => void;
+  showSearch: boolean;
+  searchPlaceholder: string;
   onLogoClick: () => void;
-  onCartClick: () => void;
   onProfileClick: () => void;
+  activeCity: string;
+  onCityClick: () => void;
 }
 
 export default function Header({
   search,
   onSearchChange,
+  showSearch,
+  searchPlaceholder,
   onLogoClick,
-  onCartClick,
   onProfileClick,
+  activeCity,
+  onCityClick,
 }: HeaderProps) {
   const { isAuthenticated, user, openAuthModal } = useAuth();
-  const { totalCount } = useCart();
 
-  // Кнопка профиля: авторизован → открыть таб профиля, нет → открыть модалку входа.
-  // Раньше тут был dropdown с инфо+выход — теперь вся эта информация живёт в ProfileTab.
   function handleProfileClick() {
     if (isAuthenticated) {
       onProfileClick();
@@ -35,7 +37,7 @@ export default function Header({
     <header className="sticky top-0 z-40 bg-white border-b border-gray-100">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
 
-        {/* Строка 1: логотип + [поиск на sm+] + корзина + профиль */}
+        {/* Строка 1: логотип + [поиск на sm+] + город + профиль */}
         <div className="flex items-center gap-3 h-14">
 
           {/* Логотип */}
@@ -52,35 +54,40 @@ export default function Header({
           </button>
 
           {/* Поиск — только на sm+ в первой строке */}
-          <div className="hidden sm:flex flex-1 relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-            </svg>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Поиск товаров и магазинов..."
-              className="w-full h-10 pl-9 pr-4 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
-            />
-          </div>
+          {showSearch && (
+            <div className="hidden sm:flex flex-1 relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+              </svg>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder={searchPlaceholder}
+                className="w-full h-10 pl-9 pr-4 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+                style={{ fontSize: 16 }}
+              />
+            </div>
+          )}
 
           {/* Spacer на мобильном */}
           <div className="flex-1 sm:hidden" />
 
-          {/* Корзина */}
-          <button onClick={onCartClick} className="relative p-2 rounded-xl hover:bg-gray-100 transition-colors">
-            <svg className="w-5 h-5 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+          {/* Выбор города */}
+          <button
+            onClick={onCityClick}
+            className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl hover:bg-gray-100 transition-colors"
+          >
+            <svg className="w-4 h-4 text-indigo-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
             </svg>
-            {totalCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-indigo-600 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                {totalCount > 9 ? "9+" : totalCount}
-              </span>
-            )}
+            <span className="text-sm font-semibold text-gray-800">{activeCity}</span>
+            <svg className="w-3 h-3 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
           </button>
 
-          {/* Профиль — один клик открывает таб профиля (или модалку входа) */}
+          {/* Профиль */}
           <button
             onClick={handleProfileClick}
             className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors"
@@ -101,23 +108,26 @@ export default function Header({
         </div>
 
         {/* Строка 2: поиск только на мобильном */}
-        <div className="sm:hidden pb-3">
-          <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-            </svg>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Поиск товаров и магазинов..."
-              className="w-full h-10 pl-9 pr-4 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
-            />
+        {showSearch && (
+          <div className="sm:hidden pb-3">
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+              </svg>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder={searchPlaceholder}
+                className="w-full h-10 pl-9 pr-4 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+                style={{ fontSize: 16 }}
+              />
+            </div>
           </div>
-        </div>
+        )}
 
       </div>
+
     </header>
   );
 }
-

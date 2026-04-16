@@ -3,6 +3,8 @@ package orders
 import (
 	"Laman/internal/events"
 	"Laman/internal/middleware"
+	"Laman/internal/models"
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -18,7 +20,7 @@ type Handler struct {
 
 // AuthService определяет интерфейс, необходимый из модуля auth.
 type AuthService interface {
-	ValidateToken(token string) (uuid.UUID, error)
+	ValidateToken(ctx context.Context, token string) (uuid.UUID, string, error)
 }
 
 // NewHandler создает новый обработчик заказов.
@@ -38,7 +40,8 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 		orders.POST("", auth, h.CreateOrder)
 		orders.GET("/:id", auth, h.GetOrder)
 		orders.GET("", auth, h.GetUserOrders)
-		orders.PUT("/:id/status", auth, h.UpdateOrderStatus)
+		orders.POST("/:id/cancel", auth, h.CancelOrder)
+		orders.PUT("/:id/status", auth, middleware.RoleRequired(models.UserRoleCourier), h.UpdateOrderStatus)
 		orders.GET("/events", auth, h.Events)
 	}
 }
@@ -140,6 +143,25 @@ func (h *Handler) Events(c *gin.Context) {
 			return
 		}
 	}
+}
+
+// CancelOrder обрабатывает POST /orders/:id/cancel — отмена заказа клиентом.
+func (h *Handler) CancelOrder(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+	userIDUUID := userID.(uuid.UUID)
+
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID заказа"})
+		return
+	}
+
+	if err := h.orderService.CancelOrderByUser(c.Request.Context(), id, userIDUUID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "заказ отменён"})
 }
 
 // UpdateOrderStatus обрабатывает PUT /orders/:id/status

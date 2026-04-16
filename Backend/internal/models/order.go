@@ -6,6 +6,15 @@ import (
 	"github.com/google/uuid"
 )
 
+// OutOfStockAction — что делать сборщику, если товара нет в наличии.
+type OutOfStockAction string
+
+const (
+	OutOfStockRemove  OutOfStockAction = "REMOVE"  // убрать товар из заказа
+	OutOfStockReplace OutOfStockAction = "REPLACE" // заменить на аналог
+	OutOfStockCall    OutOfStockAction = "CALL"    // позвонить клиенту
+)
+
 // OrderStatus представляет статус заказа.
 type OrderStatus string
 
@@ -39,17 +48,19 @@ type Order struct {
 	FinalTotal    float64       `db:"final_total" json:"final_total"`
 	CreatedAt     time.Time     `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time     `db:"updated_at" json:"updated_at"`
-	PickerID      *uuid.UUID    `db:"picker_id" json:"picker_id,omitempty"`
+	PickerID           *uuid.UUID       `db:"picker_id" json:"picker_id,omitempty"`
+	OutOfStockAction   *OutOfStockAction `db:"out_of_stock_action" json:"out_of_stock_action,omitempty"`
 }
 
 // OrderItem представляет товар в заказе.
 type OrderItem struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	OrderID   uuid.UUID `db:"order_id" json:"order_id"`
-	ProductID uuid.UUID `db:"product_id" json:"product_id"`
-	Quantity  int       `db:"quantity" json:"quantity"`
-	Price     float64   `db:"price" json:"price"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	ID        uuid.UUID  `db:"id" json:"id"`
+	OrderID   uuid.UUID  `db:"order_id" json:"order_id"`
+	ProductID *uuid.UUID `db:"product_id" json:"product_id,omitempty"`
+	Name      string     `db:"product_name" json:"name"`
+	Quantity  int        `db:"quantity" json:"quantity"`
+	Price     float64    `db:"price" json:"price"`
+	CreatedAt time.Time  `db:"created_at" json:"created_at"`
 }
 
 // OrderWithItems представляет заказ с его товарами.

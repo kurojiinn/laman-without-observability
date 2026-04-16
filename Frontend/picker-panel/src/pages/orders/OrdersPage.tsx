@@ -1,12 +1,20 @@
-import { useMemo, useState } from "react";
+"use client";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppShell } from "../../shared/ui/AppShell";
 import { usePickerOrders } from "../../features/orders/hooks";
 import { usePickerRealtime } from "../../features/sse/usePickerRealtime";
+import { playNewOrderSound, playCancelSound } from "../../features/sse/audio";
 import { formatDate, formatPrice } from "../../shared/lib/format";
-import { statusLabel, statusPriority } from "../../entities/order/model";
+import { statusLabel, statusPriority, type PickerOrder, type OrderStatus } from "../../entities/order/model";
 
-type FilterType = "all" | "new" | "assembling" | "problem";
+type CompletedSort = "date_desc" | "date_asc" | "price_desc" | "price_asc";
+type CompletedStatusFilter = "all" | "DELIVERED" | "CANCELLED" | "DELIVERING" | "WAITING_COURIER";
+
+type CancelledNotification = {
+  orderId: string;
+  customerPhone: string;
+};
 
 const completedStatuses = new Set([
   "ASSEMBLED",
@@ -17,12 +25,64 @@ const completedStatuses = new Set([
   "CANCELLED",
 ]);
 
+function statusBadgeClass(status: OrderStatus): string {
+  switch (status) {
+    case "NEW":                return "status-badge status-new";
+    case "ACCEPTED_BY_PICKER": return "status-badge status-accepted";
+    case "ASSEMBLING":         return "status-badge status-assembling";
+    case "ASSEMBLED":          return "status-badge status-assembled";
+    case "WAITING_COURIER":    return "status-badge status-waiting";
+    case "COURIER_PICKED_UP":  return "status-badge status-picked";
+    case "DELIVERING":         return "status-badge status-delivering";
+    case "DELIVERED":          return "status-badge status-delivered";
+    case "CANCELLED":          return "status-badge status-cancelled";
+    case "NEEDS_CONFIRMATION": return "status-badge status-problem";
+    default:                   return "status-badge";
+  }
+}
+
 export function OrdersPage() {
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<FilterType>("all");
+  const [completedSort, setCompletedSort] = useState<CompletedSort>("date_desc");
+  const [completedStatusFilter, setCompletedStatusFilter] = useState<CompletedStatusFilter>("all");
+  const [cancelled, setCancelled] = useState<CancelledNotification | null>(null);
   const ordersQuery = usePickerOrders();
   const navigate = useNavigate();
   usePickerRealtime(true);
+
+  const prevStatusMapRef = useRef<Map<string, string> | null>(null);
+
+  useEffect(() => {
+    const orders: PickerOrder[] = ordersQuery.data ?? [];
+    if (!ordersQuery.isSuccess) return;
+
+    const currentMap = new Map(orders.map((o) => [o.id, o.status]));
+    const prev = prevStatusMapRef.current;
+
+    if (prev !== null) {
+      for (const id of currentMap.keys()) {
+        if (!prev.has(id)) {
+          playNewOrderSound();
+          break;
+        }
+      }
+
+      for (const [id, status] of currentMap) {
+        const prevStatus = prev.get(id);
+        if (status === "CANCELLED" && prevStatus && prevStatus !== "CANCELLED") {
+          const order = orders.find((o) => o.id === id);
+          playCancelSound();
+          setCancelled({
+            orderId: id,
+            customerPhone: order?.customerPhone ?? order?.guestPhone ?? "",
+          });
+          break;
+        }
+      }
+    }
+
+    prevStatusMapRef.current = currentMap;
+  }, [ordersQuery.data, ordersQuery.isSuccess]);
 
   const filteredOrders = useMemo(() => {
     const items = [...(ordersQuery.data ?? [])];
@@ -34,77 +94,102 @@ export function OrdersPage() {
 
     return items.filter((order) => {
       const q = query.trim().toLowerCase();
-      const matchesQuery =
+      return (
         q === "" ||
         order.id.toLowerCase().includes(q) ||
-        (order.customerPhone ?? order.guestPhone ?? "").toLowerCase().includes(q);
-
-      const matchesFilter =
-        filter === "all" ||
-        (filter === "new" && order.status === "NEW") ||
-        (filter === "assembling" &&
-          ["ACCEPTED_BY_PICKER", "ASSEMBLING", "NEEDS_CONFIRMATION"].includes(order.status)) ||
-        (filter === "problem" && order.status === "NEEDS_CONFIRMATION");
-
-      return matchesQuery && matchesFilter;
+        (order.customerPhone ?? order.guestPhone ?? "").toLowerCase().includes(q)
+      );
     });
-  }, [ordersQuery.data, query, filter]);
+  }, [ordersQuery.data, query]);
 
   const activeOrders = useMemo(
     () => filteredOrders.filter((order) => !completedStatuses.has(order.status)),
-    [filteredOrders]
+    [filteredOrders],
   );
-  const completedOrders = useMemo(
-    () => filteredOrders.filter((order) => completedStatuses.has(order.status)),
-    [filteredOrders]
-  );
+  const completedOrders = useMemo(() => {
+    let items = filteredOrders.filter((order) => completedStatuses.has(order.status));
+
+    if (completedStatusFilter !== "all") {
+      items = items.filter((o) => o.status === completedStatusFilter);
+    }
+
+    items = [...items].sort((a, b) => {
+      switch (completedSort) {
+        case "date_desc": return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        case "date_asc":  return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        case "price_desc": return b.finalTotal - a.finalTotal;
+        case "price_asc":  return a.finalTotal - b.finalTotal;
+      }
+    });
+
+    return items;
+  }, [filteredOrders, completedSort, completedStatusFilter]);
 
   return (
-    <AppShell title="Очередь заказов">
-      <section className="card controls">
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Поиск по ID или телефону"
-        />
-        <div className="segmented">
-          <button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}>
-            Все
-          </button>
-          <button className={filter === "new" ? "active" : ""} onClick={() => setFilter("new")}>
-            Новые
-          </button>
-          <button
-            className={filter === "assembling" ? "active" : ""}
-            onClick={() => setFilter("assembling")}
-          >
-            В сборке
-          </button>
-          <button
-            className={filter === "problem" ? "active" : ""}
-            onClick={() => setFilter("problem")}
-          >
-            Проблемные
-          </button>
+    <AppShell
+      title="Очередь заказов"
+      subtitle="Все заказы вашего магазина"
+    >
+      {/* Cancel popup */}
+      {cancelled && (
+        <div className="alert-overlay" onClick={dismissIfClickedOutside}>
+          <div className="alert-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="alert-icon">✕</div>
+            <h2 className="alert-title">Заказ отменён</h2>
+            <p className="alert-order-id">
+              ID: <span>{cancelled.orderId.slice(0, 8).toUpperCase()}</span>
+            </p>
+            {cancelled.customerPhone && (
+              <p className="alert-phone">
+                Клиент: <span>{cancelled.customerPhone}</span>
+              </p>
+            )}
+            <p className="alert-message">Клиент отменил заказ. Верните товары на полки.</p>
+            <button className="alert-btn btn-danger" onClick={() => setCancelled(null)}>
+              Понял
+            </button>
+          </div>
         </div>
-      </section>
+      )}
 
-      <section className="card">
-        {ordersQuery.isLoading ? <p>Загрузка заказов...</p> : null}
-        {ordersQuery.isError ? (
+      {/* Controls */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <input
+          className="search-input"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Поиск по ID или телефону..."
+        />
+      </div>
+
+      {/* Active orders */}
+      <div className="card">
+        <div className="section-header">
+          <span className="section-title">Активные заказы</span>
+          {activeOrders.length > 0 && (
+            <span className="section-count">{activeOrders.length}</span>
+          )}
+        </div>
+
+        {ordersQuery.isLoading && <p className="empty-text">Загрузка заказов...</p>}
+        {ordersQuery.isError && (
           <p className="error-text">
             {ordersQuery.error instanceof Error ? ordersQuery.error.message : "Ошибка загрузки"}
           </p>
-        ) : null}
-        {!ordersQuery.isLoading && !ordersQuery.isError && activeOrders.length === 0 ? (
-          <p className="empty-text">Нет активных заказов по текущему фильтру</p>
-        ) : null}
+        )}
+        {!ordersQuery.isLoading && !ordersQuery.isError && activeOrders.length === 0 && (
+          <div className="empty-state">
+            <div className="empty-state-icon">✅</div>
+            <div className="empty-state-title">Активных заказов нет</div>
+            <div className="empty-state-sub">Новые заказы появятся автоматически</div>
+          </div>
+        )}
 
-        {activeOrders.length > 0 ? (
+        {activeOrders.length > 0 && (
           <table className="orders-table">
             <thead>
               <tr>
-                <th>Телефон</th>
+                <th>Клиент</th>
                 <th>Статус</th>
                 <th>Создан</th>
                 <th>Сумма</th>
@@ -117,26 +202,73 @@ export function OrdersPage() {
                   className="clickable-row"
                   onClick={() => navigate(`/orders/${order.id}`)}
                 >
-                  <td>{order.customerPhone ?? order.guestPhone ?? "-"}</td>
-                  <td>{statusLabel(order.status)}</td>
+                  <td>{order.customerPhone ?? order.guestPhone ?? "—"}</td>
+                  <td>
+                    <span className={statusBadgeClass(order.status as OrderStatus)}>
+                      {statusLabel(order.status)}
+                    </span>
+                  </td>
                   <td>{formatDate(order.createdAt)}</td>
-                  <td>{formatPrice(order.finalTotal)}</td>
+                  <td style={{ fontWeight: 600 }}>{formatPrice(order.finalTotal)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        ) : null}
-      </section>
+        )}
+      </div>
 
-      <section className="card">
-        <h2>Выполненные</h2>
+      {/* Completed orders */}
+      <div className="card">
+        <div className="section-header">
+          <span className="section-title">Выполненные</span>
+          {completedOrders.length > 0 && (
+            <span className="section-count">{completedOrders.length}</span>
+          )}
+        </div>
+
+        <div className="completed-filters">
+          <div className="completed-filters-row">
+            <label className="completed-filters-label" htmlFor="completed-status">Статус</label>
+            <select
+              id="completed-status"
+              className="filter-select"
+              value={completedStatusFilter}
+              onChange={(e) => setCompletedStatusFilter(e.target.value as CompletedStatusFilter)}
+            >
+              <option value="all">Все статусы</option>
+              <option value="DELIVERED">Доставлен</option>
+              <option value="CANCELLED">Отменён</option>
+              <option value="DELIVERING">В пути</option>
+              <option value="WAITING_COURIER">Ждёт курьера</option>
+            </select>
+          </div>
+
+          <div className="completed-filters-row">
+            <label className="completed-filters-label" htmlFor="completed-sort">Сортировка</label>
+            <select
+              id="completed-sort"
+              className="filter-select"
+              value={completedSort}
+              onChange={(e) => setCompletedSort(e.target.value as CompletedSort)}
+            >
+              <option value="date_desc">Сначала новые</option>
+              <option value="date_asc">Сначала старые</option>
+              <option value="price_desc">Сначала дорогие</option>
+              <option value="price_asc">Сначала дешёвые</option>
+            </select>
+          </div>
+        </div>
+
         {completedOrders.length === 0 ? (
-          <p className="empty-text">Пока нет выполненных заказов</p>
+          <div className="empty-state">
+            <div className="empty-state-icon">📭</div>
+            <div className="empty-state-title">Нет выполненных заказов</div>
+          </div>
         ) : (
           <table className="orders-table">
             <thead>
               <tr>
-                <th>Телефон</th>
+                <th>Клиент</th>
                 <th>Статус</th>
                 <th>Создан</th>
                 <th>Сумма</th>
@@ -149,16 +281,26 @@ export function OrdersPage() {
                   className="clickable-row"
                   onClick={() => navigate(`/orders/${order.id}`)}
                 >
-                  <td>{order.customerPhone ?? order.guestPhone ?? "-"}</td>
-                  <td>{statusLabel(order.status)}</td>
-                  <td>{formatDate(order.createdAt)}</td>
-                  <td>{formatPrice(order.finalTotal)}</td>
+                  <td style={{ color: "var(--text-secondary)" }}>
+                    {order.customerPhone ?? order.guestPhone ?? "—"}
+                  </td>
+                  <td>
+                    <span className={statusBadgeClass(order.status as OrderStatus)}>
+                      {statusLabel(order.status)}
+                    </span>
+                  </td>
+                  <td style={{ color: "var(--text-secondary)" }}>{formatDate(order.createdAt)}</td>
+                  <td style={{ fontWeight: 600 }}>{formatPrice(order.finalTotal)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
-      </section>
+      </div>
     </AppShell>
   );
+
+  function dismissIfClickedOutside() {
+    setCancelled(null);
+  }
 }

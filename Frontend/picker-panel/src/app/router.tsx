@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { LoginPage } from "../pages/login/LoginPage";
 import { OrdersPage } from "../pages/orders/OrdersPage";
 import { OrderDetailsPage } from "../pages/order-details/OrderDetailsPage";
+import { AnalyticsPage } from "../pages/analytics/AnalyticsPage";
+import { ProfilePage } from "../pages/profile/ProfilePage";
 import { getSession } from "../features/auth/sessionStore";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -29,6 +31,22 @@ export function AppRouter() {
         element={
           <RequireAuth>
             <OrderDetailsPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/analytics"
+        element={
+          <RequireAuth>
+            <AnalyticsPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <RequireAuth>
+            <ProfilePage />
           </RequireAuth>
         }
       />

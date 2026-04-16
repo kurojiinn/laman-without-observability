@@ -2,7 +2,9 @@ package courier
 
 import (
 	"Laman/internal/middleware"
+	"Laman/internal/models"
 	"Laman/internal/observability"
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -18,7 +20,7 @@ type Handler struct {
 
 // AuthService определяет интерфейс, необходимый из модуля auth.
 type AuthService interface {
-	ValidateToken(token string) (uuid.UUID, error)
+	ValidateToken(ctx context.Context, token string) (uuid.UUID, string, error)
 }
 
 // NewHandler создает новый обработчик заказов.
@@ -32,11 +34,13 @@ func NewHandler(courierService *Service, authService AuthService, logger *zap.Lo
 
 func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	couriers := router.Group("/courier")
+	auth := middleware.AuthMiddleware(h.authService)
+	courierOnly := middleware.RoleRequired(models.UserRoleCourier)
 	{
-		couriers.POST("/location", middleware.AuthMiddleware(h.authService), h.UpdateLocation)
-		couriers.GET("/location/:courierId", middleware.AuthMiddleware(h.authService), h.GetCourierLocation)
-		couriers.POST("/shift/start", middleware.AuthMiddleware(h.authService), h.StartShift)
-		couriers.POST("/shift/end", middleware.AuthMiddleware(h.authService), h.EndShift)
+		couriers.POST("/location", auth, courierOnly, h.UpdateLocation)
+		couriers.GET("/location/:courierId", auth, courierOnly, h.GetCourierLocation)
+		couriers.POST("/shift/start", auth, courierOnly, h.StartShift)
+		couriers.POST("/shift/end", auth, courierOnly, h.EndShift)
 	}
 }
 

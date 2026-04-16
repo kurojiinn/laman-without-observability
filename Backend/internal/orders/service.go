@@ -3,6 +3,7 @@ package orders
 import (
 	"Laman/internal/events"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -11,12 +12,14 @@ import (
 	"Laman/internal/observability"
 
 	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
 	"go.uber.org/zap"
 )
 
 // OrderService обрабатывает бизнес-логику, связанную с созданием заказов,
-// расчетом цен и управлением жизненным циклом.
+// расчётом цен и управлением жизненным циклом.
 type OrderService struct {
+	transactor        Transactor
 	orderRepo         OrderRepository
 	orderItemRepo     OrderItemRepository
 	productRepo       ProductRepository
@@ -36,14 +39,26 @@ type ProductRepository interface {
 	GetByIDs(ctx context.Context, ids []uuid.UUID) ([]models.Product, error)
 }
 
-// DeliveryRepository определяет интерфейс, необходимый из модуля delivery.
-type DeliveryRepository interface {
-	Create(ctx context.Context, delivery *models.Delivery) error
+// Transactor позволяет сервису запускать несколько операций репозитория
+// в рамках одной БД-транзакции. Реализуется через *database.DB.
+type Transactor interface {
+	WithTx(ctx context.Context, fn func(*sqlx.Tx) error) error
 }
 
-// PaymentRepository определяет интерфейс, необходимый из модуля payments.
+// DeliveryRepository определяет интерфейс для работы с доставками.
+type DeliveryRepository interface {
+	Create(ctx context.Context, delivery *models.Delivery) error
+
+	// CreateTx создаёт запись о доставке внутри транзакции.
+	CreateTx(ctx context.Context, tx *sqlx.Tx, delivery *models.Delivery) error
+}
+
+// PaymentRepository определяет интерфейс для работы с платежами.
 type PaymentRepository interface {
 	Create(ctx context.Context, payment *models.Payment) error
+
+	// CreateTx создаёт запись о платеже внутри транзакции.
+	CreateTx(ctx context.Context, tx *sqlx.Tx, payment *models.Payment) error
 }
 
 // CourierService определяет интерфейс для работы с курьерами.
@@ -55,8 +70,10 @@ type StoreRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Store, error)
 }
 
-// NewOrderService создает новый сервис заказов.
+// NewOrderService создаёт новый сервис заказов.
+// transactor используется для атомарного создания заказа со всеми зависимостями.
 func NewOrderService(
+	transactor Transactor,
 	orderRepo OrderRepository,
 	orderItemRepo OrderItemRepository,
 	productRepo ProductRepository,
@@ -71,6 +88,7 @@ func NewOrderService(
 	hub *events.Hub,
 ) *OrderService {
 	return &OrderService{
+		transactor:        transactor,
 		orderRepo:         orderRepo,
 		orderItemRepo:     orderItemRepo,
 		productRepo:       productRepo,
@@ -88,12 +106,13 @@ func NewOrderService(
 
 // CreateOrderRequest представляет запрос на создание заказа.
 type CreateOrderRequest struct {
-	UserID          uuid.UUID                `json:"user_id"`
-	CustomerPhone   *string                  `json:"customer_phone,omitempty"`
-	Comment         *string                  `json:"comment,omitempty"`
-	Items           []CreateOrderItemRequest `json:"items" binding:"required"`
-	PaymentMethod   models.PaymentMethod     `json:"payment_method" binding:"required"`
-	DeliveryAddress string                   `json:"delivery_address" binding:"required"`
+	UserID             uuid.UUID                 `json:"user_id"`
+	CustomerPhone      *string                   `json:"customer_phone,omitempty"`
+	Comment            *string                   `json:"comment,omitempty"`
+	Items              []CreateOrderItemRequest   `json:"items" binding:"required"`
+	PaymentMethod      models.PaymentMethod       `json:"payment_method" binding:"required"`
+	DeliveryAddress    string                     `json:"delivery_address" binding:"required"`
+	OutOfStockAction   *models.OutOfStockAction   `json:"out_of_stock_action,omitempty"`
 }
 
 // CreateOrderItemRequest представляет товар в запросе на создание заказа.
@@ -156,9 +175,11 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 			totalWeight += *product.Weight * float64(itemReq.Quantity)
 		}
 
+		productID := product.ID
 		orderItems = append(orderItems, models.OrderItem{
 			ID:        uuid.New(),
-			ProductID: product.ID,
+			ProductID: &productID,
+			Name:      product.Name,
 			Quantity:  itemReq.Quantity,
 			Price:     product.Price,
 			CreatedAt: time.Now(),
@@ -177,41 +198,29 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 		return nil, fmt.Errorf("не удалось определить магазин заказа")
 	}
 	order := &models.Order{
-		ID:            uuid.New(),
-		UserID:        &req.UserID,
-		CustomerPhone: req.CustomerPhone,
-		Comment:       req.Comment,
-		Status:        models.OrderStatusNew,
-		StoreID:       *storeID,
-		PaymentMethod: req.PaymentMethod,
-		ItemsTotal:    itemsTotal,
-		ServiceFee:    serviceFee,
-		DeliveryFee:   s.deliveryFee,
-		FinalTotal:    finalTotal,
-		CreatedAt:     now,
-		UpdatedAt:     now,
+		ID:               uuid.New(),
+		UserID:           &req.UserID,
+		CustomerPhone:    req.CustomerPhone,
+		Comment:          req.Comment,
+		Status:           models.OrderStatusNew,
+		StoreID:          *storeID,
+		PaymentMethod:    req.PaymentMethod,
+		ItemsTotal:       itemsTotal,
+		ServiceFee:       serviceFee,
+		DeliveryFee:      s.deliveryFee,
+		FinalTotal:       finalTotal,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+		OutOfStockAction: req.OutOfStockAction,
 	}
 
 	order.CourierID = s.assignCourier(ctx, order)
 
-	// Создание заказа в транзакции
-	err = s.orderRepo.Create(ctx, order)
-	if err != nil {
-		return nil, fmt.Errorf("не удалось создать заказ: %w", err)
-	}
-
-	s.hub.Notify(order.StoreID, "new_order")
-	// Установка ID заказа для товаров
+	// Устанавливаем OrderID для товаров до транзакции — он уже известен (uuid.New выше).
 	for i := range orderItems {
 		orderItems[i].OrderID = order.ID
 	}
 
-	// Создание товаров заказа
-	if err := s.orderItemRepo.CreateBatch(ctx, orderItems); err != nil {
-		return nil, fmt.Errorf("не удалось создать товары заказа: %w", err)
-	}
-
-	// Создание доставки
 	delivery := &models.Delivery{
 		ID:        uuid.New(),
 		OrderID:   order.ID,
@@ -221,11 +230,6 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 		UpdatedAt: now,
 	}
 
-	if err := s.deliveryRepo.Create(ctx, delivery); err != nil {
-		return nil, fmt.Errorf("не удалось создать доставку: %w", err)
-	}
-
-	// Создание оплаты
 	payment := &models.Payment{
 		ID:        uuid.New(),
 		OrderID:   order.ID,
@@ -236,8 +240,32 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 		UpdatedAt: now,
 	}
 
-	if err := s.paymentRepo.Create(ctx, payment); err != nil {
-		return nil, fmt.Errorf("не удалось создать оплату: %w", err)
+	// Атомарно создаём заказ, позиции, доставку и платёж в одной транзакции.
+	// Если любой из шагов упадёт — вся транзакция откатится, "полузаказов" не будет.
+	if err = s.transactor.WithTx(ctx, func(tx *sqlx.Tx) error {
+		if err := s.orderRepo.CreateTx(ctx, tx, order); err != nil {
+			return fmt.Errorf("заказ: %w", err)
+		}
+		if err := s.orderItemRepo.CreateBatchTx(ctx, tx, orderItems); err != nil {
+			return fmt.Errorf("позиции заказа: %w", err)
+		}
+		if err := s.deliveryRepo.CreateTx(ctx, tx, delivery); err != nil {
+			return fmt.Errorf("доставка: %w", err)
+		}
+		if err := s.paymentRepo.CreateTx(ctx, tx, payment); err != nil {
+			return fmt.Errorf("платёж: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("не удалось создать заказ: %w", err)
+	}
+
+	if payload, err := json.Marshal(map[string]string{
+		"type":     "new_order",
+		"order_id": order.ID.String(),
+		"message":  "Новый заказ",
+	}); err == nil {
+		s.hub.Notify(order.StoreID, string(payload))
 	}
 
 	if s.notifier != nil {
@@ -327,30 +355,10 @@ func (s *OrderService) buildItemsText(ctx context.Context, orderID uuid.UUID) st
 		return ""
 	}
 
-	ids := make([]uuid.UUID, 0, len(items))
-	seen := make(map[uuid.UUID]struct{})
-	for _, item := range items {
-		if _, ok := seen[item.ProductID]; ok {
-			continue
-		}
-		seen[item.ProductID] = struct{}{}
-		ids = append(ids, item.ProductID)
-	}
-
-	products, err := s.productRepo.GetByIDs(ctx, ids)
-	if err != nil {
-		return ""
-	}
-
-	nameByID := make(map[uuid.UUID]string, len(products))
-	for _, p := range products {
-		nameByID[p.ID] = p.Name
-	}
-
 	lines := make([]string, 0, len(items))
 	for _, item := range items {
-		name := nameByID[item.ProductID]
-		if name == "" {
+		name := item.Name
+		if name == "" && item.ProductID != nil {
 			name = item.ProductID.String()[:8]
 		}
 		lines = append(lines, fmt.Sprintf("%s ×%d", name, item.Quantity))
@@ -384,6 +392,64 @@ func (s *OrderService) GetUserOrders(ctx context.Context, userID uuid.UUID) ([]m
 		return nil, fmt.Errorf("не удалось получить заказы пользователя: %w", err)
 	}
 	return orders, nil
+}
+
+// CancelOrderByUser отменяет заказ от имени клиента.
+// Проверяет что заказ принадлежит пользователю и что отмена допустима.
+func (s *OrderService) CancelOrderByUser(ctx context.Context, orderID uuid.UUID, userID uuid.UUID) error {
+	order, err := s.orderRepo.GetByID(ctx, orderID)
+	if err != nil {
+		return fmt.Errorf("не удалось получить заказ: %w", err)
+	}
+
+	if order.UserID == nil || *order.UserID != userID {
+		return fmt.Errorf("доступ запрещён")
+	}
+
+	if !models.IsValidStateTransition(order.Status, models.OrderStatusCancelled) {
+		return fmt.Errorf("заказ нельзя отменить на текущем этапе")
+	}
+
+	if err := s.orderRepo.UpdateStatus(ctx, orderID, models.OrderStatusCancelled); err != nil {
+		return fmt.Errorf("не удалось отменить заказ: %w", err)
+	}
+
+	// Уведомляем сборщика магазина об отмене через SSE
+	cancelPhone := ""
+	if order.CustomerPhone != nil {
+		cancelPhone = *order.CustomerPhone
+	}
+	if payload, err := json.Marshal(map[string]string{
+		"type":            "order_cancelled",
+		"order_id":        orderID.String(),
+		"customer_phone":  cancelPhone,
+		"message":         "Клиент отменил заказ",
+	}); err == nil {
+		s.hub.Notify(order.StoreID, string(payload))
+	}
+
+	if s.notifier != nil {
+		itemsText := s.buildItemsText(ctx, order.ID)
+		phone := ""
+		if order.CustomerPhone != nil {
+			phone = *order.CustomerPhone
+		}
+		comment := ""
+		if order.Comment != nil {
+			comment = *order.Comment
+		}
+		notifyCtx := observability.WithOrderMessageMeta(ctx, observability.OrderMessageMeta{
+			Customer: fmt.Sprintf("Пользователь %s", shortUUID(userID)),
+			Phone:    phone,
+			Comment:  comment,
+			Items:    itemsText,
+		})
+		if err := s.notifier.NotifyOrderCancelled(notifyCtx, order); err != nil && s.logger != nil {
+			s.logger.Warn("Не удалось отправить отмену в Telegram", zap.Error(err))
+		}
+	}
+
+	return nil
 }
 
 // UpdateOrderStatusRequest представляет запрос на обновление статуса заказа.

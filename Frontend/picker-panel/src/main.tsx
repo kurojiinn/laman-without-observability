@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import { AppRouter } from "./app/router";
 import "./shared/ui/styles.css";
+import "./shared/lib/themeStore"; // applies saved theme on startup
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -7,11 +7,16 @@ import { useCart } from "@/context/CartContext";
 import { resolveImageUrl, type Product } from "@/lib/api";
 import ProductModal from "@/components/ui/ProductModal";
 
-export default function FavoritesTab() {
+export default function FavoritesTab({ search }: { search: string }) {
   const { isAuthenticated, openAuthModal } = useAuth();
   const { favorites, loading, toggleFavorite } = useFavorites();
   const { addItem } = useCart();
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  const q = search.trim().toLowerCase();
+  const visibleFavorites = q
+    ? favorites.filter((p) => p.name.toLowerCase().includes(q))
+    : favorites;
 
   if (!isAuthenticated) {
     return (
@@ -54,17 +59,24 @@ export default function FavoritesTab() {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
       <p className="text-sm text-gray-400 mb-4">{favorites.length} {pluralize(favorites.length, "товар", "товара", "товаров")}</p>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-        {favorites.map((product) => (
-          <FavoriteCard
-            key={product.id}
-            product={product}
-            onOpen={() => setSelectedProduct(product)}
-            onAdd={() => addItem(product)}
-            onRemove={() => toggleFavorite(product)}
-          />
-        ))}
-      </div>
+      {visibleFavorites.length === 0 ? (
+        <div className="flex flex-col items-center py-16 text-gray-400">
+          <span className="text-5xl mb-3">🔍</span>
+          <p className="text-sm">Ничего не найдено</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+          {visibleFavorites.map((product) => (
+            <FavoriteCard
+              key={product.id}
+              product={product}
+              onOpen={() => setSelectedProduct(product)}
+              onAdd={() => addItem(product)}
+              onRemove={() => toggleFavorite(product)}
+            />
+          ))}
+        </div>
+      )}
 
       {selectedProduct && (
         <ProductModal

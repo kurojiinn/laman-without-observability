@@ -1,3 +1,14 @@
+export type OutOfStockAction = "REMOVE" | "REPLACE" | "CALL";
+
+export function outOfStockLabel(action: OutOfStockAction | null | undefined): string {
+  switch (action) {
+    case "REMOVE":  return "Убрать товар из заказа";
+    case "REPLACE": return "Заменить на аналог";
+    case "CALL":    return "Позвонить клиенту";
+    default:        return "Не указано";
+  }
+}
+
 export type OrderStatus =
   | "NEW"
   | "ACCEPTED_BY_PICKER"
@@ -29,6 +40,7 @@ export type PickerOrder = {
   customerPhone?: string | null;
   deliveryAddress?: string | null;
   comment?: string | null;
+  outOfStockAction?: OutOfStockAction | null;
   status: OrderStatus;
   storeId: string;
   paymentMethod: string;
@@ -72,7 +84,7 @@ export function statusLabel(status: OrderStatus): string {
     case "NEW":
       return "Новый";
     case "ACCEPTED_BY_PICKER":
-      return "Принят сборщиком";
+      return "Принят";
     case "ASSEMBLING":
       return "Сборка";
     case "ASSEMBLED":

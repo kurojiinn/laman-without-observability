@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { catalogApi, resolveImageUrl, type Store } from "@/lib/api";
+import { catalogApi, isStoreOpen, resolveImageUrl, type Store } from "@/lib/api";
 import StoreDetailView from "./StoreDetailView";
 import CategoryIcon, { CATEGORY_META, DEFAULT_META } from "@/components/ui/CategoryIcon";
 import StoreAvatar from "@/components/ui/StoreAvatar";
@@ -68,18 +68,27 @@ export default function StoresTab({ search }: Props) {
 
 function StoreCard({ store, onClick }: { store: Store; onClick: () => void }) {
   const meta = CATEGORY_META[store.category_type] ?? DEFAULT_META;
+  const open = isStoreOpen(store);
+  const hasHours = !!store.opens_at && !!store.closes_at;
 
   return (
     <button
-      onClick={onClick}
-      className="text-left bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md hover:border-indigo-100 transition-all flex flex-col gap-3 w-full"
+      onClick={open ? onClick : undefined}
+      className={`relative text-left bg-white rounded-2xl border p-5 transition-all flex flex-col gap-3 w-full overflow-hidden ${
+        open ? "border-gray-100 hover:border-indigo-100 hover:shadow-md cursor-pointer" : "border-gray-200 cursor-not-allowed"
+      }`}
     >
+      {/* Затухший оверлей когда закрыто */}
+      {!open && (
+        <div className="absolute inset-0 bg-gray-100/55 rounded-2xl pointer-events-none z-10" />
+      )}
+
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-3">
-          <StoreAvatar store={store} className="w-11 h-11 rounded-xl" textClass="text-xs" />
-          <div>
-            <p className="font-semibold text-gray-900 text-sm leading-tight">{store.name}</p>
-            <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{store.address}</p>
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <StoreAvatar store={store} className="w-11 h-11 rounded-xl flex-shrink-0" textClass="text-xs" />
+          <div className="min-w-0">
+            <p className="font-semibold text-gray-900 text-sm leading-tight truncate">{store.name}</p>
+            <p className="text-xs text-gray-400 mt-0.5 truncate">{store.address}</p>
           </div>
         </div>
 
@@ -93,12 +102,16 @@ function StoreCard({ store, onClick }: { store: Store; onClick: () => void }) {
         )}
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${meta.badgeClass}`}>
           {meta.label}
         </span>
-        {store.phone && (
-          <span className="text-xs text-gray-400">{store.phone}</span>
+        {hasHours && (
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+            open ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"
+          }`}>
+            {open ? "Открыто" : "Закрыто"} · {store.opens_at}–{store.closes_at}
+          </span>
         )}
       </div>
 

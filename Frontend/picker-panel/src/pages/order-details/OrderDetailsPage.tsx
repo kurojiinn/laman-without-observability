@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { AppShell } from "../../shared/ui/AppShell";
 import {
   usePickerOrder,
@@ -8,10 +8,11 @@ import {
   useRemoveOrderItem,
 } from "../../features/orders/hooks";
 import { formatDate, formatPrice, shortId } from "../../shared/lib/format";
-import { getPickerActions, statusLabel } from "../../entities/order/model";
+import { getPickerActions, statusLabel, outOfStockLabel } from "../../entities/order/model";
 
 export function OrderDetailsPage() {
   const { id = "" } = useParams();
+  const navigate = useNavigate();
   const orderQuery = usePickerOrder(id);
   const mutation = useUpdateOrderStatus(id);
   const addItem = useAddOrderItem(id);
@@ -53,10 +54,10 @@ export function OrderDetailsPage() {
   const isPending = addItem.isPending || removeItem.isPending;
 
   return (
-    <AppShell title={`Заказ #${shortId(id)}`}>
-      <p>
-        <Link to="/orders">&larr; Назад к очереди</Link>
-      </p>
+    <AppShell title={`Заказ #${shortId(id)}`} subtitle="Детали и управление заказом">
+      <button className="back-btn" type="button" onClick={() => navigate("/orders")}>
+        ← Назад к очереди
+      </button>
 
       <section className="card">
         {orderQuery.isLoading ? <p>Загрузка заказа...</p> : null}
@@ -84,6 +85,35 @@ export function OrderDetailsPage() {
               </p>
               <p>
                 <strong>Комментарий:</strong> {orderQuery.data.comment ?? "-"}
+              </p>
+              <p>
+                <strong>Если товара нет:</strong>{" "}
+                <span
+                  style={{
+                    display: "inline-block",
+                    padding: "2px 10px",
+                    borderRadius: 6,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    background:
+                      orderQuery.data.outOfStockAction === "CALL"
+                        ? "#fef3c7"
+                        : orderQuery.data.outOfStockAction === "REPLACE"
+                        ? "#dbeafe"
+                        : "#f3f4f6",
+                    color:
+                      orderQuery.data.outOfStockAction === "CALL"
+                        ? "#92400e"
+                        : orderQuery.data.outOfStockAction === "REPLACE"
+                        ? "#1e40af"
+                        : "#374151",
+                  }}
+                >
+                  {orderQuery.data.outOfStockAction === "CALL" && "📞 "}
+                  {orderQuery.data.outOfStockAction === "REPLACE" && "🔄 "}
+                  {orderQuery.data.outOfStockAction === "REMOVE" && "🗑️ "}
+                  {outOfStockLabel(orderQuery.data.outOfStockAction)}
+                </span>
               </p>
               <p>
                 <strong>Создан:</strong> {formatDate(orderQuery.data.createdAt)}
@@ -280,7 +310,7 @@ export function OrderDetailsPage() {
       </section>
 
       <section className="card">
-        <h2>Действия сборщика</h2>
+        <p className="card-title">⚡ Действия сборщика</p>
         {actions.length === 0 ? <p className="empty-text">Нет доступных действий</p> : null}
         <div className="actions">
           {actions.map((status) => (
@@ -289,6 +319,7 @@ export function OrderDetailsPage() {
               disabled={mutation.isPending}
               onClick={() => mutation.mutate(status)}
               type="button"
+              className={status === "CANCELLED" ? "btn-danger" : "btn-primary"}
             >
               {statusLabel(status)}
             </button>

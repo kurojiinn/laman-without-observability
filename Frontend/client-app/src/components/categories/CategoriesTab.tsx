@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { catalogApi, resolveImageUrl, type Store } from "@/lib/api";
+import { catalogApi, isStoreOpen, resolveImageUrl, type Store } from "@/lib/api";
 import StoreDetailView from "@/components/stores/StoreDetailView";
 import CategoryIcon, { CATEGORY_META, DEFAULT_META } from "@/components/ui/CategoryIcon";
 import StoreAvatar from "@/components/ui/StoreAvatar";
@@ -10,13 +10,12 @@ const STORE_CATEGORY_TYPES = ["PHARMACY", "FOOD", "BUILDING", "HOME", "CLOTHES",
 
 type View = "categories" | "stores" | "store";
 
-export default function CategoriesTab() {
+export default function CategoriesTab({ search, activeCity }: { search: string; activeCity: string }) {
   const [view, setView] = useState<View>("categories");
   const [allStores, setAllStores] = useState<Store[]>([]);
   const [loadingStores, setLoadingStores] = useState(true);
   const [activeCategoryType, setActiveCategoryType] = useState<string | null>(null);
   const [selectedStore, setSelectedStore] = useState<Store | null>(null);
-  const [search, setSearch] = useState("");
 
   useEffect(() => {
     catalogApi
@@ -26,15 +25,18 @@ export default function CategoriesTab() {
       .finally(() => setLoadingStores(false));
   }, []);
 
-  // Категории с количеством магазинов
+  // Магазины выбранного города
+  const cityStores = allStores.filter((s) => s.city === activeCity);
+
+  // Категории с количеством магазинов (только выбранный город)
   const categoriesWithCount = STORE_CATEGORY_TYPES.map((type) => ({
     type,
     meta: CATEGORY_META[type] ?? DEFAULT_META,
-    count: allStores.filter((s) => s.category_type === type).length,
+    count: cityStores.filter((s) => s.category_type === type).length,
   }));
 
-  // Магазины выбранной категории с учётом поиска
-  const filteredStores = allStores.filter((s) => {
+  // Магазины с учётом города, категории и поиска
+  const filteredStores = cityStores.filter((s) => {
     const matchesCategory = activeCategoryType ? s.category_type === activeCategoryType : true;
     const matchesSearch = search
       ? s.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -48,6 +50,7 @@ export default function CategoriesTab() {
     return (
       <StoreDetailView
         store={selectedStore}
+        search={search}
         onBack={() => {
           setSelectedStore(null);
           setView("stores");
@@ -63,7 +66,7 @@ export default function CategoriesTab() {
     return (
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
         <button
-          onClick={() => { setView("categories"); setSearch(""); }}
+          onClick={() => { setView("categories"); }}
           className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-5"
         >
           <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -75,20 +78,6 @@ export default function CategoriesTab() {
         <div className="flex items-center gap-3 mb-4">
           <CategoryIcon type={activeCategoryType} size="md" />
           <h1 className="text-xl font-bold text-gray-900">{catMeta.label}</h1>
-        </div>
-
-        {/* Поиск по магазинам */}
-        <div className="relative mb-4">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-          </svg>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Поиск по магазинам..."
-            className="w-full pl-9 pr-4 py-2.5 bg-gray-100 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-indigo-200 transition-all"
-          />
         </div>
 
         {loadingStores ? (
@@ -108,7 +97,7 @@ export default function CategoriesTab() {
               <StoreRow
                 key={store.id}
                 store={store}
-                onClick={() => { setSelectedStore(store); setView("store"); }}
+                onClick={() => { if (isStoreOpen(store)) { setSelectedStore(store); setView("store"); } }}
               />
             ))}
           </div>
@@ -117,51 +106,85 @@ export default function CategoriesTab() {
     );
   }
 
-  // ── Сетка категорий ────────────────────────────────────────────────────────
+  // ── Сетка категорий / результаты поиска ───────────────────────────────────
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-      <h1 className="text-xl font-bold text-gray-900 mb-4">Категории</h1>
 
-      {loadingStores ? (
-        <div className="grid grid-cols-2 gap-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="bg-gray-100 rounded-2xl h-28 animate-pulse" />
-          ))}
-        </div>
+      {search.trim() ? (
+        // ── Режим поиска ──
+        <>
+          <h1 className="text-xl font-bold text-gray-900 mb-4">Результаты поиска</h1>
+          {loadingStores ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="bg-gray-100 rounded-2xl h-20 animate-pulse" />
+              ))}
+            </div>
+          ) : filteredStores.length === 0 ? (
+            <div className="flex flex-col items-center py-20 text-gray-400">
+              <span className="text-5xl mb-3">🔍</span>
+              <p className="text-sm">Ничего не найдено</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredStores.map((store) => (
+                <StoreRow
+                  key={store.id}
+                  store={store}
+                  onClick={() => { if (isStoreOpen(store)) { setActiveCategoryType(null); setSelectedStore(store); setView("store"); } }}
+                />
+              ))}
+            </div>
+          )}
+        </>
       ) : (
-        <div className="grid grid-cols-2 gap-3 mb-8">
-          {categoriesWithCount.map(({ type, meta, count }) => (
-            <button
-              key={type}
-              onClick={() => { setActiveCategoryType(type); setView("stores"); }}
-              className={`relative flex flex-col justify-between p-4 rounded-2xl bg-gradient-to-br ${meta.gridBg} hover:shadow-md transition-all text-left min-h-[110px]`}
-            >
-              <CategoryIcon type={type} size="md" />
-              <div className="mt-2">
-                <p className="text-sm font-bold text-gray-900 leading-tight">{meta.label}</p>
-                {count > 0 && (
-                  <p className="text-xs text-gray-500 mt-0.5">{count} {pluralStore(count)}</p>
-                )}
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
+        // ── Обычный режим ──
+        <>
+          <h1 className="text-xl font-bold text-gray-900 mb-4">Категории</h1>
 
-      {/* Все магазины */}
-      {!loadingStores && allStores.length > 0 && (
-        <div>
-          <h2 className="text-base font-bold text-gray-900 mb-3">Все магазины</h2>
-          <div className="space-y-3">
-            {allStores.slice(0, 8).map((store) => (
-              <StoreRow
-                key={store.id}
-                store={store}
-                onClick={() => { setActiveCategoryType(null); setSelectedStore(store); setView("store"); }}
-              />
-            ))}
-          </div>
-        </div>
+          {loadingStores ? (
+            <div className="grid grid-cols-2 gap-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="bg-gray-100 rounded-2xl h-28 animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 mb-8">
+              {categoriesWithCount.map(({ type, meta, count }) => (
+                <button
+                  key={type}
+                  onClick={() => { setActiveCategoryType(type); setView("stores"); }}
+                  className={`relative flex flex-col justify-between p-3 sm:p-4 rounded-2xl bg-gradient-to-br ${meta.gridBg} hover:shadow-md transition-all text-left min-h-[100px] sm:min-h-[110px]`}
+                >
+                  <CategoryIcon type={type} size="sm" className="sm:hidden" />
+                  <CategoryIcon type={type} size="md" className="hidden sm:flex" />
+                  <div className="mt-2">
+                    <p className="text-xs sm:text-sm font-bold text-gray-900 leading-tight">{meta.label}</p>
+                    {count > 0 && (
+                      <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5">{count} {pluralStore(count)}</p>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Все магазины */}
+          {!loadingStores && cityStores.length > 0 && (
+            <div>
+              <h2 className="text-base font-bold text-gray-900 mb-3">Все магазины</h2>
+              <div className="space-y-3">
+                {cityStores.slice(0, 8).map((store) => (
+                  <StoreRow
+                    key={store.id}
+                    store={store}
+                    onClick={() => { if (isStoreOpen(store)) { setActiveCategoryType(null); setSelectedStore(store); setView("store"); } }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -171,16 +194,32 @@ export default function CategoriesTab() {
 
 function StoreRow({ store, onClick }: { store: Store; onClick: () => void }) {
   const meta = CATEGORY_META[store.category_type] ?? DEFAULT_META;
+  const open = isStoreOpen(store);
+  const hasHours = !!store.opens_at && !!store.closes_at;
 
   return (
     <button
       onClick={onClick}
-      className="w-full text-left bg-white rounded-2xl border border-gray-100 px-4 py-3 hover:shadow-md hover:border-indigo-100 transition-all flex items-center gap-4"
+      className={`relative w-full text-left bg-white rounded-2xl border px-4 py-3 transition-all flex items-center gap-4 overflow-hidden ${
+        open
+          ? "border-gray-100 hover:shadow-md hover:border-indigo-100 cursor-pointer"
+          : "border-gray-200 cursor-not-allowed"
+      }`}
     >
+      {!open && (
+        <div className="absolute inset-0 bg-gray-100/55 rounded-2xl pointer-events-none z-10" />
+      )}
       <StoreAvatar store={store} className="w-12 h-12 rounded-xl" textClass="text-sm" />
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-gray-900 text-sm leading-tight">{store.name}</p>
         <p className="text-xs text-gray-400 mt-0.5 truncate">{store.address}</p>
+        {hasHours && (
+          <span className={`inline-block mt-1 text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${
+            open ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"
+          }`}>
+            {open ? "Открыто" : "Закрыто"} · {store.opens_at}–{store.closes_at}
+          </span>
+        )}
       </div>
       <div className="flex flex-col items-end gap-1 flex-shrink-0">
         {store.rating > 0 && (
@@ -204,3 +243,4 @@ function pluralStore(n: number) {
   if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return "магазина";
   return "магазинов";
 }
+

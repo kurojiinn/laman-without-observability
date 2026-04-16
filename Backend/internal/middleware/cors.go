@@ -17,20 +17,28 @@ func CORSMiddleware(origins []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 		if origin != "" {
+			allowMethods := "GET,POST,PATCH,PUT,DELETE,OPTIONS"
+			allowHeaders := strings.Join([]string{
+				"Origin",
+				"Authorization",
+				"Content-Type",
+				"Accept",
+				"X-Request-Id",
+			}, ", ")
+
 			if _, ok := allowed[origin]; ok {
+				// Известный origin — разрешаем с credentials (для пикера/админки на куках)
 				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 				c.Writer.Header().Set("Vary", "Origin")
 				c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-				c.Writer.Header().Set("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS")
-				c.Writer.Header().Set("Access-Control-Allow-Headers", strings.Join([]string{
-					"Origin",
-					"Authorization",
-					"Content-Type",
-					"Accept",
-					"X-Request-Id",
-				}, ", "))
-				c.Writer.Header().Set("Access-Control-Expose-Headers", "Content-Length")
+			} else {
+				// Любой другой origin (например, телефон по IP) — без credentials.
+				// Bearer-авторизация через заголовок работает без credentials.
+				c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 			}
+			c.Writer.Header().Set("Access-Control-Allow-Methods", allowMethods)
+			c.Writer.Header().Set("Access-Control-Allow-Headers", allowHeaders)
+			c.Writer.Header().Set("Access-Control-Expose-Headers", "Content-Length")
 		}
 
 		if c.Request.Method == http.MethodOptions {
