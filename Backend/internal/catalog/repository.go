@@ -60,6 +60,17 @@ type StoreRepository interface {
 	Update(ctx context.Context, id uuid.UUID, name string, address string, description *string, opensAt *string, closesAt *string) (*models.Store, error)
 }
 
+// RecipeRepository определяет интерфейс для работы с рецептами.
+type RecipeRepository interface {
+	GetAll(ctx context.Context) ([]models.Recipe, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*models.RecipeWithProducts, error)
+	Create(ctx context.Context, recipe *models.Recipe) error
+	Update(ctx context.Context, id uuid.UUID, name string, description *string, imageURL *string, position int) (*models.Recipe, error)
+	Delete(ctx context.Context, id uuid.UUID) error
+	AddProduct(ctx context.Context, recipeID uuid.UUID, productID uuid.UUID, quantity int) error
+	RemoveProduct(ctx context.Context, recipeID uuid.UUID, productID uuid.UUID) error
+}
+
 // ReviewRepository определяет интерфейс для работы с отзывами.
 type ReviewRepository interface {
 	// GetByStoreID возвращает все отзывы для магазина (с телефоном пользователя).

@@ -100,6 +100,9 @@ func main() {
 	subcategoryRepo := catalog.NewPostgresSubcategoryRepository(db)
 	productRepo := catalog.NewPostgresProductRepository(db)
 	storeRepo := catalog.NewPostgresStoreRepository(db)
+	reviewRepo := catalog.NewPostgresReviewRepository(db)
+	featuredRepo := catalog.NewPostgresFeaturedProductRepository(db)
+	recipeRepo := catalog.NewPostgresRecipeRepository(db)
 	orderRepo := orders.NewPostgresOrderRepository(db)
 	orderItemRepo := orders.NewPostgresOrderItemRepository(db)
 	paymentRepo := payments.NewPostgresPaymentRepository(db)
@@ -115,13 +118,25 @@ func main() {
 	// OTPLimiter: максимум 5 попыток, блокировка на 15 минут.
 	// Используем тот же Redis-клиент что и courier — переиспользование соединения,
 	// не создаём второй connection pool. Это стандартная практика.
-	otpLimiter := auth.NewRedisOTPLimiter(redisClient.Client(), 5, 15*time.Minute)
-
-	authService := auth.NewAuthService(authRepo, userRepo, cfg.JWT.Secret, smsProvider, logger, otpLimiter)
+	otpLimiter := auth.NewRedisOTPLimiter(redisClient.Client(), 5, 15*time.Minute, cache.OTPAttemptsKey)
+	sendCodeLimiter := auth.NewRedisOTPLimiter(redisClient.Client(), 3, 10*time.Minute, cache.OTPSendKey)
+	tokenRevoker := auth.NewRedisTokenRevoker(redisClient.Client())
+	authService := auth.NewAuthService(
+		authRepo,
+		userRepo,
+		cfg.JWT.Secret,
+		smsProvider,
+		logger,
+		otpLimiter,
+		sendCodeLimiter,
+		tokenRevoker,
+		cfg.SMS.TestMode,
+	)
 	userService := users.NewUserService(userRepo)
-	catalogService := catalog.NewCatalogService(categoryRepo, subcategoryRepo, productRepo, storeRepo)
+	catalogService := catalog.NewCatalogService(categoryRepo, subcategoryRepo, productRepo, storeRepo, reviewRepo, featuredRepo, recipeRepo)
 	courierService := courier.NewCourierService(courierRepo)
 	orderService := orders.NewOrderService(
+		db,
 		orderRepo,
 		orderItemRepo,
 		productRepo,
@@ -145,7 +160,7 @@ func main() {
 	orderHandler := orders.NewHandler(orderService, authService, hub)
 	adminRepo := admin.NewPostgresRepository(db)
 	adminService := admin.NewService(adminRepo, logger)
-	adminHandler := admin.NewHandler(adminService, logger, cfg.Server.PublicURL)
+	adminHandler := admin.NewHandler(adminService, logger, cfg.Server.PublicURL).WithRecipes(catalogService)
 	courierHandler := courier.NewHandler(courierService, authService, logger)
 	pickerHandler := picker.NewHandler(pickerService, logger, authService, hub)
 	favoritesHandler := favorites.NewHandler(favoritesService, authService, logger)

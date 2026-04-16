@@ -324,3 +324,95 @@ func (r *postgresFeaturedProductRepository) GetByBlock(ctx context.Context, bloc
 	err := r.db.SelectContext(ctx, &products, query, blockType)
 	return products, err
 }
+
+// postgresRecipeRepository реализует RecipeRepository.
+type postgresRecipeRepository struct {
+	db *database.DB
+}
+
+// NewPostgresRecipeRepository создаёт репозиторий рецептов.
+func NewPostgresRecipeRepository(db *database.DB) RecipeRepository {
+	return &postgresRecipeRepository{db: db}
+}
+
+func (r *postgresRecipeRepository) GetAll(ctx context.Context) ([]models.Recipe, error) {
+	var recipes []models.Recipe
+	err := r.db.SelectContext(ctx, &recipes, `SELECT id, name, description, image_url, position, created_at, updated_at FROM recipes ORDER BY position ASC, created_at DESC`)
+	if recipes == nil {
+		recipes = []models.Recipe{}
+	}
+	return recipes, err
+}
+
+func (r *postgresRecipeRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.RecipeWithProducts, error) {
+	var recipe models.Recipe
+	err := r.db.GetContext(ctx, &recipe, `SELECT id, name, description, image_url, position, created_at, updated_at FROM recipes WHERE id = $1`, id)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("рецепт не найден")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	type row struct {
+		models.Product
+		Quantity int `db:"quantity"`
+	}
+	var rows []row
+	err = r.db.SelectContext(ctx, &rows, `
+		SELECT p.id, p.category_id, p.subcategory_id, p.store_id, p.name, p.description,
+		       p.image_url, p.price, p.weight, p.is_available, p.created_at, p.updated_at,
+		       rp.quantity
+		FROM recipe_products rp
+		JOIN products p ON p.id = rp.product_id
+		WHERE rp.recipe_id = $1
+		ORDER BY p.name
+	`, id)
+	if err != nil {
+		return nil, err
+	}
+
+	ingredients := make([]models.RecipeIngredient, 0, len(rows))
+	for _, row := range rows {
+		ingredients = append(ingredients, models.RecipeIngredient{Product: row.Product, Quantity: row.Quantity})
+	}
+
+	return &models.RecipeWithProducts{Recipe: recipe, Products: ingredients}, nil
+}
+
+func (r *postgresRecipeRepository) Create(ctx context.Context, recipe *models.Recipe) error {
+	return r.db.QueryRowContext(ctx,
+		`INSERT INTO recipes (name, description, image_url, position) VALUES ($1, $2, $3, $4) RETURNING id, created_at, updated_at`,
+		recipe.Name, recipe.Description, recipe.ImageURL, recipe.Position,
+	).Scan(&recipe.ID, &recipe.CreatedAt, &recipe.UpdatedAt)
+}
+
+func (r *postgresRecipeRepository) Update(ctx context.Context, id uuid.UUID, name string, description *string, imageURL *string, position int) (*models.Recipe, error) {
+	var recipe models.Recipe
+	err := r.db.GetContext(ctx, &recipe,
+		`UPDATE recipes SET name=$1, description=$2, image_url=$3, position=$4, updated_at=NOW() WHERE id=$5 RETURNING id, name, description, image_url, position, created_at, updated_at`,
+		name, description, imageURL, position, id,
+	)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("рецепт не найден")
+	}
+	return &recipe, err
+}
+
+func (r *postgresRecipeRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM recipes WHERE id = $1`, id)
+	return err
+}
+
+func (r *postgresRecipeRepository) AddProduct(ctx context.Context, recipeID uuid.UUID, productID uuid.UUID, quantity int) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO recipe_products (recipe_id, product_id, quantity) VALUES ($1, $2, $3) ON CONFLICT (recipe_id, product_id) DO UPDATE SET quantity = $3`,
+		recipeID, productID, quantity,
+	)
+	return err
+}
+
+func (r *postgresRecipeRepository) RemoveProduct(ctx context.Context, recipeID uuid.UUID, productID uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM recipe_products WHERE recipe_id = $1 AND product_id = $2`, recipeID, productID)
+	return err
+}

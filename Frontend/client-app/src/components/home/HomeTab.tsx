@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { catalogApi, resolveImageUrl, type Product, type Store } from "@/lib/api";
+import { catalogApi, resolveImageUrl, type Product, type Store, type Recipe, type RecipeWithProducts } from "@/lib/api";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
+import { useCart } from "@/context/CartContext";
 import ProductModal from "@/components/ui/ProductModal";
 
 interface Props {
@@ -12,43 +13,136 @@ interface Props {
   activeCity: string;
 }
 
+// ─── Showcase block definitions ──────────────────────────────────────────────
+
+type ShowcaseKey = "new_items" | "hits" | "movie_night" | "quick_snack" | "lazy_cook" | "recipes";
+
+interface ShowcaseBlock {
+  key: ShowcaseKey;
+  title: string;
+  subtitle: string;
+  emoji: string;
+  gradient: string;
+  textColor: string;
+  size: "full" | "half";
+}
+
+const SHOWCASES: ShowcaseBlock[] = [
+  {
+    key: "new_items",
+    title: "Новинки",
+    subtitle: "Свежие поступления — первыми попробуй новое",
+    emoji: "✨",
+    gradient: "from-indigo-500 to-violet-600",
+    textColor: "text-white",
+    size: "full",
+  },
+  {
+    key: "hits",
+    title: "Популярные",
+    subtitle: "Хиты продаж, которые все берут",
+    emoji: "🔥",
+    gradient: "from-orange-400 to-rose-500",
+    textColor: "text-white",
+    size: "half",
+  },
+  {
+    key: "movie_night",
+    title: "Для кино",
+    subtitle: "Идеально под фильм",
+    emoji: "🍿",
+    gradient: "from-purple-600 to-pink-500",
+    textColor: "text-white",
+    size: "half",
+  },
+  {
+    key: "recipes",
+    title: "Рецепты",
+    subtitle: "Собери блюдо — добавь все ингредиенты в корзину",
+    emoji: "👨‍🍳",
+    gradient: "from-emerald-500 to-teal-600",
+    textColor: "text-white",
+    size: "full",
+  },
+  {
+    key: "quick_snack",
+    title: "Быстрый перекус",
+    subtitle: "Когда хочется прямо сейчас",
+    emoji: "⚡",
+    gradient: "from-yellow-400 to-amber-500",
+    textColor: "text-white",
+    size: "half",
+  },
+  {
+    key: "lazy_cook",
+    title: "Лень готовить",
+    subtitle: "Готовые решения без усилий",
+    emoji: "😴",
+    gradient: "from-sky-400 to-blue-600",
+    textColor: "text-white",
+    size: "half",
+  },
+];
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
 export default function HomeTab({ onOpenStore, search, activeCity }: Props) {
-  const [products, setProducts] = useState<Product[]>([]);
   const [storeMap, setStoreMap] = useState<Record<string, Store>>({});
-  const [loading, setLoading] = useState(true);
+  const [storesLoading, setStoresLoading] = useState(true);
   const [charityOpen, setCharityOpen] = useState(false);
+
+  const [openShowcase, setOpenShowcase] = useState<ShowcaseKey | null>(null);
+  const [showcaseProducts, setShowcaseProducts] = useState<Product[]>([]);
+  const [showcaseLoading, setShowcaseLoading] = useState(false);
+
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [recipesLoading, setRecipesLoading] = useState(false);
+  const [openRecipe, setOpenRecipe] = useState<RecipeWithProducts | null>(null);
+  const [recipeLoading, setRecipeLoading] = useState(false);
+
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      catalogApi.getFeatured("new_items"),
-      catalogApi.getStores(),
-    ])
-      .then(([prods, stores]) => {
-        setProducts(prods ?? []);
-        const map: Record<string, Store> = {};
-        (stores ?? []).forEach((s) => { map[s.id] = s; });
-        setStoreMap(map);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    catalogApi.getStores().then((stores) => {
+      const map: Record<string, Store> = {};
+      (stores ?? []).forEach((s) => { map[s.id] = s; });
+      setStoreMap(map);
+    }).catch(() => {}).finally(() => setStoresLoading(false));
   }, []);
 
+  function handleOpenShowcase(key: ShowcaseKey) {
+    if (key === "recipes") {
+      setOpenShowcase("recipes");
+      setRecipesLoading(true);
+      catalogApi.getRecipes()
+        .then((data) => setRecipes(Array.isArray(data) ? data : []))
+        .catch(() => setRecipes([]))
+        .finally(() => setRecipesLoading(false));
+      return;
+    }
+    setOpenShowcase(key);
+    setShowcaseLoading(true);
+    catalogApi.getFeatured(key as "new_items" | "hits" | "movie_night" | "quick_snack" | "lazy_cook")
+      .then((data) => setShowcaseProducts(Array.isArray(data) ? data : []))
+      .catch(() => setShowcaseProducts([]))
+      .finally(() => setShowcaseLoading(false));
+  }
+
+  function handleOpenRecipe(recipeId: string) {
+    setRecipeLoading(true);
+    catalogApi.getRecipe(recipeId)
+      .then(setOpenRecipe)
+      .catch(() => {})
+      .finally(() => setRecipeLoading(false));
+  }
+
+  const activeBlock = SHOWCASES.find((s) => s.key === openShowcase);
+
+  // If search is active, show a flat search result across new_items
   const q = search.trim().toLowerCase();
 
-  // Оставляем только товары из магазинов выбранного города
-  const cityProducts = products.filter((p) => storeMap[p.store_id]?.city === activeCity);
-
-  const visibleProducts = q
-    ? cityProducts.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          (p.description ?? "").toLowerCase().includes(q),
-      )
-    : cityProducts;
-
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-6">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-5">
 
       {/* ── Промо-баннер ── */}
       <div className="rounded-2xl overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-500 p-5 text-white flex items-center justify-between min-h-[100px]">
@@ -60,73 +154,93 @@ export default function HomeTab({ onOpenStore, search, activeCity }: Props) {
         <div className="text-5xl ml-4 flex-shrink-0">🚀</div>
       </div>
 
-      {/* ── Блок благотворительности ── */}
-      <button
-        onClick={() => setCharityOpen(true)}
-        className="w-full text-left rounded-2xl overflow-hidden relative hover:opacity-95 active:scale-[0.99] transition-all"
-        style={{ background: "linear-gradient(135deg, #92400e 0%, #b45309 40%, #d97706 100%)" }}
-      >
-        {/* Декоративные круги */}
-        <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full opacity-10 bg-white" />
-        <div className="absolute -bottom-4 -left-4 w-24 h-24 rounded-full opacity-10 bg-white" />
+      {/* ── Витрина ── */}
+      {!q && (
+        <div className="space-y-3">
+          {/* Row 1: full-width Новинки */}
+          <ShowcaseCard block={SHOWCASES[0]} onClick={() => handleOpenShowcase(SHOWCASES[0].key)} />
 
-        <div className="relative px-5 py-5 text-white">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-bold uppercase tracking-widest opacity-60">Laman Добро</span>
-                <span className="text-[10px] font-semibold bg-white/20 px-2 py-0.5 rounded-full">Скоро</span>
-              </div>
-              <p className="text-lg font-bold leading-snug mb-1">
-                Делимся теплом<br />с теми, кому нужно
-              </p>
-              <p className="text-xs opacity-75 leading-relaxed">
-                Оставь любую сумму — мы купим продукты<br />и принесём их нуждающимся в Грозном
-              </p>
-            </div>
-            <span className="text-4xl flex-shrink-0">🫶</span>
+          {/* Row 2: Популярные + Для кино */}
+          <div className="grid grid-cols-2 gap-3">
+            <ShowcaseCard block={SHOWCASES[1]} onClick={() => handleOpenShowcase(SHOWCASES[1].key)} compact />
+            <ShowcaseCard block={SHOWCASES[2]} onClick={() => handleOpenShowcase(SHOWCASES[2].key)} compact />
           </div>
 
-          <div className="flex items-center gap-1.5 mt-4">
-            <span className="text-xs font-semibold opacity-90">Узнать подробнее</span>
-            <svg className="w-3.5 h-3.5 opacity-70" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-            </svg>
+          {/* Row 3: full-width Рецепты */}
+          <ShowcaseCard block={SHOWCASES[3]} onClick={() => handleOpenShowcase(SHOWCASES[3].key)} featured />
+
+          {/* Row 4: Быстрый перекус + Лень готовить */}
+          <div className="grid grid-cols-2 gap-3">
+            <ShowcaseCard block={SHOWCASES[4]} onClick={() => handleOpenShowcase(SHOWCASES[4].key)} compact />
+            <ShowcaseCard block={SHOWCASES[5]} onClick={() => handleOpenShowcase(SHOWCASES[5].key)} compact />
           </div>
         </div>
-      </button>
+      )}
 
-      {/* ── Новинки ── */}
-      <div>
-        <h2 className="text-base font-bold text-gray-900 mb-3">
-          {q ? "Результаты поиска" : "Новинки"}
-        </h2>
+      {/* ── Поиск ── */}
+      {q && (
+        <SearchResults q={q} activeCity={activeCity} storeMap={storeMap} storesLoading={storesLoading} onOpenStore={onOpenStore} onOpenProduct={setSelectedProduct} />
+      )}
 
-        {loading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="bg-gray-100 rounded-2xl h-52 animate-pulse" />
-            ))}
+      {/* ── Блок благотворительности ── */}
+      {!q && (
+        <button
+          onClick={() => setCharityOpen(true)}
+          className="w-full text-left rounded-2xl overflow-hidden relative hover:opacity-95 active:scale-[0.99] transition-all"
+          style={{ background: "linear-gradient(135deg, #92400e 0%, #b45309 40%, #d97706 100%)" }}
+        >
+          <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full opacity-10 bg-white" />
+          <div className="absolute -bottom-4 -left-4 w-24 h-24 rounded-full opacity-10 bg-white" />
+          <div className="relative px-5 py-5 text-white">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-widest opacity-60">Laman Добро</span>
+                  <span className="text-[10px] font-semibold bg-white/20 px-2 py-0.5 rounded-full">Скоро</span>
+                </div>
+                <p className="text-lg font-bold leading-snug mb-1">Делимся теплом<br />с теми, кому нужно</p>
+                <p className="text-xs opacity-75 leading-relaxed">Оставь любую сумму — купим продукты нуждающимся</p>
+              </div>
+              <span className="text-4xl flex-shrink-0">🫶</span>
+            </div>
           </div>
-        ) : visibleProducts.length === 0 ? (
-          <div className="flex flex-col items-center py-16 text-gray-400">
-            <span className="text-5xl mb-3">{q ? "🔍" : "🛍️"}</span>
-            <p className="text-sm">{q ? "Ничего не найдено" : "Товары скоро появятся"}</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {visibleProducts.slice(0, 10).map((product) => (
-              <HomeProductCard
-                key={product.id}
-                product={product}
-                storeName={storeMap[product.store_id]?.name}
-                onOpen={() => setSelectedProduct(product)}
-                onShowInStore={() => onOpenStore(product.store_id, product.id)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+        </button>
+      )}
+
+      {/* ── Модальное окно витрины (товары) ── */}
+      {openShowcase && openShowcase !== "recipes" && activeBlock && (
+        <ShowcaseModal
+          block={activeBlock}
+          products={showcaseProducts}
+          loading={showcaseLoading}
+          storeMap={storeMap}
+          onClose={() => { setOpenShowcase(null); setShowcaseProducts([]); }}
+          onOpenProduct={setSelectedProduct}
+          onOpenStore={onOpenStore}
+        />
+      )}
+
+      {/* ── Модальное окно рецептов ── */}
+      {openShowcase === "recipes" && (
+        <RecipesModal
+          recipes={recipes}
+          loading={recipesLoading}
+          onClose={() => { setOpenShowcase(null); setRecipes([]); }}
+          onOpenRecipe={handleOpenRecipe}
+          recipeLoading={recipeLoading}
+        />
+      )}
+
+      {/* ── Детальный рецепт ── */}
+      {openRecipe && (
+        <RecipeDetailModal
+          recipe={openRecipe}
+          storeMap={storeMap}
+          onClose={() => setOpenRecipe(null)}
+          onOpenProduct={setSelectedProduct}
+          onOpenStore={onOpenStore}
+        />
+      )}
 
       {selectedProduct && (
         <ProductModal
@@ -140,13 +254,422 @@ export default function HomeTab({ onOpenStore, search, activeCity }: Props) {
         />
       )}
 
-      {/* ── Модальное окно благотворительности ── */}
       {charityOpen && <CharityModal onClose={() => setCharityOpen(false)} />}
     </div>
   );
 }
 
-// ─── Карточка товара на главной ────────────────────────────────────────────────
+// ─── Showcase Card ────────────────────────────────────────────────────────────
+
+function ShowcaseCard({
+  block,
+  onClick,
+  compact = false,
+  featured = false,
+}: {
+  block: ShowcaseBlock;
+  onClick: () => void;
+  compact?: boolean;
+  featured?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left rounded-2xl overflow-hidden relative group active:scale-[0.98] transition-all duration-150 bg-gradient-to-br ${block.gradient} ${
+        featured ? "min-h-[140px]" : compact ? "min-h-[110px]" : "min-h-[130px]"
+      }`}
+    >
+      {/* Декоративный круг */}
+      <div className="absolute -top-8 -right-8 w-36 h-36 rounded-full bg-white/10" />
+      <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full bg-white/10" />
+
+      <div className="relative p-4 flex flex-col h-full justify-between">
+        <div>
+          <span className={`${compact ? "text-3xl" : featured ? "text-5xl" : "text-4xl"}`}>{block.emoji}</span>
+          <h3 className={`text-white font-bold mt-2 leading-tight ${compact ? "text-sm" : featured ? "text-xl" : "text-base"}`}>
+            {block.title}
+          </h3>
+          {!compact && (
+            <p className={`text-white/75 text-xs mt-1 leading-relaxed ${featured ? "max-w-[260px]" : "max-w-[200px]"}`}>
+              {block.subtitle}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-1 mt-3">
+          <span className="text-white/90 text-xs font-semibold">Смотреть</span>
+          <svg className="w-3.5 h-3.5 text-white/80 group-hover:translate-x-0.5 transition-transform" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+          </svg>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// ─── Showcase Modal (product grid) ───────────────────────────────────────────
+
+function ShowcaseModal({
+  block,
+  products,
+  loading,
+  storeMap,
+  onClose,
+  onOpenProduct,
+  onOpenStore,
+}: {
+  block: ShowcaseBlock;
+  products: Product[];
+  loading: boolean;
+  storeMap: Record<string, Store>;
+  onClose: () => void;
+  onOpenProduct: (p: Product) => void;
+  onOpenStore: (storeId: string, productId?: string) => void;
+}) {
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="relative bg-white w-full sm:max-w-2xl sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92dvh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className={`bg-gradient-to-r ${block.gradient} px-5 pt-5 pb-4`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">{block.emoji}</span>
+              <div>
+                <h2 className="text-lg font-bold text-white">{block.title}</h2>
+                <p className="text-white/75 text-xs">{block.subtitle}</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors">
+              <svg className="w-4 h-4 text-white" viewBox="0 0 16 16" fill="none"><path d="M2 2l12 12M14 2L2 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="overflow-y-auto flex-1 p-4">
+          {loading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="bg-gray-100 rounded-2xl h-52 animate-pulse" />
+              ))}
+            </div>
+          ) : products.length === 0 ? (
+            <div className="flex flex-col items-center py-16 text-gray-400">
+              <span className="text-5xl mb-3">🛍️</span>
+              <p className="text-sm">Товары скоро появятся</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {products.map((product) => (
+                <HomeProductCard
+                  key={product.id}
+                  product={product}
+                  storeName={storeMap[product.store_id]?.name}
+                  onOpen={() => onOpenProduct(product)}
+                  onShowInStore={() => { onClose(); onOpenStore(product.store_id, product.id); }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Recipes Modal ────────────────────────────────────────────────────────────
+
+function RecipesModal({
+  recipes,
+  loading,
+  onClose,
+  onOpenRecipe,
+  recipeLoading,
+}: {
+  recipes: import("@/lib/api").Recipe[];
+  loading: boolean;
+  onClose: () => void;
+  onOpenRecipe: (id: string) => void;
+  recipeLoading: boolean;
+}) {
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="relative bg-white w-full sm:max-w-2xl sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92dvh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-gradient-to-r from-emerald-500 to-teal-600 px-5 pt-5 pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">👨‍🍳</span>
+              <div>
+                <h2 className="text-lg font-bold text-white">Рецепты</h2>
+                <p className="text-white/75 text-xs">Выбери блюдо и собери ингредиенты</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors">
+              <svg className="w-4 h-4 text-white" viewBox="0 0 16 16" fill="none"><path d="M2 2l12 12M14 2L2 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-4">
+          {loading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="bg-gray-100 rounded-2xl h-24 animate-pulse" />
+              ))}
+            </div>
+          ) : recipes.length === 0 ? (
+            <div className="flex flex-col items-center py-16 text-gray-400">
+              <span className="text-5xl mb-3">📋</span>
+              <p className="text-sm">Рецепты скоро появятся</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {recipes.map((recipe) => (
+                <button
+                  key={recipe.id}
+                  onClick={() => onOpenRecipe(recipe.id)}
+                  disabled={recipeLoading}
+                  className="w-full text-left bg-gray-50 hover:bg-emerald-50 border border-gray-100 hover:border-emerald-200 rounded-2xl p-4 flex items-center gap-4 transition-all disabled:opacity-50"
+                >
+                  <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center">
+                    {recipe.image_url ? (
+                      <img src={resolveImageUrl(recipe.image_url)} alt={recipe.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-3xl">🍽️</span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900 text-sm">{recipe.name}</p>
+                    {recipe.description && (
+                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{recipe.description}</p>
+                    )}
+                    <div className="flex items-center gap-1 mt-2">
+                      <span className="text-xs text-emerald-600 font-semibold">Собрать блюдо</span>
+                      <svg className="w-3 h-3 text-emerald-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Recipe Detail Modal ──────────────────────────────────────────────────────
+
+function RecipeDetailModal({
+  recipe,
+  storeMap,
+  onClose,
+  onOpenProduct,
+  onOpenStore,
+}: {
+  recipe: RecipeWithProducts;
+  storeMap: Record<string, Store>;
+  onClose: () => void;
+  onOpenProduct: (p: Product) => void;
+  onOpenStore: (storeId: string, productId?: string) => void;
+}) {
+  const { addItem } = useCart();
+  const [added, setAdded] = useState(false);
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  function handleAddAll() {
+    recipe.products.forEach((ingredient) => {
+      for (let i = 0; i < ingredient.quantity; i++) {
+        addItem(ingredient);
+      }
+    });
+    setAdded(true);
+    setTimeout(() => setAdded(false), 2500);
+  }
+
+  const totalPrice = recipe.products.reduce((sum, p) => sum + p.price * p.quantity, 0);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="relative bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92dvh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="relative bg-gradient-to-r from-emerald-500 to-teal-600 px-5 pt-5 pb-5">
+          <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors">
+            <svg className="w-4 h-4 text-white" viewBox="0 0 16 16" fill="none"><path d="M2 2l12 12M14 2L2 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+          </button>
+          {recipe.image_url && (
+            <div className="w-20 h-20 rounded-2xl overflow-hidden mb-3 border-2 border-white/30">
+              <img src={resolveImageUrl(recipe.image_url)} alt={recipe.name} className="w-full h-full object-cover" />
+            </div>
+          )}
+          <h2 className="text-xl font-bold text-white">{recipe.name}</h2>
+          {recipe.description && (
+            <p className="text-white/80 text-xs mt-1 leading-relaxed">{recipe.description}</p>
+          )}
+        </div>
+
+        {/* Ingredients */}
+        <div className="overflow-y-auto flex-1 px-4 pt-4 pb-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Ингредиенты · {recipe.products.length} товаров
+          </p>
+          {recipe.products.length === 0 ? (
+            <div className="flex flex-col items-center py-10 text-gray-400">
+              <span className="text-4xl mb-2">🥘</span>
+              <p className="text-sm">Ингредиенты не добавлены</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {recipe.products.map((ingredient) => (
+                <div
+                  key={ingredient.id}
+                  className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2.5 cursor-pointer hover:bg-emerald-50 transition-colors"
+                  onClick={() => onOpenProduct(ingredient)}
+                >
+                  <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center">
+                    {ingredient.image_url ? (
+                      <img src={resolveImageUrl(ingredient.image_url)} alt={ingredient.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-xl">🛍️</span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{ingredient.name}</p>
+                    {storeMap[ingredient.store_id] && (
+                      <p className="text-xs text-gray-400 truncate">{storeMap[ingredient.store_id].name}</p>
+                    )}
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-sm font-bold text-gray-900">{ingredient.price.toLocaleString("ru-RU")} ₽</p>
+                    {ingredient.quantity > 1 && (
+                      <p className="text-xs text-gray-400">× {ingredient.quantity}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {recipe.products.length > 0 && (
+          <div className="px-4 py-4 border-t border-gray-100 flex items-center gap-3">
+            <div className="flex-1">
+              <p className="text-xs text-gray-500">Итого</p>
+              <p className="text-base font-bold text-gray-900">{totalPrice.toLocaleString("ru-RU")} ₽</p>
+            </div>
+            <button
+              onClick={handleAddAll}
+              className={`flex-1 py-3 rounded-2xl text-sm font-bold transition-all ${
+                added
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-emerald-500 hover:bg-emerald-600 text-white active:scale-[0.98]"
+              }`}
+            >
+              {added ? "✓ Добавлено!" : "Собрать блюдо"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Search Results ───────────────────────────────────────────────────────────
+
+function SearchResults({
+  q,
+  activeCity,
+  storeMap,
+  storesLoading,
+  onOpenStore,
+  onOpenProduct,
+}: {
+  q: string;
+  activeCity: string;
+  storeMap: Record<string, Store>;
+  storesLoading: boolean;
+  onOpenStore: (storeId: string, productId?: string) => void;
+  onOpenProduct: (p: Product) => void;
+}) {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    catalogApi.getFeatured("new_items")
+      .then((data) => setProducts(Array.isArray(data) ? data : []))
+      .catch(() => setProducts([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const cityProducts = products.filter((p) => storeMap[p.store_id]?.city === activeCity);
+  const visible = cityProducts.filter(
+    (p) => p.name.toLowerCase().includes(q) || (p.description ?? "").toLowerCase().includes(q)
+  );
+
+  if (loading || storesLoading) {
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="bg-gray-100 rounded-2xl h-52 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (visible.length === 0) {
+    return (
+      <div className="flex flex-col items-center py-16 text-gray-400">
+        <span className="text-5xl mb-3">🔍</span>
+        <p className="text-sm">Ничего не найдено</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <p className="text-sm font-semibold text-gray-500 mb-3">Результаты поиска ({visible.length})</p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        {visible.map((product) => (
+          <HomeProductCard
+            key={product.id}
+            product={product}
+            storeName={storeMap[product.store_id]?.name}
+            onOpen={() => onOpenProduct(product)}
+            onShowInStore={() => onOpenStore(product.store_id, product.id)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Home Product Card ────────────────────────────────────────────────────────
 
 function HomeProductCard({
   product,
@@ -174,7 +697,6 @@ function HomeProductCard({
       className="relative bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col hover:shadow-md transition-shadow cursor-pointer"
       onClick={onOpen}
     >
-      {/* Сердечко */}
       <button
         onClick={handleFav}
         className="absolute top-2 right-2 z-10 w-8 h-8 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow-sm transition-colors"
@@ -213,7 +735,7 @@ function HomeProductCard({
   );
 }
 
-// ─── Модальное окно благотворительности ───────────────────────────────────────
+// ─── Charity Modal ────────────────────────────────────────────────────────────
 
 function CharityModal({ onClose }: { onClose: () => void }) {
   useEffect(() => {
@@ -230,7 +752,6 @@ function CharityModal({ onClose }: { onClose: () => void }) {
         className="relative bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Шапка */}
         <div
           className="relative px-6 pt-7 pb-10 text-white overflow-hidden"
           style={{ background: "linear-gradient(135deg, #92400e 0%, #b45309 40%, #d97706 100%)" }}
@@ -250,24 +771,20 @@ function CharityModal({ onClose }: { onClose: () => void }) {
             <div className="mt-3">
               <p className="text-xs font-bold uppercase tracking-widest opacity-60 mb-1">Laman Добро</p>
               <h2 className="text-2xl font-bold leading-tight">Делимся теплом</h2>
-              <p className="text-sm opacity-80 mt-1 leading-relaxed">
-                Каждый рубль — это чья-то тарелка еды
-              </p>
+              <p className="text-sm opacity-80 mt-1 leading-relaxed">Каждый рубль — это чья-то тарелка еды</p>
             </div>
           </div>
         </div>
 
-        {/* Контент */}
         <div className="px-6 py-5 space-y-5">
           <p className="text-sm text-gray-600 leading-relaxed">
             В Грозном, как и в любом городе, есть люди, которым сейчас тяжело. Пожилые, многодетные семьи, те, кто оказался в сложной ситуации — им не хватает самого необходимого.
           </p>
-
           <div className="space-y-2.5">
             {[
-              { icon: "🥖", title: "Еда",          desc: "Хлеб, крупы, консервы, молоко" },
-              { icon: "🧴", title: "Гигиена",       desc: "Мыло, шампунь, зубная паста" },
-              { icon: "🧥", title: "Тёплые вещи",  desc: "Одежда и одеяла в холода" },
+              { icon: "🥖", title: "Еда", desc: "Хлеб, крупы, консервы, молоко" },
+              { icon: "🧴", title: "Гигиена", desc: "Мыло, шампунь, зубная паста" },
+              { icon: "🧥", title: "Тёплые вещи", desc: "Одежда и одеяла в холода" },
             ].map(({ icon, title, desc }) => (
               <div key={title} className="flex items-center gap-3 bg-amber-50 rounded-xl px-4 py-3">
                 <span className="text-2xl flex-shrink-0">{icon}</span>
@@ -278,16 +795,6 @@ function CharityModal({ onClose }: { onClose: () => void }) {
               </div>
             ))}
           </div>
-
-          <div className="bg-gray-50 rounded-2xl px-4 py-3 flex items-start gap-2">
-            <svg className="w-4 h-4 text-indigo-400 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-            </svg>
-            <p className="text-xs text-gray-500 leading-relaxed">
-              Каждый рубль идёт напрямую на покупку — без комиссий и посредников. Отчёт о покупках публикуется открыто.
-            </p>
-          </div>
-
           <button
             onClick={onClose}
             className="w-full py-3.5 font-bold rounded-2xl transition-all active:scale-[0.98] text-white"
@@ -295,7 +802,6 @@ function CharityModal({ onClose }: { onClose: () => void }) {
           >
             Буду рад помочь ❤️
           </button>
-
           <p className="text-[11px] text-gray-400 text-center -mt-1">
             Функция пожертвования появится совсем скоро
           </p>

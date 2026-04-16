@@ -74,10 +74,35 @@ type Review struct {
 type FeaturedBlockType string
 
 const (
-	FeaturedBlockNewItems FeaturedBlockType = "new_items"
-	FeaturedBlockHits     FeaturedBlockType = "hits"
+	FeaturedBlockNewItems   FeaturedBlockType = "new_items"
+	FeaturedBlockHits       FeaturedBlockType = "hits"
 	FeaturedBlockMovieNight FeaturedBlockType = "movie_night"
+	FeaturedBlockQuickSnack FeaturedBlockType = "quick_snack"
+	FeaturedBlockLazyCook   FeaturedBlockType = "lazy_cook"
 )
+
+// Recipe — рецепт блюда с набором ингредиентов.
+type Recipe struct {
+	ID          uuid.UUID  `db:"id"          json:"id"`
+	Name        string     `db:"name"        json:"name"`
+	Description *string    `db:"description" json:"description,omitempty"`
+	ImageURL    *string    `db:"image_url"   json:"image_url,omitempty"`
+	Position    int        `db:"position"    json:"position"`
+	CreatedAt   time.Time  `db:"created_at"  json:"created_at"`
+	UpdatedAt   time.Time  `db:"updated_at"  json:"updated_at"`
+}
+
+// RecipeWithProducts — рецепт вместе с его ингредиентами.
+type RecipeWithProducts struct {
+	Recipe
+	Products []RecipeIngredient `json:"products"`
+}
+
+// RecipeIngredient — ингредиент рецепта (товар + количество).
+type RecipeIngredient struct {
+	Product
+	Quantity int `db:"quantity" json:"quantity"`
+}
 
 // FeaturedProduct связывает товар с блоком витрины.
 type FeaturedProduct struct {

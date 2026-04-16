@@ -182,9 +182,30 @@ export const catalogApi = {
     return api.get<Product[]>(`/v1/stores/${storeId}/products?${q}`);
   },
 
-  getFeatured: (block: "new_items" | "hits" | "movie_night") =>
+  getFeatured: (block: "new_items" | "hits" | "movie_night" | "quick_snack" | "lazy_cook") =>
     api.get<Product[]>(`/v1/catalog/featured?block=${block}`),
+
+  getRecipes: () => api.get<Recipe[]>("/v1/catalog/recipes"),
+  getRecipe: (id: string) => api.get<RecipeWithProducts>(`/v1/catalog/recipes/${id}`),
 };
+
+export interface Recipe {
+  id: string;
+  name: string;
+  description?: string;
+  image_url?: string;
+  position: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RecipeIngredient extends Product {
+  quantity: number;
+}
+
+export interface RecipeWithProducts extends Recipe {
+  products: RecipeIngredient[];
+}
 
 // ─── Reviews ─────────────────────────────────────────────────────────────────
 

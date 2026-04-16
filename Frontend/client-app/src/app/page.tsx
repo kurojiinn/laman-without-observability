@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Header from "@/components/layout/Header";
 import TabBar, { type Tab } from "@/components/layout/TabBar";
 import HomeTab from "@/components/home/HomeTab";

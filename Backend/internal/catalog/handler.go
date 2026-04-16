@@ -51,6 +51,14 @@ func (h *Handler) RegisterAdminRoutes(router *gin.RouterGroup, authMW gin.Handle
 		stores.PATCH("/:id", h.AdminUpdateStore)
 		stores.DELETE("/:id/reviews/:review_id", h.AdminDeleteReview)
 	}
+	recipes := router.Group("/catalog/recipes", authMW, adminMW)
+	{
+		recipes.POST("", h.AdminCreateRecipe)
+		recipes.PATCH("/:id", h.AdminUpdateRecipe)
+		recipes.DELETE("/:id", h.AdminDeleteRecipe)
+		recipes.POST("/:id/products", h.AdminAddRecipeProduct)
+		recipes.DELETE("/:id/products/:product_id", h.AdminRemoveRecipeProduct)
+	}
 }
 
 // RegisterRoutes регистрирует маршруты каталога.
@@ -62,6 +70,8 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 		catalog.GET("/products", h.GetProducts)
 		catalog.GET("/products/:id", h.GetProduct)
 		catalog.GET("/featured", h.GetFeatured)
+		catalog.GET("/recipes", h.GetRecipes)
+		catalog.GET("/recipes/:id", h.GetRecipe)
 	}
 
 	stores := router.Group("/stores")
@@ -545,10 +555,11 @@ func (h *Handler) extractUserID(c *gin.Context) (uuid.UUID, bool) {
 func (h *Handler) GetFeatured(c *gin.Context) {
 	blockType := models.FeaturedBlockType(c.Query("block"))
 	switch blockType {
-	case models.FeaturedBlockNewItems, models.FeaturedBlockHits, models.FeaturedBlockMovieNight:
+	case models.FeaturedBlockNewItems, models.FeaturedBlockHits, models.FeaturedBlockMovieNight,
+		models.FeaturedBlockQuickSnack, models.FeaturedBlockLazyCook:
 		// валидный тип
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный тип блока: допустимы new_items, hits, movie_night"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный тип блока"})
 		return
 	}
 
@@ -559,4 +570,141 @@ func (h *Handler) GetFeatured(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, products)
+}
+
+// GetRecipes возвращает список всех рецептов.
+// GET /api/v1/catalog/recipes
+func (h *Handler) GetRecipes(c *gin.Context) {
+	recipes, err := h.catalogService.GetRecipes(c.Request.Context())
+	if err != nil {
+		h.logger.Error("GetRecipes", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "не удалось получить рецепты"})
+		return
+	}
+	c.JSON(http.StatusOK, recipes)
+}
+
+// GetRecipe возвращает рецепт с ингредиентами.
+// GET /api/v1/catalog/recipes/:id
+func (h *Handler) GetRecipe(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID рецепта"})
+		return
+	}
+	recipe, err := h.catalogService.GetRecipe(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, recipe)
+}
+
+// AdminCreateRecipe создаёт новый рецепт.
+func (h *Handler) AdminCreateRecipe(c *gin.Context) {
+	var req struct {
+		Name        string  `json:"name"`
+		Description *string `json:"description"`
+		ImageURL    *string `json:"image_url"`
+		Position    int     `json:"position"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный формат"})
+		return
+	}
+	recipe := &models.Recipe{Name: strings.TrimSpace(req.Name), Description: req.Description, ImageURL: req.ImageURL, Position: req.Position}
+	if err := h.catalogService.CreateRecipe(c.Request.Context(), recipe); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, recipe)
+}
+
+// AdminUpdateRecipe обновляет рецепт.
+func (h *Handler) AdminUpdateRecipe(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID"})
+		return
+	}
+	var req struct {
+		Name        string  `json:"name"`
+		Description *string `json:"description"`
+		ImageURL    *string `json:"image_url"`
+		Position    int     `json:"position"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный формат"})
+		return
+	}
+	recipe, err := h.catalogService.UpdateRecipe(c.Request.Context(), id, strings.TrimSpace(req.Name), req.Description, req.ImageURL, req.Position)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, recipe)
+}
+
+// AdminDeleteRecipe удаляет рецепт.
+func (h *Handler) AdminDeleteRecipe(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID"})
+		return
+	}
+	if err := h.catalogService.DeleteRecipe(c.Request.Context(), id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// AdminAddRecipeProduct добавляет ингредиент к рецепту.
+func (h *Handler) AdminAddRecipeProduct(c *gin.Context) {
+	recipeID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID рецепта"})
+		return
+	}
+	var req struct {
+		ProductID string `json:"product_id"`
+		Quantity  int    `json:"quantity"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный формат"})
+		return
+	}
+	productID, err := uuid.Parse(req.ProductID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный product_id"})
+		return
+	}
+	qty := req.Quantity
+	if qty < 1 {
+		qty = 1
+	}
+	if err := h.catalogService.AddRecipeProduct(c.Request.Context(), recipeID, productID, qty); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// AdminRemoveRecipeProduct убирает ингредиент из рецепта.
+func (h *Handler) AdminRemoveRecipeProduct(c *gin.Context) {
+	recipeID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID рецепта"})
+		return
+	}
+	productID, err := uuid.Parse(c.Param("product_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный product_id"})
+		return
+	}
+	if err := h.catalogService.RemoveRecipeProduct(c.Request.Context(), recipeID, productID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { catalogApi, isStoreOpen, resolveImageUrl, type Store } from "@/lib/api";
+import { catalogApi, isStoreOpen, type Store } from "@/lib/api";
 import StoreDetailView from "@/components/stores/StoreDetailView";
 import CategoryIcon, { CATEGORY_META, DEFAULT_META } from "@/components/ui/CategoryIcon";
 import StoreAvatar from "@/components/ui/StoreAvatar";
@@ -193,7 +193,6 @@ export default function CategoriesTab({ search, activeCity }: { search: string; 
 // ─── Store Row (для списка магазинов) ─────────────────────────────────────────
 
 function StoreRow({ store, onClick }: { store: Store; onClick: () => void }) {
-  const meta = CATEGORY_META[store.category_type] ?? DEFAULT_META;
   const open = isStoreOpen(store);
   const hasHours = !!store.opens_at && !!store.closes_at;
 
@@ -243,4 +242,3 @@ function pluralStore(n: number) {
   if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return "магазина";
   return "магазинов";
 }
-

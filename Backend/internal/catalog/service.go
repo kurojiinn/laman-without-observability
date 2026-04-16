@@ -16,6 +16,7 @@ type CatalogService struct {
 	storeRepo       StoreRepository
 	reviewRepo      ReviewRepository
 	featuredRepo    FeaturedProductRepository
+	recipeRepo      RecipeRepository
 }
 
 // NewCatalogService создает новый сервис каталога.
@@ -26,6 +27,7 @@ func NewCatalogService(
 	storeRepo StoreRepository,
 	reviewRepo ReviewRepository,
 	featuredRepo FeaturedProductRepository,
+	recipeRepo RecipeRepository,
 ) *CatalogService {
 	return &CatalogService{
 		categoryRepo:    categoryRepo,
@@ -34,6 +36,7 @@ func NewCatalogService(
 		storeRepo:       storeRepo,
 		reviewRepo:      reviewRepo,
 		featuredRepo:    featuredRepo,
+		recipeRepo:      recipeRepo,
 	}
 }
 
@@ -211,4 +214,42 @@ func (s *CatalogService) CreateReview(ctx context.Context, storeID uuid.UUID, us
 // GetFeaturedProducts возвращает товары блока витрины.
 func (s *CatalogService) GetFeaturedProducts(ctx context.Context, blockType models.FeaturedBlockType) ([]models.Product, error) {
 	return s.featuredRepo.GetByBlock(ctx, blockType)
+}
+
+// GetRecipes возвращает все рецепты.
+func (s *CatalogService) GetRecipes(ctx context.Context) ([]models.Recipe, error) {
+	return s.recipeRepo.GetAll(ctx)
+}
+
+// GetRecipe возвращает рецепт с ингредиентами по ID.
+func (s *CatalogService) GetRecipe(ctx context.Context, id uuid.UUID) (*models.RecipeWithProducts, error) {
+	return s.recipeRepo.GetByID(ctx, id)
+}
+
+// CreateRecipe создаёт новый рецепт.
+func (s *CatalogService) CreateRecipe(ctx context.Context, recipe *models.Recipe) error {
+	if recipe.Name == "" {
+		return fmt.Errorf("название обязательно")
+	}
+	return s.recipeRepo.Create(ctx, recipe)
+}
+
+// UpdateRecipe обновляет рецепт.
+func (s *CatalogService) UpdateRecipe(ctx context.Context, id uuid.UUID, name string, description *string, imageURL *string, position int) (*models.Recipe, error) {
+	return s.recipeRepo.Update(ctx, id, name, description, imageURL, position)
+}
+
+// DeleteRecipe удаляет рецепт.
+func (s *CatalogService) DeleteRecipe(ctx context.Context, id uuid.UUID) error {
+	return s.recipeRepo.Delete(ctx, id)
+}
+
+// AddRecipeProduct добавляет ингредиент к рецепту.
+func (s *CatalogService) AddRecipeProduct(ctx context.Context, recipeID uuid.UUID, productID uuid.UUID, quantity int) error {
+	return s.recipeRepo.AddProduct(ctx, recipeID, productID, quantity)
+}
+
+// RemoveRecipeProduct убирает ингредиент из рецепта.
+func (s *CatalogService) RemoveRecipeProduct(ctx context.Context, recipeID uuid.UUID, productID uuid.UUID) error {
+	return s.recipeRepo.RemoveProduct(ctx, recipeID, productID)
 }

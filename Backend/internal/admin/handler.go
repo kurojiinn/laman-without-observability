@@ -20,11 +20,29 @@ import (
 	"go.uber.org/zap"
 )
 
+// RecipeManager абстрагирует управление рецептами для admin-панели.
+type RecipeManager interface {
+	GetRecipes(ctx context.Context) ([]models.Recipe, error)
+	GetRecipe(ctx context.Context, id uuid.UUID) (*models.RecipeWithProducts, error)
+	CreateRecipe(ctx context.Context, recipe *models.Recipe) error
+	UpdateRecipe(ctx context.Context, id uuid.UUID, name string, description *string, imageURL *string, position int) (*models.Recipe, error)
+	DeleteRecipe(ctx context.Context, id uuid.UUID) error
+	AddRecipeProduct(ctx context.Context, recipeID uuid.UUID, productID uuid.UUID, quantity int) error
+	RemoveRecipeProduct(ctx context.Context, recipeID uuid.UUID, productID uuid.UUID) error
+}
+
 // Handler принимает admin-запросы и проксирует их в сервис.
 type Handler struct {
 	service        *Service
 	logger         *zap.Logger
 	uploadsBaseURL string
+	recipes        RecipeManager
+}
+
+// WithRecipes добавляет поддержку управления рецептами.
+func (h *Handler) WithRecipes(rm RecipeManager) *Handler {
+	h.recipes = rm
+	return h
 }
 
 // NewHandler создает handler для admin-роутов.
@@ -55,6 +73,15 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.Han
 		admin.GET("/featured", h.GetFeatured)
 		admin.POST("/featured", h.AddFeatured)
 		admin.DELETE("/featured/:id", h.DeleteFeatured)
+		// Рецепты
+		if h.recipes != nil {
+			admin.GET("/recipes", h.AdminGetRecipes)
+			admin.POST("/recipes", h.AdminCreateRecipe)
+			admin.PATCH("/recipes/:id", h.AdminUpdateRecipe)
+			admin.DELETE("/recipes/:id", h.AdminDeleteRecipe)
+			admin.POST("/recipes/:id/products", h.AdminAddRecipeProduct)
+			admin.DELETE("/recipes/:id/products/:product_id", h.AdminRemoveRecipeProduct)
+		}
 	}
 }
 
@@ -583,4 +610,119 @@ func isValidFeaturedBlock(bt models.FeaturedBlockType) bool {
 		return true
 	}
 	return false
+}
+
+// ─── Recipe admin handlers ────────────────────────────────────────────────────
+
+func (h *Handler) AdminGetRecipes(c *gin.Context) {
+	recipes, err := h.recipes.GetRecipes(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, recipes)
+}
+
+func (h *Handler) AdminCreateRecipe(c *gin.Context) {
+	var req struct {
+		Name        string  `json:"name"`
+		Description *string `json:"description"`
+		ImageURL    *string `json:"image_url"`
+		Position    int     `json:"position"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный формат"})
+		return
+	}
+	recipe := &models.Recipe{Name: strings.TrimSpace(req.Name), Description: req.Description, ImageURL: req.ImageURL, Position: req.Position}
+	if err := h.recipes.CreateRecipe(c.Request.Context(), recipe); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, recipe)
+}
+
+func (h *Handler) AdminUpdateRecipe(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID"})
+		return
+	}
+	var req struct {
+		Name        string  `json:"name"`
+		Description *string `json:"description"`
+		ImageURL    *string `json:"image_url"`
+		Position    int     `json:"position"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный формат"})
+		return
+	}
+	recipe, err := h.recipes.UpdateRecipe(c.Request.Context(), id, strings.TrimSpace(req.Name), req.Description, req.ImageURL, req.Position)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, recipe)
+}
+
+func (h *Handler) AdminDeleteRecipe(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID"})
+		return
+	}
+	if err := h.recipes.DeleteRecipe(c.Request.Context(), id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handler) AdminAddRecipeProduct(c *gin.Context) {
+	recipeID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID рецепта"})
+		return
+	}
+	var req struct {
+		ProductID string `json:"product_id"`
+		Quantity  int    `json:"quantity"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный формат"})
+		return
+	}
+	productID, err := uuid.Parse(req.ProductID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный product_id"})
+		return
+	}
+	qty := req.Quantity
+	if qty < 1 {
+		qty = 1
+	}
+	if err := h.recipes.AddRecipeProduct(c.Request.Context(), recipeID, productID, qty); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handler) AdminRemoveRecipeProduct(c *gin.Context) {
+	recipeID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID рецепта"})
+		return
+	}
+	productID, err := uuid.Parse(c.Param("product_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный product_id"})
+		return
+	}
+	if err := h.recipes.RemoveRecipeProduct(c.Request.Context(), recipeID, productID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }

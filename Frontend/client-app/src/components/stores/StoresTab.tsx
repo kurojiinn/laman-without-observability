@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { catalogApi, isStoreOpen, resolveImageUrl, type Store } from "@/lib/api";
+import { catalogApi, isStoreOpen, type Store } from "@/lib/api";
 import StoreDetailView from "./StoreDetailView";
-import CategoryIcon, { CATEGORY_META, DEFAULT_META } from "@/components/ui/CategoryIcon";
+import { CATEGORY_META, DEFAULT_META } from "@/components/ui/CategoryIcon";
 import StoreAvatar from "@/components/ui/StoreAvatar";
 
 interface Props {

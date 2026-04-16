@@ -61,6 +61,18 @@ func (m *adminRepoMock) UpdateProduct(ctx context.Context, id uuid.UUID, req *Up
 	return &models.Product{}, nil
 }
 
+func (m *adminRepoMock) GetFeaturedList(ctx context.Context, blockType models.FeaturedBlockType) ([]models.FeaturedProduct, error) {
+	return []models.FeaturedProduct{}, nil
+}
+
+func (m *adminRepoMock) AddFeatured(ctx context.Context, fp *models.FeaturedProduct) error {
+	return nil
+}
+
+func (m *adminRepoMock) DeleteFeatured(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+
 func TestUpdateOrderStatus_Valid(t *testing.T) {
 	repo := &adminRepoMock{}
 	service := NewService(repo, zap.NewNop())

@@ -6,7 +6,7 @@ import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import ProductModal from "@/components/ui/ProductModal";
 import { useFavorites } from "@/context/FavoritesContext";
-import CategoryIcon, { CATEGORY_META, DEFAULT_META } from "@/components/ui/CategoryIcon";
+import { CATEGORY_META, DEFAULT_META } from "@/components/ui/CategoryIcon";
 import StoreAvatar from "@/components/ui/StoreAvatar";
 
 // Re-export for backward compatibility (StoresTab, CategoriesTab импортируют отсюда)

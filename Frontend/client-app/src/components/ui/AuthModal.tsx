@@ -152,7 +152,7 @@ function LeftPanel() {
 
       <div className="relative z-10">
         <blockquote className="text-indigo-200 text-sm leading-relaxed italic">
-          "Доставим всё, что нужно — быстро и без лишних хлопот."
+          &laquo;Доставим всё, что нужно — быстро и без лишних хлопот.&raquo;
         </blockquote>
       </div>
     </div>
