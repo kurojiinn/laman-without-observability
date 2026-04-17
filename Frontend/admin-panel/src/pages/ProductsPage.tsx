@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createProduct, deleteProduct, fetchCategories,
-  fetchProducts, fetchStores, importProducts, updateProduct,
+  fetchStores, importProducts, searchStoreProducts, updateProduct,
 } from "../api/admin";
 import { PageHeader, Card, Btn, Modal, Input, Select, ImageUploadZone } from "../components/Layout";
 import type { Product } from "../types";
@@ -26,6 +26,8 @@ function resolveImg(url: string | null | undefined) {
 export function ProductsPage({ user, password }: Props) {
   const qc = useQueryClient();
   const [storeId, setStoreId] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -43,10 +45,11 @@ export function ProductsPage({ user, password }: Props) {
 
   const storesQ = useQuery({ queryKey: ["stores"], queryFn: fetchStores });
   const catsQ = useQuery({ queryKey: ["categories"], queryFn: fetchCategories });
+
   const productsQ = useQuery({
-    queryKey: ["products", storeId],
-    queryFn: () => fetchProducts(user, password, storeId),
-    enabled: !!storeId,
+    queryKey: ["products-search", storeId, searchQuery],
+    queryFn: () => searchStoreProducts(storeId, searchQuery),
+    enabled: !!storeId && searchQuery.length >= 2,
   });
 
   const createMut = useMutation({
@@ -62,7 +65,7 @@ export function ProductsPage({ user, password }: Props) {
       image: formImage,
     }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["products", storeId] });
+      qc.invalidateQueries({ queryKey: ["products-search", storeId] });
       setCreateOpen(false);
       setForm({ name: "", price: "", weight: "", description: "", category_id: "", subcategory_id: "", is_available: true });
       setFormImage(null); setFormPreview(null);
@@ -78,19 +81,19 @@ export function ProductsPage({ user, password }: Props) {
       image: editImage,
     }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["products", storeId] });
+      qc.invalidateQueries({ queryKey: ["products-search", storeId] });
       setEditProduct(null); setEditImage(null); setEditPreview(null);
     },
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => deleteProduct(user, password, id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["products", storeId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["products-search", storeId] }),
   });
 
   const importMut = useMutation({
     mutationFn: () => importProducts(user, password, importFile!),
-    onSuccess: () => { setImportFile(null); qc.invalidateQueries({ queryKey: ["products", storeId] }); },
+    onSuccess: () => { setImportFile(null); qc.invalidateQueries({ queryKey: ["products-search", storeId] }); },
   });
 
   const storeOptions = (storesQ.data ?? []).map((s) => ({ value: s.id, label: s.name }));
@@ -102,6 +105,13 @@ export function ProductsPage({ user, password }: Props) {
     setEditImage(null);
     setEditPreview(resolveImg(p.image_url));
   }
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    setSearchQuery(searchInput.trim());
+  }
+
+  const products = productsQ.data ?? [];
 
   return (
     <div className="p-6">
@@ -128,30 +138,52 @@ export function ProductsPage({ user, password }: Props) {
         }
       />
 
-      {/* Store filter */}
+      {/* Filters */}
       <Card className="p-4 mb-4">
-        <Select
-          label="Выберите магазин для просмотра товаров"
-          value={storeId}
-          onChange={setStoreId}
-          options={storeOptions}
-          placeholder="— выберите магазин —"
-        />
+        <div className="flex gap-3 items-end">
+          <div className="flex-1">
+            <Select
+              label="Магазин"
+              value={storeId}
+              onChange={(v) => { setStoreId(v); setSearchQuery(""); setSearchInput(""); }}
+              options={storeOptions}
+              placeholder="— выберите магазин —"
+            />
+          </div>
+          <form onSubmit={handleSearch} className="flex gap-2 flex-1 items-end">
+            <div className="flex-1">
+              <Input
+                label="Поиск по названию"
+                value={searchInput}
+                onChange={setSearchInput}
+                placeholder="Введите название..."
+              />
+            </div>
+            <Btn type="submit" disabled={!storeId || searchInput.trim().length < 2}>
+              Найти
+            </Btn>
+          </form>
+        </div>
       </Card>
 
-      {/* Products table */}
+      {/* Results */}
       <Card>
         {!storeId ? (
           <div className="px-5 py-10 text-center text-gray-400">
             <p className="text-3xl mb-2">☝️</p>
-            <p className="text-sm">Выберите магазин выше</p>
+            <p className="text-sm">Выберите магазин</p>
+          </div>
+        ) : !searchQuery ? (
+          <div className="px-5 py-10 text-center text-gray-400">
+            <p className="text-3xl mb-2">🔍</p>
+            <p className="text-sm">Введите название и нажмите «Найти»</p>
           </div>
         ) : productsQ.isLoading ? (
-          <div className="px-5 py-10 text-center text-gray-400 text-sm">Загрузка...</div>
-        ) : !productsQ.data?.length ? (
+          <div className="px-5 py-10 text-center text-gray-400 text-sm">Поиск...</div>
+        ) : products.length === 0 ? (
           <div className="px-5 py-10 text-center text-gray-400">
             <p className="text-3xl mb-2">📦</p>
-            <p className="text-sm">Товаров нет — добавьте первый</p>
+            <p className="text-sm">Ничего не найдено по запросу «{searchQuery}»</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -164,7 +196,7 @@ export function ProductsPage({ user, password }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {productsQ.data.map((p) => (
+                {products.map((p) => (
                   <tr key={p.id} className="border-t border-gray-50 hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-2">
                       <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
@@ -188,11 +220,7 @@ export function ProductsPage({ user, password }: Props) {
                     <td className="px-4 py-2">
                       <div className="flex gap-2">
                         <Btn size="sm" variant="ghost" onClick={() => openEdit(p)}>Изменить</Btn>
-                        <Btn
-                          size="sm"
-                          variant="danger"
-                          onClick={() => { if (confirm("Удалить товар?")) deleteMut.mutate(p.id); }}
-                        >
+                        <Btn size="sm" variant="danger" onClick={() => { if (confirm("Удалить товар?")) deleteMut.mutate(p.id); }}>
                           Удалить
                         </Btn>
                       </div>
@@ -239,11 +267,7 @@ export function ProductsPage({ user, password }: Props) {
           </div>
           <div className="col-span-2">
             <label className="block text-xs font-medium text-gray-500 mb-1">Фото</label>
-            <ImageUploadZone
-              preview={formPreview}
-              onFile={(f, u) => { setFormImage(f); setFormPreview(u); }}
-              inputId="create-product-img"
-            />
+            <ImageUploadZone preview={formPreview} onFile={(f, u) => { setFormImage(f); setFormPreview(u); }} inputId="create-product-img" />
           </div>
           <div className="col-span-2 flex items-center gap-2">
             <input type="checkbox" id="avail" checked={form.is_available} onChange={(e) => setForm((p) => ({ ...p, is_available: e.target.checked }))} className="rounded" />
@@ -275,11 +299,7 @@ export function ProductsPage({ user, password }: Props) {
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Фото</label>
-          <ImageUploadZone
-            preview={editPreview}
-            onFile={(f, u) => { setEditImage(f); setEditPreview(u); }}
-            inputId="edit-product-img"
-          />
+          <ImageUploadZone preview={editPreview} onFile={(f, u) => { setEditImage(f); setEditPreview(u); }} inputId="edit-product-img" />
         </div>
         <div className="flex items-center gap-2">
           <input type="checkbox" id="edit-avail" checked={editData.is_available} onChange={(e) => setEditData((p) => ({ ...p, is_available: e.target.checked }))} className="rounded" />

@@ -640,6 +640,7 @@ func (h *Handler) GetRecipe(c *gin.Context) {
 // AdminCreateRecipe создаёт новый рецепт.
 func (h *Handler) AdminCreateRecipe(c *gin.Context) {
 	var req struct {
+		StoreID     *string `json:"store_id"`
 		Name        string  `json:"name"`
 		Description *string `json:"description"`
 		ImageURL    *string `json:"image_url"`
@@ -650,6 +651,14 @@ func (h *Handler) AdminCreateRecipe(c *gin.Context) {
 		return
 	}
 	recipe := &models.Recipe{Name: strings.TrimSpace(req.Name), Description: req.Description, ImageURL: req.ImageURL, Position: req.Position}
+	if req.StoreID != nil && *req.StoreID != "" {
+		id, err := uuid.Parse(*req.StoreID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "неверный store_id"})
+			return
+		}
+		recipe.StoreID = &id
+	}
 	if err := h.catalogService.CreateRecipe(c.Request.Context(), recipe); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

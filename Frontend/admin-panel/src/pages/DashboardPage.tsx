@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchDashboardStats, fetchActiveOrders } from "../api/admin";
+import { fetchDashboardStats, fetchAllOrders } from "../api/admin";
 import { PageHeader, Card } from "../components/Layout";
 import type { AdminOrder, OrderStatus } from "../types";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../types";
@@ -31,10 +31,14 @@ export function DashboardPage({ user, password }: Props) {
   });
 
   const ordersQ = useQuery<AdminOrder[]>({
-    queryKey: ["active-orders", user],
-    queryFn: () => fetchActiveOrders(user, password),
+    queryKey: ["all-orders", user],
+    queryFn: () => fetchAllOrders(user, password),
     refetchInterval: 15_000,
   });
+
+  const activeOrders = (ordersQ.data ?? []).filter((o) =>
+    !["DELIVERED", "CANCELLED"].includes(o.status)
+  );
 
   const stats = statsQ.data;
 
@@ -78,9 +82,9 @@ export function DashboardPage({ user, password }: Props) {
       <Card>
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
           <h2 className="font-bold text-gray-900">Активные заказы</h2>
-          {ordersQ.data && (
+          {!ordersQ.isLoading && (
             <span className="text-xs bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">
-              {ordersQ.data.length}
+              {activeOrders.length}
             </span>
           )}
         </div>
@@ -90,7 +94,7 @@ export function DashboardPage({ user, password }: Props) {
               <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeDashoffset="12"/></svg>
               Загрузка...
             </div>
-          ) : !ordersQ.data?.length ? (
+          ) : activeOrders.length === 0 ? (
             <div className="px-5 py-10 text-center text-gray-400">
               <p className="text-3xl mb-2">🎉</p>
               <p className="text-sm">Активных заказов нет</p>
@@ -107,7 +111,7 @@ export function DashboardPage({ user, password }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {ordersQ.data.slice(0, 10).map((order) => (
+                {activeOrders.slice(0, 10).map((order) => (
                   <tr key={order.id} className="border-t border-gray-50 hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-3 font-mono text-xs text-gray-500">{order.id.slice(0, 8)}…</td>
                     <td className="px-3 py-3 text-gray-700">{order.customer_phone ?? "—"}</td>

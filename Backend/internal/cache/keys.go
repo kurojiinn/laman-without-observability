@@ -36,3 +36,7 @@ const OTPSendKey = "otp:send:%s"
 //   - Хранить отозванные токены вечно — расточительно и избыточно
 //   - Redis автоматически удаляет ключ когда TTL истекает
 const JWTRevokedKey = "jwt:revoked:%s"
+
+// LoginAttemptsKey — ключ счётчика попыток входа по телефону (endpoint /auth/login).
+// Формат: login:attempts:{phone}
+const LoginAttemptsKey = "login:attempts:%s"

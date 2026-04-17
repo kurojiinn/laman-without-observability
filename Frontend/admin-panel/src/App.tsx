@@ -12,8 +12,8 @@ import { OrdersPage } from "./pages/OrdersPage";
 function AdminApp() {
   const queryClient = useQueryClient();
   const [creds, setCreds] = useState<{ user: string; password: string } | null>(() => {
-    const u = localStorage.getItem("admin_user");
-    const p = localStorage.getItem("admin_password");
+    const u = sessionStorage.getItem("admin_user");
+    const p = sessionStorage.getItem("admin_password");
     return u && p ? { user: u, password: p } : null;
   });
   const [page, setPage] = useState<Page>("dashboard");
@@ -26,15 +26,15 @@ function AdminApp() {
       setLoginError("Введите логин и пароль");
       return;
     }
-    localStorage.setItem("admin_user", loginForm.user.trim());
-    localStorage.setItem("admin_password", loginForm.password.trim());
+    sessionStorage.setItem("admin_user", loginForm.user.trim());
+    sessionStorage.setItem("admin_password", loginForm.password.trim());
     setCreds({ user: loginForm.user.trim(), password: loginForm.password.trim() });
     setLoginError("");
   }
 
   function handleLogout() {
-    localStorage.removeItem("admin_user");
-    localStorage.removeItem("admin_password");
+    sessionStorage.removeItem("admin_user");
+    sessionStorage.removeItem("admin_password");
     setCreds(null);
     setLoginForm({ user: "", password: "" });
     queryClient.clear();

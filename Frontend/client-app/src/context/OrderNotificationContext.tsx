@@ -38,11 +38,10 @@ export function OrderNotificationProvider({ children }: { children: ReactNode })
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    if (!token) return;
-
-    const url = `${getBaseUrl()}/v1/orders/events?token=${encodeURIComponent(token)}`;
-    const es = new EventSource(url);
+    // EventSource с withCredentials отправляет httpOnly cookie автоматически.
+    // Бэкенд читает токен из cookie через AuthMiddleware.
+    const url = `${getBaseUrl()}/v1/orders/events`;
+    const es = new EventSource(url, { withCredentials: true });
     esRef.current = es;
 
     es.addEventListener("order_updated", (e) => {

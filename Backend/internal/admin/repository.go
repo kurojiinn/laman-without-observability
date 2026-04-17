@@ -16,7 +16,7 @@ import (
 // Repository определяет доступ к данным для admin-операций.
 type Repository interface {
 	GetDashboardStats(ctx context.Context) (*DashboardStats, error)
-	GetActiveOrders(ctx context.Context) ([]models.Order, error)
+	GetAllOrders(ctx context.Context) ([]models.Order, error)
 	CreateStore(ctx context.Context, store *models.Store) error
 	DeleteStore(ctx context.Context, id uuid.UUID) error
 	CreateProduct(ctx context.Context, product *models.Product) error
@@ -75,14 +75,14 @@ func (r *postgresRepository) GetDashboardStats(ctx context.Context) (*DashboardS
 	return stats, nil
 }
 
-// GetActiveOrders возвращает все заказы, которые еще не доставлены.
-func (r *postgresRepository) GetActiveOrders(ctx context.Context) ([]models.Order, error) {
+// GetAllOrders возвращает все заказы за последние 90 дней.
+func (r *postgresRepository) GetAllOrders(ctx context.Context) ([]models.Order, error) {
 	var orders []models.Order
 	query := `
 		SELECT id, user_id, customer_phone, comment, status, store_id, payment_method,
 		       items_total, service_fee, delivery_fee, final_total, created_at, updated_at
 		FROM orders
-		WHERE status <> 'DELIVERED'
+		WHERE created_at >= NOW() - INTERVAL '90 days'
 		ORDER BY created_at DESC
 	`
 	err := r.db.SelectContext(ctx, &orders, query)

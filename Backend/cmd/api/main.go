@@ -115,11 +115,10 @@ func main() {
 	// Инициализация сервисов
 	smsProvider := auth.NewSMSRUProvider(cfg.SMS.RuAPIKey, cfg.SMS.TestMode)
 
-	// OTPLimiter: максимум 5 попыток, блокировка на 15 минут.
-	// Используем тот же Redis-клиент что и courier — переиспользование соединения,
-	// не создаём второй connection pool. Это стандартная практика.
 	otpLimiter := auth.NewRedisOTPLimiter(redisClient.Client(), 5, 15*time.Minute, cache.OTPAttemptsKey)
 	sendCodeLimiter := auth.NewRedisOTPLimiter(redisClient.Client(), 3, 10*time.Minute, cache.OTPSendKey)
+	// loginLimiter: 5 попыток за 30 минут по номеру телефона
+	loginLimiter := auth.NewRedisOTPLimiter(redisClient.Client(), 5, 30*time.Minute, cache.LoginAttemptsKey)
 	tokenRevoker := auth.NewRedisTokenRevoker(redisClient.Client())
 	authService := auth.NewAuthService(
 		authRepo,
@@ -129,6 +128,7 @@ func main() {
 		logger,
 		otpLimiter,
 		sendCodeLimiter,
+		loginLimiter,
 		tokenRevoker,
 		cfg.SMS.TestMode,
 	)
@@ -154,7 +154,7 @@ func main() {
 	favoritesService := favorites.NewService(favoritesRepo, logger)
 
 	// Инициализация обработчиков
-	authHandler := auth.NewHandler(authService, logger)
+	authHandler := auth.NewHandler(authService, logger, cfg.Server.CookieSecure)
 	userHandler := users.NewHandler(userService, authService)
 	catalogHandler := catalog.NewHandler(catalogService, logger).WithAuth(authService)
 	orderHandler := orders.NewHandler(orderService, authService, hub)
@@ -168,8 +168,8 @@ func main() {
 	// Настройка роутера
 	router := setupRouter(logger, cfg, authService, authHandler, userHandler, catalogHandler, orderHandler, adminHandler, courierHandler, pickerHandler, favoritesHandler)
 
-	// Настройка эндпоинта метрик
-	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	// Настройка эндпоинта метрик (только для admin)
+	router.GET("/metrics", middleware.AdminAuthMiddleware(cfg.Admin), gin.WrapH(promhttp.Handler()))
 
 	// Настройка health check
 	router.GET("/health", func(c *gin.Context) {
@@ -224,6 +224,7 @@ func setupRouter(
 	router := gin.New()
 
 	// Глобальные middleware
+	router.Use(middleware.SecurityHeadersMiddleware())
 	router.Use(middleware.RecoveryMiddleware(logger))
 	router.Use(middleware.LoggingMiddleware(logger))
 	router.Use(middleware.RequestIDMiddleware())
@@ -251,6 +252,6 @@ func setupRouter(
 		favoritesHandler.RegisterRoutes(v1)
 	}
 
-	router.GET("/debug/pprof/*any", gin.WrapH(http.DefaultServeMux))
+	router.GET("/debug/pprof/*any", middleware.AdminAuthMiddleware(cfg.Admin), gin.WrapH(http.DefaultServeMux))
 	return router
 }

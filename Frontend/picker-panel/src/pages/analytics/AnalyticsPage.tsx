@@ -20,21 +20,11 @@ function isThisMonth(dateStr: string): boolean {
   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
 }
 
-const deliveredStatuses: OrderStatus[] = [
-  "DELIVERED",
-  "ASSEMBLED",
-  "WAITING_COURIER",
-  "COURIER_PICKED_UP",
-  "DELIVERING",
-];
-
 const activeStatuses: OrderStatus[] = [
   "NEW",
   "ACCEPTED_BY_PICKER",
   "ASSEMBLING",
-  "ASSEMBLED",
   "NEEDS_CONFIRMATION",
-  "WAITING_COURIER",
 ];
 
 export function AnalyticsPage() {
@@ -45,15 +35,12 @@ export function AnalyticsPage() {
     const todayOrders = orders.filter((o) => isToday(o.createdAt));
     const monthOrders = orders.filter((o) => isThisMonth(o.createdAt));
 
-    const todayCompleted = todayOrders.filter((o) =>
-      deliveredStatuses.includes(o.status as OrderStatus)
-    );
-    const monthCompleted = monthOrders.filter((o) =>
-      deliveredStatuses.includes(o.status as OrderStatus)
-    );
-
-    const todayRevenue = todayCompleted.reduce((sum, o) => sum + o.finalTotal, 0);
-    const monthRevenue = monthCompleted.reduce((sum, o) => sum + o.finalTotal, 0);
+    const todayRevenue = todayOrders
+      .filter((o) => o.status === "DELIVERED")
+      .reduce((sum, o) => sum + o.itemsTotal, 0);
+    const monthRevenue = monthOrders
+      .filter((o) => o.status === "DELIVERED")
+      .reduce((sum, o) => sum + o.itemsTotal, 0);
 
     const todayCancelled = todayOrders.filter((o) => o.status === "CANCELLED").length;
     const monthCancelled = monthOrders.filter((o) => o.status === "CANCELLED").length;

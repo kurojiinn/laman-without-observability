@@ -52,7 +52,11 @@ func (r *postgresPikerRepository) GetOrders(ctx context.Context, storeID uuid.UU
 		FROM orders o
 		LEFT JOIN deliveries d ON d.order_id = o.id
 		WHERE o.store_id = $1
-		  AND o.status IN ('NEW', 'ACCEPTED_BY_PICKER', 'ASSEMBLING', 'ASSEMBLED', 'CANCELLED')
+		  AND o.status IN (
+		    'NEW', 'ACCEPTED_BY_PICKER', 'ASSEMBLING', 'ASSEMBLED', 'NEEDS_CONFIRMATION',
+		    'WAITING_COURIER', 'COURIER_PICKED_UP', 'DELIVERING', 'DELIVERED', 'CANCELLED'
+		  )
+		  AND o.created_at >= NOW() - INTERVAL '30 days'
 		ORDER BY o.created_at ASC
 	`
 	err := r.db.SelectContext(ctx, &orders, query, storeID)

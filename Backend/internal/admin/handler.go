@@ -60,7 +60,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.Han
 	admin.Use(authMiddleware)
 	{
 		admin.GET("/dashboard/stats", h.GetDashboardStats)
-		admin.GET("/orders/active", h.GetActiveOrders)
+		admin.GET("/orders", h.GetAllOrders)
 		admin.POST("/stores", h.CreateStore)
 		admin.DELETE("/stores/:id", h.DeleteStore)
 		admin.GET("/products", h.GetProducts)
@@ -76,6 +76,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.Han
 		// Рецепты
 		if h.recipes != nil {
 			admin.GET("/recipes", h.AdminGetRecipes)
+			admin.GET("/recipes/:id", h.AdminGetRecipe)
 			admin.POST("/recipes", h.AdminCreateRecipe)
 			admin.PATCH("/recipes/:id", h.AdminUpdateRecipe)
 			admin.DELETE("/recipes/:id", h.AdminDeleteRecipe)
@@ -136,11 +137,11 @@ func (h *Handler) GetDashboardStats(c *gin.Context) {
 	c.JSON(http.StatusOK, stats)
 }
 
-// GetActiveOrders возвращает заказы со статусом, отличным от DELIVERED.
-func (h *Handler) GetActiveOrders(c *gin.Context) {
-	orders, err := h.service.GetActiveOrders(c.Request.Context())
+// GetAllOrders возвращает все заказы за последние 90 дней.
+func (h *Handler) GetAllOrders(c *gin.Context) {
+	orders, err := h.service.GetAllOrders(c.Request.Context())
 	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, "не удалось получить активные заказы", err.Error())
+		h.respondError(c, http.StatusInternalServerError, "не удалось получить заказы", err.Error())
 		return
 	}
 
@@ -623,8 +624,23 @@ func (h *Handler) AdminGetRecipes(c *gin.Context) {
 	c.JSON(http.StatusOK, recipes)
 }
 
+func (h *Handler) AdminGetRecipe(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID рецепта"})
+		return
+	}
+	recipe, err := h.recipes.GetRecipe(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, recipe)
+}
+
 func (h *Handler) AdminCreateRecipe(c *gin.Context) {
 	var req struct {
+		StoreID     *string `json:"store_id"`
 		Name        string  `json:"name"`
 		Description *string `json:"description"`
 		ImageURL    *string `json:"image_url"`
@@ -635,6 +651,14 @@ func (h *Handler) AdminCreateRecipe(c *gin.Context) {
 		return
 	}
 	recipe := &models.Recipe{Name: strings.TrimSpace(req.Name), Description: req.Description, ImageURL: req.ImageURL, Position: req.Position}
+	if req.StoreID != nil && *req.StoreID != "" {
+		storeID, err := uuid.Parse(*req.StoreID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "неверный store_id"})
+			return
+		}
+		recipe.StoreID = &storeID
+	}
 	if err := h.recipes.CreateRecipe(c.Request.Context(), recipe); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

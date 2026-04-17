@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { catalogApi, resolveImageUrl, type Product, type Store, type RecipeWithProducts } from "@/lib/api";
 import { useFavorites } from "@/context/FavoritesContext";
@@ -145,15 +145,8 @@ export default function HomeTab({ onOpenStore, search, activeCity }: Props) {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-5">
 
-      {/* ── Промо-баннер ── */}
-      <div className="rounded-2xl overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-500 p-5 text-white flex items-center justify-between min-h-[100px]">
-        <div>
-          <p className="text-xs font-medium opacity-80 mb-1">Доставка в Грозном</p>
-          <h2 className="text-xl font-bold leading-tight">Всё что нужно —<br />привезём за 30 мин</h2>
-          <p className="text-xs opacity-70 mt-2">Продукты, аптека, стройматериалы и не только</p>
-        </div>
-        <div className="text-5xl ml-4 flex-shrink-0">🚀</div>
-      </div>
+      {/* ── Промо-карусель ── */}
+      <PromoBannerCarousel />
 
       {/* ── Витрина ── */}
       {!q && (
@@ -187,23 +180,22 @@ export default function HomeTab({ onOpenStore, search, activeCity }: Props) {
       {!q && (
         <button
           onClick={() => setCharityOpen(true)}
-          className="w-full text-left rounded-2xl overflow-hidden relative hover:opacity-95 active:scale-[0.99] transition-all"
+          className="w-full text-left rounded-2xl overflow-hidden relative hover:opacity-95 active:scale-[0.98] transition-all"
           style={{ background: "linear-gradient(135deg, #92400e 0%, #b45309 40%, #d97706 100%)" }}
         >
-          <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full opacity-10 bg-white" />
-          <div className="absolute -bottom-4 -left-4 w-24 h-24 rounded-full opacity-10 bg-white" />
-          <div className="relative px-5 py-5 text-white">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-bold uppercase tracking-widest opacity-60">Laman Добро</span>
-                  <span className="text-[10px] font-semibold bg-white/20 px-2 py-0.5 rounded-full">Скоро</span>
-                </div>
-                <p className="text-lg font-bold leading-snug mb-1">Делимся теплом<br />с теми, кому нужно</p>
-                <p className="text-xs opacity-75 leading-relaxed">Оставь любую сумму — купим продукты нуждающимся</p>
+          <div className="absolute -top-4 -right-4 w-20 h-20 rounded-full opacity-10 bg-white" />
+          <div className="relative px-4 py-3 flex items-center gap-3 text-white">
+            <span className="text-2xl flex-shrink-0">🫶</span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-bold leading-none">Делимся теплом с теми, кому нужно</p>
+                <span className="text-[10px] font-semibold bg-white/20 px-1.5 py-0.5 rounded-full flex-shrink-0">Скоро</span>
               </div>
-              <span className="text-4xl flex-shrink-0">🫶</span>
+              <p className="text-[11px] opacity-65 mt-0.5 truncate">Оставь любую сумму — купим продукты нуждающимся</p>
             </div>
+            <svg className="w-4 h-4 opacity-50 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+            </svg>
           </div>
         </button>
       )}
@@ -259,6 +251,310 @@ export default function HomeTab({ onOpenStore, search, activeCity }: Props) {
       )}
 
       {charityOpen && <CharityModal onClose={() => setCharityOpen(false)} />}
+    </div>
+  );
+}
+
+// ─── Promo Banner Carousel ────────────────────────────────────────────────────
+
+const WA_LINK = "https://wa.me/79640691596";
+
+const PROMO_BANNERS = [
+  {
+    id: "cities",
+    tag: "Расширяемся",
+    headline: "Скоро откроемся\nв вашем городе",
+    sub: "Начали с Ойсхара — идём дальше по республике",
+    emoji: "🗺️",
+    bg: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 55%, #1e40af 100%)",
+    dotColor: "#3b82f6",
+    chipColor: "bg-blue-500/20 text-blue-200",
+    chips: ["Ойсхар ✓", "Грозный", "Гудермес", "Аргун"],
+    modal: {
+      title: "Скоро в вашем городе",
+      emoji: "🗺️",
+      headerBg: "linear-gradient(135deg, #0f172a, #1e40af)",
+      body: [
+        { icon: "📍", title: "Уже работаем", desc: "Ойсхар — первый город Laman" },
+        { icon: "🚀", title: "Следующие города", desc: "Грозный, Гудермес, Аргун и другие города ЧР" },
+        { icon: "🔔", title: "Узнайте первыми", desc: "Следите за нами в Instagram — публикуем все новости о запуске" },
+      ],
+      cta: "Быть в курсе новостей",
+      ctaBg: "linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)",
+      ctaAction: "https://instagram.com/LamanDelivery",
+      hideCta: false,
+    },
+  },
+  {
+    id: "partner",
+    tag: "Для бизнеса",
+    headline: "Добавь свой\nмагазин в Laman",
+    sub: "Тысячи клиентов — без затрат на доставку",
+    emoji: "🤝",
+    bg: "linear-gradient(135deg, #064e3b 0%, #065f46 50%, #059669 100%)",
+    dotColor: "#34d399",
+    chipColor: "bg-emerald-400/20 text-emerald-200",
+    chips: ["Бесплатное подключение", "Своя аналитика", "Поддержка 24/7"],
+    modal: {
+      title: "Стать партнёром",
+      emoji: "🤝",
+      headerBg: "linear-gradient(135deg, #064e3b, #059669)",
+      body: [
+        { icon: "🏪", title: "Любой магазин", desc: "Продукты, аптека, хозтовары, стройматериалы" },
+        { icon: "📈", title: "Больше продаж", desc: "Ваш магазин увидят тысячи покупателей" },
+        { icon: "💰", title: "Прозрачная комиссия", desc: "Честные условия без скрытых платежей" },
+        { icon: "📲", title: "Написать нам", desc: "Ответим в WhatsApp в течение часа" },
+      ],
+      cta: "Написать в WhatsApp",
+      ctaBg: "linear-gradient(135deg, #065f46, #059669)",
+      ctaAction: WA_LINK,
+      hideCta: false,
+    },
+  },
+  {
+    id: "app",
+    tag: "Скоро",
+    headline: "Laman\nв приложении",
+    sub: "App Store и Google Play — уже скоро",
+    emoji: "📱",
+    bg: "linear-gradient(135deg, #3b0764 0%, #6d28d9 55%, #c026d3 100%)",
+    dotColor: "#a78bfa",
+    chipColor: "bg-purple-400/20 text-purple-200",
+    chips: ["iOS", "Android", "Пуш-уведомления", "Оплата в 1 клик"],
+    modal: {
+      title: "Приложение Laman",
+      emoji: "📱",
+      headerBg: "linear-gradient(135deg, #3b0764, #6d28d9)",
+      body: [
+        { icon: "⚡", title: "Молниеносный заказ", desc: "Сохранённые адреса и корзина за секунду" },
+        { icon: "🔔", title: "Push-уведомления", desc: "Статус заказа в реальном времени" },
+        { icon: "💳", title: "Быстрая оплата", desc: "Apple Pay, Google Pay, карта одним касанием" },
+        { icon: "🎁", title: "Бонусы только для app", desc: "Эксклюзивные скидки для пользователей приложения" },
+      ],
+      cta: "",
+      ctaBg: "",
+      ctaAction: "",
+      hideCta: true,
+    },
+  },
+];
+
+type PromoBannerType = typeof PROMO_BANNERS[number];
+
+function PromoBannerCarousel() {
+  const [index, setIndex] = useState(0);
+  const [openBanner, setOpenBanner] = useState<PromoBannerType | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const touchStartX = useRef<number | null>(null);
+  const didSwipe = useRef(false);
+
+  function startInterval() {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => {
+      setIndex((i) => (i + 1) % PROMO_BANNERS.length);
+    }, 6_000);
+  }
+
+  useEffect(() => {
+    startInterval();
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, []);
+
+  function go(dir: 1 | -1) {
+    setIndex((i) => (i + dir + PROMO_BANNERS.length) % PROMO_BANNERS.length);
+    startInterval();
+  }
+
+  function handleDot(i: number) {
+    setIndex(i);
+    startInterval();
+  }
+
+  function handleOpen(banner: PromoBannerType) {
+    if (didSwipe.current) return;
+    setOpenBanner(banner);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+  }
+
+  function handleClose() {
+    setOpenBanner(null);
+    startInterval();
+  }
+
+  function onTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX;
+    didSwipe.current = false;
+  }
+
+  function onTouchEnd(e: React.TouchEvent) {
+    if (touchStartX.current === null) return;
+    const delta = e.changedTouches[0].clientX - touchStartX.current;
+    if (Math.abs(delta) > 40) {
+      didSwipe.current = true;
+      go(delta < 0 ? 1 : -1);
+    }
+    touchStartX.current = null;
+  }
+
+  const banner = PROMO_BANNERS[index];
+
+  return (
+    <>
+      <div
+        className="select-none rounded-2xl overflow-hidden"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
+        {/* Slide track */}
+        <div
+          className="flex transition-transform duration-500 ease-in-out"
+          style={{ transform: `translateX(-${index * 100}%)` }}
+        >
+          {PROMO_BANNERS.map((b, i) => (
+            <button
+              key={b.id}
+              onClick={() => handleOpen(b)}
+              className="relative w-full flex-shrink-0 text-left overflow-hidden"
+              style={{ background: b.bg }}
+            >
+              <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/5" />
+              <div className="absolute -bottom-6 right-12 w-28 h-28 rounded-full bg-white/5" />
+              <div className="absolute top-3 -left-4 w-16 h-16 rounded-full bg-white/5" />
+
+              <div className="relative px-5 pt-5 pb-5 flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <span className="inline-block text-[10px] font-bold uppercase tracking-widest text-white/50 mb-2">
+                    {b.tag}
+                  </span>
+                  <h2 className="text-[18px] font-extrabold text-white leading-snug whitespace-pre-line">
+                    {b.headline}
+                  </h2>
+                  <p className="text-white/60 text-[11px] mt-1.5 leading-relaxed">{b.sub}</p>
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {b.chips.slice(0, 3).map((chip) => (
+                      <span key={chip} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${b.chipColor}`}>
+                        {chip}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-col items-center gap-2 flex-shrink-0 pt-1">
+                  <span className="text-[44px] leading-none">{b.emoji}</span>
+                  <span className="text-white/40 text-[10px] font-medium flex items-center gap-0.5">
+                    Подробнее
+                    <svg className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </span>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* Controls bar — below slides, never overlaps */}
+        <div className="flex items-center justify-between px-3 py-2" style={{ background: PROMO_BANNERS[index].bg }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); go(-1); }}
+            className="w-7 h-7 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors"
+          >
+            <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+          </button>
+
+          <div className="flex gap-2">
+            {PROMO_BANNERS.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => handleDot(i)}
+                className="transition-all duration-300"
+                style={{
+                  width: i === index ? 20 : 6,
+                  height: 6,
+                  borderRadius: 3,
+                  background: i === index ? banner.dotColor : "rgba(255,255,255,0.3)",
+                }}
+              />
+            ))}
+          </div>
+
+          <button
+            onClick={(e) => { e.stopPropagation(); go(1); }}
+            className="w-7 h-7 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors"
+          >
+            <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {openBanner && <PromoModal banner={openBanner} onClose={handleClose} />}
+    </>
+  );
+}
+
+function PromoModal({ banner, onClose }: { banner: PromoBannerType; onClose: () => void }) {
+  useBodyScrollLock();
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="relative bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="relative px-6 pt-7 pb-6 text-white overflow-hidden" style={{ background: banner.modal.headerBg }}>
+          <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/5" />
+          <div className="absolute -bottom-6 -left-6 w-28 h-28 rounded-full bg-white/5" />
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 w-8 h-8 bg-white/15 hover:bg-white/25 rounded-full flex items-center justify-center transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M1 1l12 12M13 1L1 13" stroke="white" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
+          <div className="relative">
+            <span className="text-5xl">{banner.modal.emoji}</span>
+            <h2 className="text-2xl font-extrabold mt-3 leading-tight">{banner.modal.title}</h2>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-5 space-y-3">
+          {banner.modal.body.map((item) => (
+            <div key={item.title} className="flex items-start gap-3 rounded-xl px-4 py-3 bg-gray-50">
+              <span className="text-2xl flex-shrink-0 mt-0.5">{item.icon}</span>
+              <div>
+                <p className="text-sm font-bold text-gray-900">{item.title}</p>
+                <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{item.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* CTA */}
+        <div className="px-5 pb-6">
+          {banner.modal.hideCta ? (
+            <p className="text-center text-xs text-gray-400 leading-relaxed">
+              🔔 Скоро сообщим, когда приложение будет готово
+            </p>
+          ) : (
+            <button
+              onClick={() => window.open(banner.modal.ctaAction, "_blank", "noopener")}
+              className="w-full py-3.5 rounded-2xl text-white font-bold text-sm transition-all active:scale-[0.98]"
+              style={{ background: banner.modal.ctaBg }}
+            >
+              {banner.modal.cta}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -336,7 +632,7 @@ function ShowcaseModal({
   const visibleProducts = products.filter((p) => storeMap[p.store_id]?.city === activeCity);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm overflow-hidden" onClick={onClose}>
+    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm overflow-hidden" onClick={onClose}>
       <div
         className="relative bg-white w-full sm:max-w-2xl sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92dvh] min-h-[80dvh] sm:min-h-0"
         onClick={(e) => e.stopPropagation()}
@@ -411,7 +707,7 @@ function RecipesModal({
   useBodyScrollLock();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm overflow-hidden" onClick={onClose}>
+    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm overflow-hidden" onClick={onClose}>
       <div
         className="relative bg-white w-full sm:max-w-2xl sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92dvh] min-h-[80dvh] sm:min-h-0"
         onClick={(e) => e.stopPropagation()}
@@ -537,7 +833,7 @@ function RecipeDetailModal({
   const storeName = visibleProducts.length > 0 ? storeMap[visibleProducts[0].store_id]?.name : undefined;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm overflow-hidden" onClick={onClose}>
+    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm overflow-hidden" onClick={onClose}>
       <div
         className="relative bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92dvh] min-h-[80dvh] sm:min-h-0"
         onClick={(e) => e.stopPropagation()}
@@ -798,42 +1094,43 @@ function CharityModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm"
+      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="relative bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl"
+        className="relative bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col max-h-[85dvh]"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Header — фиксированный, кнопка закрытия всегда видна */}
         <div
-          className="relative px-6 pt-7 pb-10 text-white overflow-hidden"
+          className="relative flex-shrink-0 px-6 pt-6 pb-5 text-white overflow-hidden rounded-t-3xl"
           style={{ background: "linear-gradient(135deg, #92400e 0%, #b45309 40%, #d97706 100%)" }}
         >
           <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full opacity-10 bg-white" />
-          <div className="absolute -bottom-6 -left-6 w-28 h-28 rounded-full opacity-10 bg-white" />
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors"
+            className="absolute top-4 right-4 w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors z-10"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path d="M1 1l12 12M13 1L1 13" stroke="white" strokeWidth="2" strokeLinecap="round" />
             </svg>
           </button>
-          <div className="relative">
+          <div className="relative flex items-center gap-3">
             <span className="text-4xl">🫶</span>
-            <div className="mt-3">
-              <p className="text-xs font-bold uppercase tracking-widest opacity-60 mb-1">Laman Добро</p>
-              <h2 className="text-2xl font-bold leading-tight">Делимся теплом</h2>
-              <p className="text-sm opacity-80 mt-1 leading-relaxed">Каждый рубль — это чья-то тарелка еды</p>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest opacity-60 mb-0.5">Laman Добро</p>
+              <h2 className="text-xl font-bold leading-tight">Делимся теплом</h2>
+              <p className="text-xs opacity-75 mt-0.5">Каждый рубль — это чья-то тарелка еды</p>
             </div>
           </div>
         </div>
 
-        <div className="px-6 py-5 space-y-5">
+        {/* Тело — скроллится если не помещается */}
+        <div className="overflow-y-auto overscroll-contain flex-1 px-6 py-4 space-y-3">
           <p className="text-sm text-gray-600 leading-relaxed">
             В Грозном, как и в любом городе, есть люди, которым сейчас тяжело. Пожилые, многодетные семьи, те, кто оказался в сложной ситуации — им не хватает самого необходимого.
           </p>
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             {[
               { icon: "🥖", title: "Еда", desc: "Хлеб, крупы, консервы, молоко" },
               { icon: "🧴", title: "Гигиена", desc: "Мыло, шампунь, зубная паста" },
@@ -848,6 +1145,10 @@ function CharityModal({ onClose }: { onClose: () => void }) {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Футер — фиксированный снизу */}
+        <div className="flex-shrink-0 px-6 pb-6 pt-3 space-y-2 border-t border-amber-50">
           <button
             onClick={onClose}
             className="w-full py-3.5 font-bold rounded-2xl transition-all active:scale-[0.98] text-white"
@@ -855,7 +1156,7 @@ function CharityModal({ onClose }: { onClose: () => void }) {
           >
             Буду рад помочь ❤️
           </button>
-          <p className="text-[11px] text-gray-400 text-center -mt-1">
+          <p className="text-[11px] text-gray-400 text-center">
             Функция пожертвования появится совсем скоро
           </p>
         </div>

@@ -27,18 +27,16 @@ func CORSMiddleware(origins []string) gin.HandlerFunc {
 			}, ", ")
 
 			if _, ok := allowed[origin]; ok {
-				// Известный origin — разрешаем с credentials (для пикера/админки на куках)
+				// Известный origin — разрешаем с credentials
 				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 				c.Writer.Header().Set("Vary", "Origin")
 				c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-			} else {
-				// Любой другой origin (например, телефон по IP) — без credentials.
-				// Bearer-авторизация через заголовок работает без credentials.
-				c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+				c.Writer.Header().Set("Access-Control-Allow-Methods", allowMethods)
+				c.Writer.Header().Set("Access-Control-Allow-Headers", allowHeaders)
+				c.Writer.Header().Set("Access-Control-Expose-Headers", "Content-Length")
 			}
-			c.Writer.Header().Set("Access-Control-Allow-Methods", allowMethods)
-			c.Writer.Header().Set("Access-Control-Allow-Headers", allowHeaders)
-			c.Writer.Header().Set("Access-Control-Expose-Headers", "Content-Length")
+			// Неизвестный origin — не устанавливаем CORS-заголовки, браузер заблокирует.
+			// Мобильные приложения (iOS) не отправляют Origin, поэтому не затронуты.
 		}
 
 		if c.Request.Method == http.MethodOptions {

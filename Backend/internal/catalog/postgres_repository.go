@@ -373,7 +373,7 @@ func (r *postgresRecipeRepository) GetAll(ctx context.Context) ([]models.RecipeW
 	var rows []row
 	err := r.db.SelectContext(ctx, &rows, `
 		SELECT
-			rec.id, rec.name, rec.description, rec.image_url, rec.position, rec.created_at, rec.updated_at,
+			rec.id, rec.store_id, rec.name, rec.description, rec.image_url, rec.position, rec.created_at, rec.updated_at,
 			p.id          AS product_id,
 			p.category_id AS product_category_id,
 			p.subcategory_id AS product_subcategory_id,
@@ -434,7 +434,7 @@ func (r *postgresRecipeRepository) GetAll(ctx context.Context) ([]models.RecipeW
 
 func (r *postgresRecipeRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.RecipeWithProducts, error) {
 	var recipe models.Recipe
-	err := r.db.GetContext(ctx, &recipe, `SELECT id, name, description, image_url, position, created_at, updated_at FROM recipes WHERE id = $1`, id)
+	err := r.db.GetContext(ctx, &recipe, `SELECT id, store_id, name, description, image_url, position, created_at, updated_at FROM recipes WHERE id = $1`, id)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("рецепт не найден")
 	}
@@ -470,8 +470,8 @@ func (r *postgresRecipeRepository) GetByID(ctx context.Context, id uuid.UUID) (*
 
 func (r *postgresRecipeRepository) Create(ctx context.Context, recipe *models.Recipe) error {
 	return r.db.QueryRowContext(ctx,
-		`INSERT INTO recipes (name, description, image_url, position) VALUES ($1, $2, $3, $4) RETURNING id, created_at, updated_at`,
-		recipe.Name, recipe.Description, recipe.ImageURL, recipe.Position,
+		`INSERT INTO recipes (store_id, name, description, image_url, position) VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at, updated_at`,
+		recipe.StoreID, recipe.Name, recipe.Description, recipe.ImageURL, recipe.Position,
 	).Scan(&recipe.ID, &recipe.CreatedAt, &recipe.UpdatedAt)
 }
 

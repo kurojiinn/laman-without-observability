@@ -62,13 +62,9 @@ func (s *Service) UpdateProduct(ctx context.Context, id uuid.UUID, req *UpdatePr
 	return s.repo.UpdateProduct(ctx, id, req)
 }
 
-// GetActiveOrders возвращает заказы, которые еще не доставлены.
-func (s *Service) GetActiveOrders(ctx context.Context) ([]models.Order, error) {
-	orders, err := s.repo.GetActiveOrders(ctx)
-	if err == nil {
-		activeOrdersGauge.Set(float64(len(orders)))
-	}
-	return orders, err
+// GetAllOrders возвращает все заказы за последние 90 дней.
+func (s *Service) GetAllOrders(ctx context.Context) ([]models.Order, error) {
+	return s.repo.GetAllOrders(ctx)
 }
 
 // DeleteStore удаляет магазин и связанные товары.

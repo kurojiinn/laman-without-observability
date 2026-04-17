@@ -1,10 +1,18 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchActiveOrders, updateOrderStatusAdmin } from "../api/admin";
+import { fetchAllOrders, updateOrderStatusAdmin } from "../api/admin";
 import { PageHeader, Card, Btn } from "../components/Layout";
 import type { AdminOrder, OrderStatus } from "../types";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../types";
 
 interface Props { user: string; password: string; }
+
+type StatusFilter = "all" | "active" | "DELIVERED" | "CANCELLED";
+
+const ACTIVE_STATUSES = new Set([
+  "NEW", "ACCEPTED_BY_PICKER", "ASSEMBLING", "ASSEMBLED",
+  "NEEDS_CONFIRMATION", "WAITING_COURIER", "COURIER_PICKED_UP", "DELIVERING",
+]);
 
 const STATUS_ACTIONS: { label: string; status: string; variant: "ghost" | "secondary" | "danger" }[] = [
   { label: "Принят", status: "ACCEPTED_BY_PICKER", variant: "ghost" },
@@ -16,29 +24,76 @@ const STATUS_ACTIONS: { label: string; status: string; variant: "ghost" | "secon
   { label: "Отменить", status: "CANCELLED", variant: "danger" },
 ];
 
+const FILTER_TABS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "Все" },
+  { value: "active", label: "Активные" },
+  { value: "DELIVERED", label: "Доставлены" },
+  { value: "CANCELLED", label: "Отменены" },
+];
+
 export function OrdersPage({ user, password }: Props) {
   const qc = useQueryClient();
+  const [filter, setFilter] = useState<StatusFilter>("active");
 
   const ordersQ = useQuery<AdminOrder[]>({
-    queryKey: ["active-orders", user],
-    queryFn: () => fetchActiveOrders(user, password),
+    queryKey: ["all-orders", user],
+    queryFn: () => fetchAllOrders(user, password),
     refetchInterval: 15_000,
   });
 
   const statusMut = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       updateOrderStatusAdmin(user, password, id, status),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["active-orders"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["all-orders"] }),
   });
 
-  const orders = ordersQ.data ?? [];
+  const allOrders = ordersQ.data ?? [];
+
+  const filtered = allOrders.filter((o) => {
+    if (filter === "all") return true;
+    if (filter === "active") return ACTIVE_STATUSES.has(o.status);
+    return o.status === filter;
+  });
+
+  const activeCount = allOrders.filter((o) => ACTIVE_STATUSES.has(o.status)).length;
 
   return (
     <div className="p-6">
       <PageHeader
         title="Заказы"
-        subtitle={`Активных: ${orders.length}`}
+        subtitle={`Активных: ${activeCount} · Всего за 90 дней: ${allOrders.length}`}
       />
+
+      {/* Filter tabs */}
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {FILTER_TABS.map((tab) => {
+          const count = tab.value === "all"
+            ? allOrders.length
+            : tab.value === "active"
+            ? allOrders.filter((o) => ACTIVE_STATUSES.has(o.status)).length
+            : allOrders.filter((o) => o.status === tab.value).length;
+          return (
+            <button
+              key={tab.value}
+              onClick={() => setFilter(tab.value)}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                filter === tab.value
+                  ? "bg-indigo-600 text-white"
+                  : "bg-white text-gray-600 border border-gray-200 hover:border-indigo-300"
+              }`}
+            >
+              {tab.label}
+              {count > 0 && (
+                <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
+                  filter === tab.value ? "bg-indigo-500 text-white" : "bg-gray-100 text-gray-500"
+                }`}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
 
       <Card>
         {ordersQ.isLoading ? (
@@ -48,14 +103,14 @@ export function OrdersPage({ user, password }: Props) {
             </svg>
             Загрузка...
           </div>
-        ) : orders.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="px-5 py-16 text-center text-gray-400">
-            <p className="text-4xl mb-3">🎉</p>
-            <p className="text-sm font-medium">Активных заказов нет</p>
+            <p className="text-4xl mb-3">📭</p>
+            <p className="text-sm font-medium">Заказов нет</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-50">
-            {orders.map((order) => (
+            {filtered.map((order) => (
               <OrderRow
                 key={order.id}
                 order={order}
@@ -85,7 +140,6 @@ function OrderRow({
   return (
     <div className="px-5 py-4">
       <div className="flex items-start gap-4 flex-wrap">
-        {/* Order info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
             <span className="font-mono text-xs text-gray-400">{order.id.slice(0, 8)}…</span>
@@ -114,7 +168,6 @@ function OrderRow({
           )}
         </div>
 
-        {/* Action buttons */}
         <div className="flex flex-wrap gap-1.5 flex-shrink-0">
           {STATUS_ACTIONS.map(({ label, status, variant }) => (
             <Btn

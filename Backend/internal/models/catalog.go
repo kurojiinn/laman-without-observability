@@ -84,6 +84,7 @@ const (
 // Recipe — рецепт блюда с набором ингредиентов.
 type Recipe struct {
 	ID          uuid.UUID  `db:"id"          json:"id"`
+	StoreID     *uuid.UUID `db:"store_id"    json:"store_id,omitempty"`
 	Name        string     `db:"name"        json:"name"`
 	Description *string    `db:"description" json:"description,omitempty"`
 	ImageURL    *string    `db:"image_url"   json:"image_url,omitempty"`

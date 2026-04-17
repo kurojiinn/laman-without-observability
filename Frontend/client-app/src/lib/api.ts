@@ -1,3 +1,5 @@
+import { tokenStore } from "@/lib/tokenStore";
+
 // Возвращает base URL для API.
 // Приоритет: NEXT_PUBLIC_API_URL → динамический hostname браузера → localhost.
 // Это позволяет открывать сайт по любому IP (192.168.x.x, другое устройство)
@@ -26,22 +28,21 @@ export function resolveImageUrl(url: string | undefined | null): string | undefi
   }
 }
 
-function getAuthHeaders(): Record<string, string> {
+function getBaseHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
   };
-  if (typeof window !== "undefined") {
-    const token = localStorage.getItem("token");
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-  }
+  const token = tokenStore.get();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
   return headers;
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${getBaseUrl()}${path}`, {
     ...options,
-    headers: { ...getAuthHeaders(), ...options.headers },
+    credentials: "include", // отправляем httpOnly cookie автоматически
+    headers: { ...getBaseHeaders(), ...options.headers },
   });
 
   if (!res.ok) {

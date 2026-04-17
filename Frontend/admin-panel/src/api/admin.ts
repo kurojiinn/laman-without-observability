@@ -119,6 +119,16 @@ export const searchProductsByName = async (
   return data ?? [];
 };
 
+export const searchStoreProducts = async (
+  storeId: string,
+  query: string
+): Promise<Product[]> => {
+  const { data } = await publicClient.get<Product[]>(
+    `/stores/${storeId}/products?search=${encodeURIComponent(query)}`
+  );
+  return data ?? [];
+};
+
 // ─── Featured / Витрина ───────────────────────────────────────────────────────
 
 export const fetchFeatured = async (user: string, password: string, block: string): Promise<FeaturedItem[]> => {
@@ -146,8 +156,8 @@ export const deleteFeatured = async (user: string, password: string, id: string)
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
 
-export const fetchActiveOrders = async (user: string, password: string) => {
-  const { data } = await createAdminClient(user, password).get("/orders/active");
+export const fetchAllOrders = async (user: string, password: string) => {
+  const { data } = await createAdminClient(user, password).get("/orders");
   return data;
 };
 
@@ -176,7 +186,7 @@ export const fetchRecipe = async (user: string, password: string, id: string): P
 export const createRecipe = async (
   user: string,
   password: string,
-  payload: { name: string; description?: string; image_url?: string; position?: number }
+  payload: { store_id?: string; name: string; description?: string; image_url?: string; position?: number }
 ): Promise<Recipe> => {
   const { data } = await createAdminClient(user, password).post<Recipe>("/recipes", payload);
   return data;

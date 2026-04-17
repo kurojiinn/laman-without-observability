@@ -26,6 +26,9 @@ type ServerConfig struct {
 	Host string
 	// PublicURL используется для генерации публичных ссылок (например, uploads).
 	PublicURL string
+	// CookieSecure: true — cookie отправляется только по HTTPS (production).
+	// false — можно отправлять по HTTP (local dev).
+	CookieSecure bool
 }
 
 // DatabaseConfig содержит конфигурацию базы данных.
@@ -84,9 +87,10 @@ type RedisConfig struct {
 func Load() (*Config, error) {
 	cfg := &Config{
 		Server: ServerConfig{
-			Port:      getEnv("SERVER_PORT", "8080"),
-			Host:      getEnv("SERVER_HOST", "0.0.0.0"),
-			PublicURL: getEnv("PUBLIC_URL", "http://localhost:8080"),
+			Port:         getEnv("SERVER_PORT", "8080"),
+			Host:         getEnv("SERVER_HOST", "0.0.0.0"),
+			PublicURL:    getEnv("PUBLIC_URL", "http://localhost:8080"),
+			CookieSecure: getEnvBool("COOKIE_SECURE", false),
 		},
 		Database: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
@@ -112,8 +116,8 @@ func Load() (*Config, error) {
 			CourierGroupID: getEnv("TG_COURIER_GROUP_ID", ""),
 		},
 		Admin: AdminConfig{
-			User:     getEnv("ADMIN_USER", "admin"),
-			Password: getEnv("ADMIN_PASSWORD", "admin"),
+			User:     getEnv("ADMIN_USER", ""),
+			Password: getEnv("ADMIN_PASSWORD", ""),
 		},
 		CORS: CORSConfig{
 			Origins: splitAndTrim(getEnv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174")),
@@ -128,6 +132,10 @@ func Load() (*Config, error) {
 
 	if cfg.JWT.Secret == "your-secret-key-change-in-production" {
 		return nil, fmt.Errorf("JWT_SECRET должен быть установлен в переменных окружения")
+	}
+
+	if cfg.Admin.User == "" || cfg.Admin.Password == "" {
+		return nil, fmt.Errorf("ADMIN_USER и ADMIN_PASSWORD должны быть установлены в переменных окружения")
 	}
 
 	return cfg, nil

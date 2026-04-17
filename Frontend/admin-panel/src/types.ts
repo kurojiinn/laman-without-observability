@@ -134,6 +134,7 @@ export type FeaturedItem = {
 
 export type Recipe = {
   id: string;
+  store_id?: string | null;
   name: string;
   description?: string | null;
   image_url?: string | null;

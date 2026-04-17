@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { authApi, type AuthUser } from "@/lib/api";
+import { tokenStore } from "@/lib/tokenStore";
 
 interface AuthContextValue {
   isAuthenticated: boolean;
@@ -28,21 +29,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-
-    if (token) {
-      // Восстанавливаем сессию: проверяем токен через GET /auth/me
-      authApi
-        .me()
-        .then((u) => setUser(u))
-        .catch(() => {
-          // Токен протух — чистим
-          localStorage.removeItem("token");
-        })
-        .finally(() => setHydrated(true));
-    } else {
-      setHydrated(true);
-    }
+    // Сессия восстанавливается через httpOnly cookie — браузер отправляет его автоматически.
+    authApi
+      .me()
+      .then((u) => setUser(u))
+      .catch(() => {
+        // Cookie не валидна или отсутствует — пользователь не авторизован
+      })
+      .finally(() => setHydrated(true));
   }, []);
 
   const openAuthModal = useCallback(() => setIsAuthModalOpen(true), []);
@@ -52,13 +46,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback((token: string, userData: AuthUser) => {
-    localStorage.setItem("token", token);
+    tokenStore.set(token);
     setUser(userData);
     setIsAuthModalOpen(false);
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem("token");
+    tokenStore.clear();
     setUser(null);
   }, []);
 

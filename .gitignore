@@ -72,3 +72,8 @@ fastlane/test_output
 
 # Claude Code
 .claude/
+
+# SSL сертификаты (генерируются локально, не коммитятся)
+nginx/certs/*.pem
+nginx/certs/*.crt
+nginx/certs/*.key

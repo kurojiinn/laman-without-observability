@@ -43,9 +43,10 @@ type AuthService struct {
 	userRepo        UserRepository
 	jwtSecret       string
 	smsProvider     SMSProvider
-	otpLimiter      OTPLimiter    // лимит попыток ввода кода (verify-code)
-	sendCodeLimiter OTPLimiter    // лимит запросов на отправку SMS (request-code)
-	revoker         TokenRevoker  // блэклист отозванных JWT (logout)
+	otpLimiter      OTPLimiter   // лимит попыток ввода кода (verify-code)
+	sendCodeLimiter OTPLimiter   // лимит запросов на отправку SMS (request-code)
+	loginLimiter    OTPLimiter   // лимит попыток входа (login)
+	revoker         TokenRevoker // блэклист отозванных JWT (logout)
 	logger          *zap.Logger
 	devMode         bool // если true — OTP выводится в логи (только для dev/test окружения)
 }
@@ -70,12 +71,15 @@ type UserRepository interface {
 //
 // Оба лимитера могут быть nil — тогда используются NoopOTPLimiter (без ограничений).
 // Это удобно в тестах и dev-окружении без Redis.
-func NewAuthService(authRepo AuthRepository, userRepo UserRepository, jwtSecret string, smsProvider SMSProvider, logger *zap.Logger, otpLimiter OTPLimiter, sendCodeLimiter OTPLimiter, revoker TokenRevoker, devMode bool) *AuthService {
+func NewAuthService(authRepo AuthRepository, userRepo UserRepository, jwtSecret string, smsProvider SMSProvider, logger *zap.Logger, otpLimiter OTPLimiter, sendCodeLimiter OTPLimiter, loginLimiter OTPLimiter, revoker TokenRevoker, devMode bool) *AuthService {
 	if smsProvider == nil {
 		smsProvider = NewNoopSMSProvider()
 	}
 	if otpLimiter == nil {
 		otpLimiter = NewNoopOTPLimiter()
+	}
+	if loginLimiter == nil {
+		loginLimiter = NewNoopOTPLimiter()
 	}
 	if sendCodeLimiter == nil {
 		sendCodeLimiter = NewNoopOTPLimiter()
@@ -90,6 +94,7 @@ func NewAuthService(authRepo AuthRepository, userRepo UserRepository, jwtSecret 
 		smsProvider:     smsProvider,
 		otpLimiter:      otpLimiter,
 		sendCodeLimiter: sendCodeLimiter,
+		loginLimiter:    loginLimiter,
 		revoker:         revoker,
 		logger:          logger,
 		devMode:         devMode,
@@ -326,6 +331,17 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*AuthRespons
 	defer span.End()
 	start := time.Now()
 	span.SetAttributes(attribute.String("auth.phone_masked", maskPhone(req.Phone)))
+
+	phone := normalizePhone(req.Phone)
+	_, blocked, limiterErr := s.loginLimiter.CheckAndIncrement(ctx, phone)
+	if limiterErr != nil && s.logger != nil {
+		s.logger.Warn("loginLimiter недоступен, пропускаем проверку", zap.Error(limiterErr))
+	}
+	if blocked {
+		authOperationTotal.WithLabelValues("login", "blocked").Inc()
+		authOperationDuration.WithLabelValues("login").Observe(time.Since(start).Seconds())
+		return nil, ErrOTPBlocked
+	}
 
 	user, err := s.userRepo.GetByPhone(ctx, req.Phone)
 	if err != nil {

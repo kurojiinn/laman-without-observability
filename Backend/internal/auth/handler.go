@@ -5,24 +5,55 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
+const authCookieName = "auth_token"
+const authCookieMaxAge = 24 * 60 * 60 // 24 часа — совпадает с JWT expiry
+
 // Handler обрабатывает HTTP запросы для аутентификации.
 type Handler struct {
-	authService *AuthService
-	logger      *zap.Logger
+	authService  *AuthService
+	logger       *zap.Logger
+	cookieSecure bool
 }
 
 // NewHandler создает новый обработчик аутентификации.
-func NewHandler(authService *AuthService, logger *zap.Logger) *Handler {
+func NewHandler(authService *AuthService, logger *zap.Logger, cookieSecure bool) *Handler {
 	return &Handler{
-		authService: authService,
-		logger:      logger,
+		authService:  authService,
+		logger:       logger,
+		cookieSecure: cookieSecure,
 	}
+}
+
+func (h *Handler) setAuthCookie(c *gin.Context, token string) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     authCookieName,
+		Value:    token,
+		MaxAge:   authCookieMaxAge,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   h.cookieSecure,
+		SameSite: http.SameSiteLaxMode,
+		Expires:  time.Now().Add(24 * time.Hour),
+	})
+}
+
+func (h *Handler) clearAuthCookie(c *gin.Context) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     authCookieName,
+		Value:    "",
+		MaxAge:   -1,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   h.cookieSecure,
+		SameSite: http.SameSiteLaxMode,
+	})
 }
 
 // RegisterRoutes регистрирует маршруты аутентификации.
@@ -71,9 +102,6 @@ func (h *Handler) Verify(c *gin.Context) {
 	resp, err := h.authService.Verify(c.Request.Context(), req)
 	if err != nil {
 		switch {
-		// HTTP 429 Too Many Requests — семантически правильный статус для rate limiting.
-		// Фронт и iOS могут проверять именно этот код и показывать специальное сообщение.
-		// Стандарт описан в RFC 6585. Используется в GitHub API, Stripe, Twilio.
 		case errors.Is(err, ErrOTPBlocked):
 			c.JSON(http.StatusTooManyRequests, gin.H{"error": "Слишком много попыток. Попробуйте через 15 минут"})
 		case errors.Is(err, ErrInvalidRole):
@@ -86,6 +114,7 @@ func (h *Handler) Verify(c *gin.Context) {
 		return
 	}
 
+	h.setAuthCookie(c, resp.Token)
 	c.JSON(http.StatusOK, resp)
 }
 
@@ -148,6 +177,7 @@ func (h *Handler) VerifyCode(c *gin.Context) {
 		h.logger.Info("Запрос verify-code успешно обработан", zap.String("user_id", response.User.ID.String()))
 	}
 
+	h.setAuthCookie(c, response.Token)
 	c.JSON(http.StatusCreated, response)
 }
 
@@ -195,6 +225,7 @@ func (h *Handler) Register(c *gin.Context) {
 		)
 	}
 
+	h.setAuthCookie(c, response.Token)
 	c.JSON(http.StatusOK, response)
 }
 
@@ -215,25 +246,39 @@ func (h *Handler) Login(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "пользователь не зарегистрирован, используйте /auth/register"})
 			return
 		}
+		if errors.Is(err, ErrOTPBlocked) {
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "Слишком много попыток. Попробуйте позже"})
+			return
+		}
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
+	h.setAuthCookie(c, response.Token)
 	c.JSON(http.StatusOK, response)
 }
 
 // Logout handles POST /auth/logout.
 func (h *Handler) Logout(c *gin.Context) {
-	// Достаём токен из заголовка — AuthMiddleware уже проверил что он валиден,
-	// поэтому здесь просто передаём его в Logout без повторной валидации.
+	// Пробуем отозвать токен из заголовка (iOS/picker) или из cookie (web).
 	authHeader := c.GetHeader("Authorization")
-	parts := strings.Split(authHeader, " ")
-	token := parts[1] // AuthMiddleware гарантирует формат "Bearer <token>"
-
-	if err := h.authService.Logout(c.Request.Context(), token); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "не удалось выйти"})
-		return
+	var token string
+	if authHeader != "" {
+		parts := strings.Split(authHeader, " ")
+		if len(parts) == 2 {
+			token = parts[1]
+		}
+	} else if cookie, err := c.Cookie(authCookieName); err == nil {
+		token = cookie
 	}
 
+	if token != "" {
+		if err := h.authService.Logout(c.Request.Context(), token); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "не удалось выйти"})
+			return
+		}
+	}
+
+	h.clearAuthCookie(c)
 	c.JSON(http.StatusOK, gin.H{"message": "успешный выход"})
 }
 

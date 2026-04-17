@@ -75,9 +75,6 @@ export function OrderDetailsPage() {
                 <strong>Статус:</strong> {statusLabel(orderQuery.data.status)}
               </p>
               <p>
-                <strong>Клиент:</strong> {orderQuery.data.guestName ?? "Авторизованный пользователь"}
-              </p>
-              <p>
                 <strong>Телефон:</strong> {orderQuery.data.customerPhone ?? orderQuery.data.guestPhone ?? "-"}
               </p>
               <p>
@@ -122,16 +119,7 @@ export function OrderDetailsPage() {
             <div>
               <h2>Финансы</h2>
               <p>
-                <strong>Товары:</strong> {formatPrice(orderQuery.data.itemsTotal)}
-              </p>
-              <p>
-                <strong>Сервисный сбор:</strong> {formatPrice(orderQuery.data.serviceFee)}
-              </p>
-              <p>
-                <strong>Доставка:</strong> {formatPrice(orderQuery.data.deliveryFee)}
-              </p>
-              <p>
-                <strong>Итого:</strong> {formatPrice(orderQuery.data.finalTotal)}
+                <strong>Сумма заказа:</strong> {formatPrice(orderQuery.data.itemsTotal)}
               </p>
             </div>
           </div>

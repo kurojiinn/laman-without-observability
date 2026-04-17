@@ -43,8 +43,11 @@ func AuthMiddleware(authService TokenValidator) gin.HandlerFunc {
 				return
 			}
 			token = parts[1]
+		} else if cookie, err := c.Cookie("auth_token"); err == nil && cookie != "" {
+			// Второй приоритет: httpOnly cookie (web-клиент)
+			token = cookie
 		} else if t := c.Query("token"); t != "" {
-			// Fallback для SSE: EventSource не поддерживает кастомные заголовки
+			// Третий приоритет: query-param для SSE (EventSource не поддерживает заголовки)
 			token = t
 		} else {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "требуется заголовок authorization"})
