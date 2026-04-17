@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { adminApi, resolveImageUrl, type Product } from "@/lib/api";
 import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
@@ -42,16 +43,7 @@ export default function ProductModal({ product, storeName, onClose, onGoToStore,
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  // Prevent body scroll + fix iOS Safari sticky header overlapping fixed backdrop
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    const header = document.querySelector("header") as HTMLElement | null;
-    if (header) header.style.zIndex = "0";
-    return () => {
-      document.body.style.overflow = "";
-      if (header) header.style.zIndex = "";
-    };
-  }, []);
+  useBodyScrollLock();
 
   function handleFavClick() {
     if (!isAuthenticated) {
@@ -110,7 +102,7 @@ export default function ProductModal({ product, storeName, onClose, onGoToStore,
         className="fixed inset-x-0 bottom-0 sm:inset-0 z-[9999] flex items-end sm:items-center justify-center pointer-events-none"
         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
-      <div className="pointer-events-auto bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl max-h-[92dvh] overflow-y-auto">
+      <div className="pointer-events-auto bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl max-h-[92dvh] overflow-y-auto overscroll-contain">
         {/* Image */}
         <div className="relative w-full aspect-square bg-gray-100">
           {product.image_url ? (

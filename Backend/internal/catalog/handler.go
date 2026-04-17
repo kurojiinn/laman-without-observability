@@ -49,7 +49,6 @@ func (h *Handler) RegisterAdminRoutes(router *gin.RouterGroup, authMW gin.Handle
 	stores := router.Group("/stores", authMW, adminMW)
 	{
 		stores.PATCH("/:id", h.AdminUpdateStore)
-		stores.DELETE("/:id/reviews/:review_id", h.AdminDeleteReview)
 	}
 	recipes := router.Group("/catalog/recipes", authMW, adminMW)
 	{
@@ -83,6 +82,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 		stores.GET("/:id/reviews", h.GetStoreReviews)
 		stores.GET("/:id/can-review", h.CanReview)
 		stores.POST("/:id/reviews", h.CreateReview)
+		stores.DELETE("/:id/reviews/:review_id", h.DeleteOwnReview)
 	}
 }
 
@@ -514,6 +514,37 @@ func (h *Handler) AdminUpdateStore(c *gin.Context) {
 	c.JSON(http.StatusOK, store)
 }
 
+// DeleteOwnReview обрабатывает DELETE /stores/:id/reviews/:review_id
+// Админ удаляет любой отзыв, обычный пользователь — только свой.
+func (h *Handler) DeleteOwnReview(c *gin.Context) {
+	reviewID, err := uuid.Parse(c.Param("review_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID отзыва"})
+		return
+	}
+	userID, role, ok := h.extractUserIDAndRole(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "требуется авторизация"})
+		return
+	}
+	if role == "ADMIN" {
+		if err := h.catalogService.DeleteReview(c.Request.Context(), reviewID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	} else {
+		if err := h.catalogService.DeleteOwnReview(c.Request.Context(), reviewID, userID); err != nil {
+			if err.Error() == "отзыв не найден или не принадлежит пользователю" {
+				c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
 // AdminDeleteReview обрабатывает DELETE /stores/:id/reviews/:review_id (только для ADMIN)
 func (h *Handler) AdminDeleteReview(c *gin.Context) {
 	reviewID, err := uuid.Parse(c.Param("review_id"))
@@ -532,22 +563,28 @@ func (h *Handler) AdminDeleteReview(c *gin.Context) {
 
 // extractUserID читает JWT из заголовка Authorization и возвращает userID.
 func (h *Handler) extractUserID(c *gin.Context) (uuid.UUID, bool) {
+	userID, _, ok := h.extractUserIDAndRole(c)
+	return userID, ok
+}
+
+// extractUserIDAndRole читает JWT и возвращает userID + роль.
+func (h *Handler) extractUserIDAndRole(c *gin.Context) (uuid.UUID, string, bool) {
 	if h.authService == nil {
-		return uuid.Nil, false
+		return uuid.Nil, "", false
 	}
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
-		return uuid.Nil, false
+		return uuid.Nil, "", false
 	}
 	parts := strings.Split(authHeader, " ")
 	if len(parts) != 2 || parts[0] != "Bearer" {
-		return uuid.Nil, false
+		return uuid.Nil, "", false
 	}
-	userID, _, err := h.authService.ValidateToken(c.Request.Context(), parts[1])
+	userID, role, err := h.authService.ValidateToken(c.Request.Context(), parts[1])
 	if err != nil {
-		return uuid.Nil, false
+		return uuid.Nil, "", false
 	}
-	return userID, true
+	return userID, role, true
 }
 
 // GetFeatured возвращает товары блока витрины.

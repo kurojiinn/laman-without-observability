@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useBodyScrollLockWhen } from "@/hooks/useBodyScrollLock";
 import { ordersApi, catalogApi, usersApi, type Order, type OrderItem, type UserProfile } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -45,14 +46,7 @@ export default function ProfileDrawer({ open, onClose, onGoToCart }: Props) {
     usersApi.getProfile().then(setProfile).catch(() => null);
   }, [open, isAuthenticated]);
 
-  useEffect(() => {
-    if (open) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => { document.body.style.overflow = ""; };
-  }, [open]);
+  useBodyScrollLockWhen(open);
 
   function handleLogout() {
     logout();
@@ -86,7 +80,7 @@ export default function ProfileDrawer({ open, onClose, onGoToCart }: Props) {
         </div>
 
         {/* Контент */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overscroll-contain">
           {!isAuthenticated ? (
             <NotAuthorized onLogin={() => { onClose(); openAuthModal(); }} />
           ) : (
@@ -605,7 +599,7 @@ function OrderDetailModal({
         </div>
 
         {/* Контент */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-4">
 
           {/* Состав */}
           <div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useBodyScrollLockWhen } from "@/hooks/useBodyScrollLock";
 import Header from "@/components/layout/Header";
 import TabBar, { type Tab } from "@/components/layout/TabBar";
 import HomeTab from "@/components/home/HomeTab";
@@ -31,6 +32,7 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [activeCity, setActiveCity] = useState(CITIES[0]);
   const [cityModalOpen, setCityModalOpen] = useState(false);
+  useBodyScrollLockWhen(cityModalOpen);
 
   // Магазин открытый с главной через «Показать в магазине»
   const [openStore, setOpenStore] = useState<Store | null>(null);
@@ -99,7 +101,7 @@ export default function Home() {
 
       {cityModalOpen && (
         <>
-          <div className="fixed inset-0 z-[9998] bg-black/50" onClick={() => setCityModalOpen(false)} />
+          <div className="fixed inset-0 z-[9998] bg-black/50 overflow-hidden" onClick={() => setCityModalOpen(false)} />
           <div
             className="fixed inset-x-0 bottom-0 sm:inset-0 z-[9999] flex items-end sm:items-center justify-center pointer-events-none"
             onClick={() => setCityModalOpen(false)}

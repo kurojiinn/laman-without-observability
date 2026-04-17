@@ -22,7 +22,7 @@ import (
 
 // RecipeManager абстрагирует управление рецептами для admin-панели.
 type RecipeManager interface {
-	GetRecipes(ctx context.Context) ([]models.Recipe, error)
+	GetRecipes(ctx context.Context) ([]models.RecipeWithProducts, error)
 	GetRecipe(ctx context.Context, id uuid.UUID) (*models.RecipeWithProducts, error)
 	CreateRecipe(ctx context.Context, recipe *models.Recipe) error
 	UpdateRecipe(ctx context.Context, id uuid.UUID, name string, description *string, imageURL *string, position int) (*models.Recipe, error)

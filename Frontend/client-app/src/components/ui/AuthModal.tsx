@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { authApi } from "@/lib/api";
+import { useBodyScrollLockWhen } from "@/hooks/useBodyScrollLock";
 
 type Tab = "login" | "register";
 
@@ -10,12 +11,7 @@ export default function AuthModal() {
   const { isAuthModalOpen, closeAuthModal } = useAuth();
   const [tab, setTab] = useState<Tab>("login");
 
-  useEffect(() => {
-    document.body.style.overflow = isAuthModalOpen ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [isAuthModalOpen]);
+  useBodyScrollLockWhen(isAuthModalOpen);
 
   if (!isAuthModalOpen) return null;
 
@@ -25,7 +21,7 @@ export default function AuthModal() {
       onClick={closeAuthModal}
     >
       <div
-        className="relative flex w-full sm:max-w-3xl sm:mx-6 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[92dvh] overflow-y-auto"
+        className="relative flex w-full sm:max-w-3xl sm:mx-6 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[92dvh] overflow-y-auto overscroll-contain"
         onClick={(e) => e.stopPropagation()}
       >
         <LeftPanel />

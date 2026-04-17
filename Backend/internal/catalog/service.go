@@ -149,14 +149,7 @@ func (s *CatalogService) CanUserReview(ctx context.Context, storeID uuid.UUID, u
 	if err != nil {
 		return false, fmt.Errorf("не удалось проверить заказы: %w", err)
 	}
-	if !hasOrder {
-		return false, nil
-	}
-	alreadyReviewed, err := s.reviewRepo.HasUserReviewed(ctx, storeID, userID)
-	if err != nil {
-		return false, fmt.Errorf("не удалось проверить отзывы: %w", err)
-	}
-	return !alreadyReviewed, nil
+	return hasOrder, nil
 }
 
 // UpdateProduct обновляет поля товара (только для ADMIN).
@@ -185,6 +178,11 @@ func (s *CatalogService) DeleteReview(ctx context.Context, reviewID uuid.UUID) e
 	return nil
 }
 
+// DeleteOwnReview удаляет отзыв, если он принадлежит пользователю.
+func (s *CatalogService) DeleteOwnReview(ctx context.Context, reviewID uuid.UUID, userID uuid.UUID) error {
+	return s.reviewRepo.DeleteByOwner(ctx, reviewID, userID)
+}
+
 // CreateReview создаёт отзыв, предварительно проверяя право пользователя.
 func (s *CatalogService) CreateReview(ctx context.Context, storeID uuid.UUID, userID uuid.UUID, rating int, comment string) (*models.Review, error) {
 	canReview, err := s.CanUserReview(ctx, storeID, userID)
@@ -192,12 +190,7 @@ func (s *CatalogService) CreateReview(ctx context.Context, storeID uuid.UUID, us
 		return nil, err
 	}
 	if !canReview {
-		// Уточняем причину для ответа 403
-		hasOrder, _ := s.reviewRepo.HasDeliveredOrder(ctx, storeID, userID)
-		if !hasOrder {
-			return nil, fmt.Errorf("нет заказа из этого магазина")
-		}
-		return nil, fmt.Errorf("отзыв уже оставлен")
+		return nil, fmt.Errorf("нет заказа из этого магазина")
 	}
 	review := &models.Review{
 		StoreID: storeID,
@@ -216,8 +209,8 @@ func (s *CatalogService) GetFeaturedProducts(ctx context.Context, blockType mode
 	return s.featuredRepo.GetByBlock(ctx, blockType)
 }
 
-// GetRecipes возвращает все рецепты.
-func (s *CatalogService) GetRecipes(ctx context.Context) ([]models.Recipe, error) {
+// GetRecipes возвращает все рецепты вместе с ингредиентами.
+func (s *CatalogService) GetRecipes(ctx context.Context) ([]models.RecipeWithProducts, error) {
 	return s.recipeRepo.GetAll(ctx)
 }
 

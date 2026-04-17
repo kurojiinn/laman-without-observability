@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -277,8 +278,12 @@ func (r *postgresReviewRepository) Create(ctx context.Context, review *models.Re
 INSERT INTO reviews (store_id, user_id, rating, comment)
 VALUES ($1, $2, $3, $4)
 RETURNING id, created_at`
-	return r.db.QueryRowContext(ctx, query, review.StoreID, review.UserID, review.Rating, review.Comment).
-		Scan(&review.ID, &review.CreatedAt)
+	if err := r.db.QueryRowContext(ctx, query, review.StoreID, review.UserID, review.Rating, review.Comment).
+		Scan(&review.ID, &review.CreatedAt); err != nil {
+		return err
+	}
+	return r.db.QueryRowContext(ctx, `SELECT phone FROM users WHERE id = $1`, review.UserID).
+		Scan(&review.UserPhone)
 }
 
 func (r *postgresReviewRepository) HasUserReviewed(ctx context.Context, storeID uuid.UUID, userID uuid.UUID) (bool, error) {
@@ -299,6 +304,19 @@ func (r *postgresReviewRepository) Delete(ctx context.Context, reviewID uuid.UUI
 	query := `DELETE FROM reviews WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, reviewID)
 	return err
+}
+
+func (r *postgresReviewRepository) DeleteByOwner(ctx context.Context, reviewID uuid.UUID, userID uuid.UUID) error {
+	query := `DELETE FROM reviews WHERE id = $1 AND user_id = $2`
+	res, err := r.db.ExecContext(ctx, query, reviewID, userID)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("отзыв не найден или не принадлежит пользователю")
+	}
+	return nil
 }
 
 // postgresFeaturedProductRepository реализует FeaturedProductRepository.
@@ -335,13 +353,83 @@ func NewPostgresRecipeRepository(db *database.DB) RecipeRepository {
 	return &postgresRecipeRepository{db: db}
 }
 
-func (r *postgresRecipeRepository) GetAll(ctx context.Context) ([]models.Recipe, error) {
-	var recipes []models.Recipe
-	err := r.db.SelectContext(ctx, &recipes, `SELECT id, name, description, image_url, position, created_at, updated_at FROM recipes ORDER BY position ASC, created_at DESC`)
-	if recipes == nil {
-		recipes = []models.Recipe{}
+func (r *postgresRecipeRepository) GetAll(ctx context.Context) ([]models.RecipeWithProducts, error) {
+	type row struct {
+		models.Recipe
+		ProductID       *uuid.UUID `db:"product_id"`
+		ProductCategory *uuid.UUID `db:"product_category_id"`
+		ProductSubcat   *uuid.UUID `db:"product_subcategory_id"`
+		ProductStoreID  *uuid.UUID `db:"product_store_id"`
+		ProductName     *string    `db:"product_name"`
+		ProductDesc     *string    `db:"product_description"`
+		ProductImageURL *string    `db:"product_image_url"`
+		ProductPrice    *float64   `db:"product_price"`
+		ProductWeight   *float64   `db:"product_weight"`
+		ProductAvail    *bool      `db:"product_is_available"`
+		ProductCreated  *time.Time `db:"product_created_at"`
+		ProductUpdated  *time.Time `db:"product_updated_at"`
+		Quantity        *int       `db:"quantity"`
 	}
-	return recipes, err
+	var rows []row
+	err := r.db.SelectContext(ctx, &rows, `
+		SELECT
+			rec.id, rec.name, rec.description, rec.image_url, rec.position, rec.created_at, rec.updated_at,
+			p.id          AS product_id,
+			p.category_id AS product_category_id,
+			p.subcategory_id AS product_subcategory_id,
+			p.store_id    AS product_store_id,
+			p.name        AS product_name,
+			p.description AS product_description,
+			p.image_url   AS product_image_url,
+			p.price       AS product_price,
+			p.weight      AS product_weight,
+			p.is_available AS product_is_available,
+			p.created_at  AS product_created_at,
+			p.updated_at  AS product_updated_at,
+			rp.quantity
+		FROM recipes rec
+		LEFT JOIN recipe_products rp ON rp.recipe_id = rec.id
+		LEFT JOIN products p ON p.id = rp.product_id
+		ORDER BY rec.position ASC, rec.created_at DESC, p.name ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+
+	index := make(map[uuid.UUID]*models.RecipeWithProducts)
+	order := make([]uuid.UUID, 0)
+	for _, r := range rows {
+		if _, ok := index[r.Recipe.ID]; !ok {
+			rcp := &models.RecipeWithProducts{Recipe: r.Recipe, Products: []models.RecipeIngredient{}}
+			index[r.Recipe.ID] = rcp
+			order = append(order, r.Recipe.ID)
+		}
+		if r.ProductID != nil {
+			index[r.Recipe.ID].Products = append(index[r.Recipe.ID].Products, models.RecipeIngredient{
+				Product: models.Product{
+					ID:            *r.ProductID,
+					CategoryID:    func() uuid.UUID { if r.ProductCategory != nil { return *r.ProductCategory }; return uuid.UUID{} }(),
+					SubcategoryID: r.ProductSubcat,
+					StoreID:       *r.ProductStoreID,
+					Name:          *r.ProductName,
+					Description:   r.ProductDesc,
+					ImageURL:      r.ProductImageURL,
+					Price:         *r.ProductPrice,
+					Weight:        r.ProductWeight,
+					IsAvailable:   *r.ProductAvail,
+					CreatedAt:     *r.ProductCreated,
+					UpdatedAt:     *r.ProductUpdated,
+				},
+				Quantity: *r.Quantity,
+			})
+		}
+	}
+
+	result := make([]models.RecipeWithProducts, 0, len(order))
+	for _, id := range order {
+		result = append(result, *index[id])
+	}
+	return result, nil
 }
 
 func (r *postgresRecipeRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.RecipeWithProducts, error) {

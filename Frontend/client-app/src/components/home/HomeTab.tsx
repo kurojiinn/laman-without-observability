@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { catalogApi, resolveImageUrl, type Product, type Store, type Recipe, type RecipeWithProducts } from "@/lib/api";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+import { catalogApi, resolveImageUrl, type Product, type Store, type RecipeWithProducts } from "@/lib/api";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
@@ -95,7 +96,7 @@ export default function HomeTab({ onOpenStore, search, activeCity }: Props) {
   const [showcaseProducts, setShowcaseProducts] = useState<Product[]>([]);
   const [showcaseLoading, setShowcaseLoading] = useState(false);
 
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [recipes, setRecipes] = useState<RecipeWithProducts[]>([]);
   const [recipesLoading, setRecipesLoading] = useState(false);
   const [openRecipe, setOpenRecipe] = useState<RecipeWithProducts | null>(null);
   const [recipeLoading, setRecipeLoading] = useState(false);
@@ -214,6 +215,7 @@ export default function HomeTab({ onOpenStore, search, activeCity }: Props) {
           products={showcaseProducts}
           loading={showcaseLoading}
           storeMap={storeMap}
+          activeCity={activeCity}
           onClose={() => { setOpenShowcase(null); setShowcaseProducts([]); }}
           onOpenProduct={setSelectedProduct}
           onOpenStore={onOpenStore}
@@ -225,6 +227,8 @@ export default function HomeTab({ onOpenStore, search, activeCity }: Props) {
         <RecipesModal
           recipes={recipes}
           loading={recipesLoading}
+          storeMap={storeMap}
+          activeCity={activeCity}
           onClose={() => { setOpenShowcase(null); setRecipes([]); }}
           onOpenRecipe={handleOpenRecipe}
           recipeLoading={recipeLoading}
@@ -236,9 +240,9 @@ export default function HomeTab({ onOpenStore, search, activeCity }: Props) {
         <RecipeDetailModal
           recipe={openRecipe}
           storeMap={storeMap}
+          activeCity={activeCity}
           onClose={() => setOpenRecipe(null)}
           onOpenProduct={setSelectedProduct}
-          onOpenStore={onOpenStore}
         />
       )}
 
@@ -313,6 +317,7 @@ function ShowcaseModal({
   products,
   loading,
   storeMap,
+  activeCity,
   onClose,
   onOpenProduct,
   onOpenStore,
@@ -321,19 +326,19 @@ function ShowcaseModal({
   products: Product[];
   loading: boolean;
   storeMap: Record<string, Store>;
+  activeCity: string;
   onClose: () => void;
   onOpenProduct: (p: Product) => void;
   onOpenStore: (storeId: string, productId?: string) => void;
 }) {
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = ""; };
-  }, []);
+  useBodyScrollLock();
+
+  const visibleProducts = products.filter((p) => storeMap[p.store_id]?.city === activeCity);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm overflow-hidden" onClick={onClose}>
       <div
-        className="relative bg-white w-full sm:max-w-2xl sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92dvh]"
+        className="relative bg-white w-full sm:max-w-2xl sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92dvh] min-h-[80dvh] sm:min-h-0"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -353,21 +358,21 @@ function ShowcaseModal({
         </div>
 
         {/* Content */}
-        <div className="overflow-y-auto flex-1 p-4">
+        <div className="overflow-y-auto overscroll-contain flex-1 p-4 bg-gray-50">
           {loading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="bg-gray-100 rounded-2xl h-52 animate-pulse" />
               ))}
             </div>
-          ) : products.length === 0 ? (
+          ) : visibleProducts.length === 0 ? (
             <div className="flex flex-col items-center py-16 text-gray-400">
               <span className="text-5xl mb-3">🛍️</span>
               <p className="text-sm">Товары скоро появятся</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {products.map((product) => (
+              {visibleProducts.map((product) => (
                 <HomeProductCard
                   key={product.id}
                   product={product}
@@ -389,27 +394,29 @@ function ShowcaseModal({
 function RecipesModal({
   recipes,
   loading,
+  storeMap,
+  activeCity,
   onClose,
   onOpenRecipe,
   recipeLoading,
 }: {
-  recipes: import("@/lib/api").Recipe[];
+  recipes: RecipeWithProducts[];
   loading: boolean;
+  storeMap: Record<string, Store>;
+  activeCity: string;
   onClose: () => void;
   onOpenRecipe: (id: string) => void;
   recipeLoading: boolean;
 }) {
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = ""; };
-  }, []);
+  useBodyScrollLock();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm overflow-hidden" onClick={onClose}>
       <div
-        className="relative bg-white w-full sm:max-w-2xl sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92dvh]"
+        className="relative bg-white w-full sm:max-w-2xl sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92dvh] min-h-[80dvh] sm:min-h-0"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Header */}
         <div className="bg-gradient-to-r from-emerald-500 to-teal-600 px-5 pt-5 pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -425,11 +432,12 @@ function RecipesModal({
           </div>
         </div>
 
-        <div className="overflow-y-auto flex-1 p-4">
+        {/* Recipe cards grid */}
+        <div className="overflow-y-auto overscroll-contain flex-1 p-4 bg-gray-50">
           {loading ? (
-            <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="bg-gray-100 rounded-2xl h-24 animate-pulse" />
+                <div key={i} className="bg-gray-100 rounded-2xl h-52 animate-pulse" />
               ))}
             </div>
           ) : recipes.length === 0 ? (
@@ -438,27 +446,29 @@ function RecipesModal({
               <p className="text-sm">Рецепты скоро появятся</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
               {recipes.map((recipe) => (
                 <button
                   key={recipe.id}
                   onClick={() => onOpenRecipe(recipe.id)}
                   disabled={recipeLoading}
-                  className="w-full text-left bg-gray-50 hover:bg-emerald-50 border border-gray-100 hover:border-emerald-200 rounded-2xl p-4 flex items-center gap-4 transition-all disabled:opacity-50"
+                  className="text-left bg-white border border-gray-100 rounded-2xl overflow-hidden hover:shadow-md active:scale-[0.98] transition-all disabled:opacity-50 flex flex-col"
                 >
-                  <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center">
+                  {/* Recipe image */}
+                  <div className="aspect-square w-full bg-gray-50 overflow-hidden flex items-center justify-center">
                     {recipe.image_url ? (
                       <img src={resolveImageUrl(recipe.image_url)} alt={recipe.name} className="w-full h-full object-cover" />
                     ) : (
-                      <span className="text-3xl">🍽️</span>
+                      <span className="text-5xl">🍽️</span>
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-900 text-sm">{recipe.name}</p>
+                  {/* Recipe info */}
+                  <div className="p-3 flex flex-col flex-1 gap-1">
+                    <p className="font-semibold text-gray-900 text-sm leading-tight line-clamp-2">{recipe.name}</p>
                     {recipe.description && (
-                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{recipe.description}</p>
+                      <p className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed">{recipe.description}</p>
                     )}
-                    <div className="flex items-center gap-1 mt-2">
+                    <div className="flex items-center gap-1 mt-auto pt-2">
                       <span className="text-xs text-emerald-600 font-semibold">Собрать блюдо</span>
                       <svg className="w-3 h-3 text-emerald-500" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
@@ -480,40 +490,56 @@ function RecipesModal({
 function RecipeDetailModal({
   recipe,
   storeMap,
+  activeCity,
   onClose,
   onOpenProduct,
-  onOpenStore,
 }: {
   recipe: RecipeWithProducts;
   storeMap: Record<string, Store>;
+  activeCity: string;
   onClose: () => void;
   onOpenProduct: (p: Product) => void;
-  onOpenStore: (storeId: string, productId?: string) => void;
 }) {
   const { addItem } = useCart();
-  const [added, setAdded] = useState(false);
+  const [addedAll, setAddedAll] = useState(false);
+  const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = ""; };
-  }, []);
+  useBodyScrollLock();
+
+  // Filter by city, then pick the store with the most ingredients
+  const cityProducts = recipe.products.filter(
+    (p) => storeMap[p.store_id]?.city === activeCity
+  );
+  const storeCount: Record<string, number> = {};
+  for (const p of cityProducts) storeCount[p.store_id] = (storeCount[p.store_id] ?? 0) + 1;
+  const bestStoreId = Object.entries(storeCount).sort((a, b) => b[1] - a[1])[0]?.[0];
+  const visibleProducts = bestStoreId ? cityProducts.filter((p) => p.store_id === bestStoreId) : [];
 
   function handleAddAll() {
-    recipe.products.forEach((ingredient) => {
+    visibleProducts.forEach((ingredient) => {
       for (let i = 0; i < ingredient.quantity; i++) {
         addItem(ingredient);
       }
     });
-    setAdded(true);
-    setTimeout(() => setAdded(false), 2500);
+    setAddedAll(true);
+    setAddedIds(new Set(visibleProducts.map((p) => p.id)));
+    setTimeout(() => setAddedAll(false), 2500);
   }
 
-  const totalPrice = recipe.products.reduce((sum, p) => sum + p.price * p.quantity, 0);
+  function handleAddOne(ingredient: RecipeWithProducts["products"][number]) {
+    for (let i = 0; i < ingredient.quantity; i++) {
+      addItem(ingredient);
+    }
+    setAddedIds((prev) => new Set([...prev, ingredient.id]));
+  }
+
+  const totalPrice = visibleProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
+  const storeName = visibleProducts.length > 0 ? storeMap[visibleProducts[0].store_id]?.name : undefined;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm overflow-hidden" onClick={onClose}>
       <div
-        className="relative bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92dvh]"
+        className="relative bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92dvh] min-h-[80dvh] sm:min-h-0"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -521,76 +547,106 @@ function RecipeDetailModal({
           <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors">
             <svg className="w-4 h-4 text-white" viewBox="0 0 16 16" fill="none"><path d="M2 2l12 12M14 2L2 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
           </button>
-          {recipe.image_url && (
-            <div className="w-20 h-20 rounded-2xl overflow-hidden mb-3 border-2 border-white/30">
-              <img src={resolveImageUrl(recipe.image_url)} alt={recipe.name} className="w-full h-full object-cover" />
+          <div className="flex items-start gap-4">
+            {recipe.image_url && (
+              <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0 border-2 border-white/30">
+                <img src={resolveImageUrl(recipe.image_url)} alt={recipe.name} className="w-full h-full object-cover" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0 pt-1">
+              <h2 className="text-xl font-bold text-white leading-tight">{recipe.name}</h2>
+              {recipe.description && (
+                <p className="text-white/80 text-xs mt-1 leading-relaxed line-clamp-2">{recipe.description}</p>
+              )}
+              {storeName && (
+                <p className="text-white/60 text-[11px] mt-1.5">🏪 {storeName}</p>
+              )}
             </div>
-          )}
-          <h2 className="text-xl font-bold text-white">{recipe.name}</h2>
-          {recipe.description && (
-            <p className="text-white/80 text-xs mt-1 leading-relaxed">{recipe.description}</p>
-          )}
+          </div>
         </div>
 
-        {/* Ingredients */}
-        <div className="overflow-y-auto flex-1 px-4 pt-4 pb-2">
+        {/* Ingredients list */}
+        <div className="overflow-y-auto overscroll-contain flex-1 px-4 pt-4 pb-2">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            Ингредиенты · {recipe.products.length} товаров
+            Ингредиенты · {visibleProducts.length} товаров
           </p>
-          {recipe.products.length === 0 ? (
+          {visibleProducts.length === 0 ? (
             <div className="flex flex-col items-center py-10 text-gray-400">
               <span className="text-4xl mb-2">🥘</span>
               <p className="text-sm">Ингредиенты не добавлены</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {recipe.products.map((ingredient) => (
-                <div
-                  key={ingredient.id}
-                  className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2.5 cursor-pointer hover:bg-emerald-50 transition-colors"
-                  onClick={() => onOpenProduct(ingredient)}
-                >
-                  <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center">
-                    {ingredient.image_url ? (
-                      <img src={resolveImageUrl(ingredient.image_url)} alt={ingredient.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-xl">🛍️</span>
-                    )}
+              {visibleProducts.map((ingredient) => {
+                const isAdded = addedIds.has(ingredient.id);
+                return (
+                  <div key={ingredient.id} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2.5 hover:bg-emerald-50/50 transition-colors">
+                    {/* Thumbnail — click opens product */}
+                    <button
+                      onClick={() => onOpenProduct(ingredient)}
+                      className="w-11 h-11 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center active:scale-95 transition-transform"
+                    >
+                      {ingredient.image_url ? (
+                        <img src={resolveImageUrl(ingredient.image_url)} alt={ingredient.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-xl">🛍️</span>
+                      )}
+                    </button>
+
+                    {/* Name + price — click opens product */}
+                    <button
+                      onClick={() => onOpenProduct(ingredient)}
+                      className="flex-1 min-w-0 text-left"
+                    >
+                      <p className="text-sm font-semibold text-gray-900 truncate">{ingredient.name}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {ingredient.price.toLocaleString("ru-RU")} ₽
+                        {ingredient.quantity > 1 && <span className="text-gray-400"> · × {ingredient.quantity}</span>}
+                      </p>
+                    </button>
+
+                    {/* Add to cart button */}
+                    <button
+                      onClick={() => handleAddOne(ingredient)}
+                      className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90 ${
+                        isAdded
+                          ? "bg-emerald-100 text-emerald-600"
+                          : "bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm"
+                      }`}
+                    >
+                      {isAdded ? (
+                        <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{ingredient.name}</p>
-                    {storeMap[ingredient.store_id] && (
-                      <p className="text-xs text-gray-400 truncate">{storeMap[ingredient.store_id].name}</p>
-                    )}
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-bold text-gray-900">{ingredient.price.toLocaleString("ru-RU")} ₽</p>
-                    {ingredient.quantity > 1 && (
-                      <p className="text-xs text-gray-400">× {ingredient.quantity}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        {recipe.products.length > 0 && (
+        {visibleProducts.length > 0 && (
           <div className="px-4 py-4 border-t border-gray-100 flex items-center gap-3">
             <div className="flex-1">
-              <p className="text-xs text-gray-500">Итого</p>
+              <p className="text-xs text-gray-500">Итого за блюдо</p>
               <p className="text-base font-bold text-gray-900">{totalPrice.toLocaleString("ru-RU")} ₽</p>
             </div>
             <button
               onClick={handleAddAll}
-              className={`flex-1 py-3 rounded-2xl text-sm font-bold transition-all ${
-                added
+              className={`flex-1 py-3 rounded-2xl text-sm font-bold transition-all active:scale-[0.98] ${
+                addedAll
                   ? "bg-emerald-100 text-emerald-700"
-                  : "bg-emerald-500 hover:bg-emerald-600 text-white active:scale-[0.98]"
+                  : "bg-emerald-500 hover:bg-emerald-600 text-white"
               }`}
             >
-              {added ? "✓ Добавлено!" : "Собрать блюдо"}
+              {addedAll ? "✓ Всё добавлено!" : "Добавить всё"}
             </button>
           </div>
         )}
@@ -738,10 +794,7 @@ function HomeProductCard({
 // ─── Charity Modal ────────────────────────────────────────────────────────────
 
 function CharityModal({ onClose }: { onClose: () => void }) {
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = ""; };
-  }, []);
+  useBodyScrollLock();
 
   return (
     <div

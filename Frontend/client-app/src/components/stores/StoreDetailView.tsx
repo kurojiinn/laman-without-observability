@@ -326,6 +326,7 @@ export default function StoreDetailView({
           reviews={reviews}
           isAuthenticated={isAuthenticated}
           isAdmin={effectiveIsAdmin}
+          currentUserId={user?.id}
           onReviewAdded={(r) => setReviews((prev) => [r, ...prev])}
           onReviewDeleted={(id) => setReviews((prev) => prev.filter((r) => r.id !== id))}
         />
@@ -503,6 +504,7 @@ function ReviewsSection({
   reviews,
   isAuthenticated,
   isAdmin = false,
+  currentUserId,
   onReviewAdded,
   onReviewDeleted,
 }: {
@@ -510,10 +512,10 @@ function ReviewsSection({
   reviews: Review[];
   isAuthenticated: boolean;
   isAdmin?: boolean;
+  currentUserId?: string;
   onReviewAdded: (r: Review) => void;
   onReviewDeleted: (id: string) => void;
 }) {
-  const { openAuthModal } = useAuth();
   const [canReview, setCanReview] = useState<boolean | null>(null);
   const [rating, setRating] = useState(5);
   const [hovered, setHovered] = useState(0);
@@ -538,7 +540,6 @@ function ReviewsSection({
       onReviewAdded(review);
       setComment("");
       setRating(5);
-      setCanReview(false); // уже оставил отзыв
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Не удалось отправить отзыв");
     } finally {
@@ -547,43 +548,18 @@ function ReviewsSection({
   }
 
   function renderForm() {
-    if (!isAuthenticated) {
-      return (
-        <div className="flex flex-col items-center py-6 gap-3">
-          <p className="text-sm text-gray-500">Войдите, чтобы оставить отзыв</p>
-          <button
-            onClick={openAuthModal}
-            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors"
-          >
-            Войти
-          </button>
-        </div>
-      );
-    }
-
     if (canReview === null) {
       // загрузка
       return <div className="h-10 bg-gray-100 rounded-xl animate-pulse" />;
     }
 
     if (canReview === false) {
-      // уже оставил отзыв или нет заказа
-      const alreadyReviewed = reviews.some((r) => r.store_id === storeId);
       return (
         <div className="flex flex-col items-center py-6 gap-2 text-center">
-          {alreadyReviewed ? (
-            <>
-              <span className="text-2xl">✅</span>
-              <p className="text-sm text-gray-500">Вы уже оставили отзыв на этот магазин</p>
-            </>
-          ) : (
-            <>
-              <span className="text-2xl">🛍️</span>
-              <p className="text-sm text-gray-500">
-                Оставить отзыв могут только те, кто делал заказ из этого магазина
-              </p>
-            </>
-          )}
+          <span className="text-2xl">🛍️</span>
+          <p className="text-sm text-gray-500">
+            Оставить отзыв могут только те, кто делал заказ из этого магазина
+          </p>
         </div>
       );
     }
@@ -645,11 +621,7 @@ function ReviewsSection({
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-2xl border border-gray-100 p-5">
-        <h3 className="text-sm font-semibold text-gray-900 mb-4">Оставить отзыв</h3>
-        {renderForm()}
-      </div>
-
+      {/* Reviews list — visible to everyone */}
       {reviews.length === 0 ? (
         <div className="flex flex-col items-center py-16 text-gray-400">
           <span className="text-5xl mb-3">💬</span>
@@ -663,9 +635,18 @@ function ReviewsSection({
               review={review}
               storeId={storeId}
               isAdmin={isAdmin}
+              currentUserId={currentUserId}
               onDelete={onReviewDeleted}
             />
           ))}
+        </div>
+      )}
+
+      {/* Add review — only for authenticated users */}
+      {isAuthenticated && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <h3 className="text-sm font-semibold text-gray-900 mb-4">Оставить отзыв</h3>
+          {renderForm()}
         </div>
       )}
     </div>
@@ -676,11 +657,13 @@ function ReviewCard({
   review,
   storeId,
   isAdmin = false,
+  currentUserId,
   onDelete,
 }: {
   review: Review;
   storeId: string;
   isAdmin?: boolean;
+  currentUserId?: string;
   onDelete: (id: string) => void;
 }) {
   const [deleting, setDeleting] = useState(false);
@@ -689,11 +672,17 @@ function ReviewCard({
     month: "long",
   });
 
+  const isOwner = !!currentUserId && review.user_id === currentUserId;
+
   async function handleDelete() {
     if (!confirm("Удалить этот отзыв?")) return;
     setDeleting(true);
     try {
-      await adminApi.deleteReview(storeId, review.id);
+      if (isAdmin) {
+        await adminApi.deleteReview(storeId, review.id);
+      } else {
+        await reviewsApi.deleteOwn(storeId, review.id);
+      }
       onDelete(review.id);
     } catch {
       // ignore
@@ -713,7 +702,7 @@ function ReviewCard({
           </div>
           <div>
             <p className="text-xs font-semibold text-gray-900">
-              +{review.user_phone.slice(0, 1)}{"*".repeat(review.user_phone.length - 3)}{review.user_phone.slice(-2)}
+              +{review.user_phone.slice(0, 1)}{"*".repeat(Math.max(0, review.user_phone.length - 3))}{review.user_phone.slice(-2)}
             </p>
             <p className="text-xs text-gray-400">{date}</p>
           </div>
@@ -731,7 +720,7 @@ function ReviewCard({
               </svg>
             ))}
           </div>
-          {isAdmin && (
+          {(isAdmin || isOwner) && (
             <button
               onClick={handleDelete}
               disabled={deleting}

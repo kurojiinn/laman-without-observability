@@ -62,7 +62,7 @@ type StoreRepository interface {
 
 // RecipeRepository определяет интерфейс для работы с рецептами.
 type RecipeRepository interface {
-	GetAll(ctx context.Context) ([]models.Recipe, error)
+	GetAll(ctx context.Context) ([]models.RecipeWithProducts, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*models.RecipeWithProducts, error)
 	Create(ctx context.Context, recipe *models.Recipe) error
 	Update(ctx context.Context, id uuid.UUID, name string, description *string, imageURL *string, position int) (*models.Recipe, error)
@@ -87,4 +87,7 @@ type ReviewRepository interface {
 
 	// Delete удаляет отзыв по ID.
 	Delete(ctx context.Context, reviewID uuid.UUID) error
+
+	// DeleteByOwner удаляет отзыв только если он принадлежит пользователю.
+	DeleteByOwner(ctx context.Context, reviewID uuid.UUID, userID uuid.UUID) error
 }

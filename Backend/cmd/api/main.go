@@ -156,7 +156,7 @@ func main() {
 	// Инициализация обработчиков
 	authHandler := auth.NewHandler(authService, logger)
 	userHandler := users.NewHandler(userService, authService)
-	catalogHandler := catalog.NewHandler(catalogService, logger)
+	catalogHandler := catalog.NewHandler(catalogService, logger).WithAuth(authService)
 	orderHandler := orders.NewHandler(orderService, authService, hub)
 	adminRepo := admin.NewPostgresRepository(db)
 	adminService := admin.NewService(adminRepo, logger)
@@ -166,7 +166,7 @@ func main() {
 	favoritesHandler := favorites.NewHandler(favoritesService, authService, logger)
 
 	// Настройка роутера
-	router := setupRouter(logger, cfg, authHandler, userHandler, catalogHandler, orderHandler, adminHandler, courierHandler, pickerHandler, favoritesHandler)
+	router := setupRouter(logger, cfg, authService, authHandler, userHandler, catalogHandler, orderHandler, adminHandler, courierHandler, pickerHandler, favoritesHandler)
 
 	// Настройка эндпоинта метрик
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
@@ -211,6 +211,7 @@ func main() {
 func setupRouter(
 	logger *zap.Logger,
 	cfg *config.Config,
+	authService middleware.TokenValidator,
 	authHandler *auth.Handler,
 	userHandler *users.Handler,
 	catalogHandler *catalog.Handler,
@@ -242,6 +243,7 @@ func setupRouter(
 		authHandler.RegisterRoutes(v1)
 		userHandler.RegisterRoutes(v1)
 		catalogHandler.RegisterRoutes(v1)
+		catalogHandler.RegisterAdminRoutes(v1, middleware.AuthMiddleware(authService), middleware.RoleRequired("ADMIN"))
 		orderHandler.RegisterRoutes(v1)
 		adminHandler.RegisterRoutes(v1, middleware.AdminAuthMiddleware(cfg.Admin))
 		courierHandler.RegisterRoutes(v1)

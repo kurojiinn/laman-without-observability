@@ -185,7 +185,7 @@ export const catalogApi = {
   getFeatured: (block: "new_items" | "hits" | "movie_night" | "quick_snack" | "lazy_cook") =>
     api.get<Product[]>(`/v1/catalog/featured?block=${block}`),
 
-  getRecipes: () => api.get<Recipe[]>("/v1/catalog/recipes"),
+  getRecipes: () => api.get<RecipeWithProducts[]>("/v1/catalog/recipes"),
   getRecipe: (id: string) => api.get<RecipeWithProducts>(`/v1/catalog/recipes/${id}`),
 };
 
@@ -238,6 +238,9 @@ export const reviewsApi = {
 
   add: (storeId: string, rating: number, comment: string) =>
     api.post<Review>(`/v1/stores/${storeId}/reviews`, { rating, comment }),
+
+  deleteOwn: (storeId: string, reviewId: string) =>
+    api.delete<{ ok: boolean }>(`/v1/stores/${storeId}/reviews/${reviewId}`),
 };
 
 export type OutOfStockAction = "REMOVE" | "REPLACE" | "CALL";
