@@ -36,6 +36,14 @@ type StoreCategoryImageUpdater interface {
 	UpdateStoreCategoryImage(ctx context.Context, categoryType string, imageURL string) error
 }
 
+// ScenarioManager абстрагирует управление сценариями для admin-панели.
+type ScenarioManager interface {
+	GetAllScenarios(ctx context.Context) ([]models.Scenario, error)
+	CreateScenario(ctx context.Context, s models.Scenario) (*models.Scenario, error)
+	UpdateScenario(ctx context.Context, id uuid.UUID, s models.Scenario) (*models.Scenario, error)
+	DeleteScenario(ctx context.Context, id uuid.UUID) error
+}
+
 // Handler принимает admin-запросы и проксирует их в сервис.
 type Handler struct {
 	service          *Service
@@ -43,6 +51,7 @@ type Handler struct {
 	uploadsBaseURL   string
 	recipes          RecipeManager
 	storeCatUpdater  StoreCategoryImageUpdater
+	scenarios        ScenarioManager
 }
 
 // WithRecipes добавляет поддержку управления рецептами.
@@ -54,6 +63,12 @@ func (h *Handler) WithRecipes(rm RecipeManager) *Handler {
 // WithStoreCategoryUpdater добавляет поддержку обновления фонов типов магазинов.
 func (h *Handler) WithStoreCategoryUpdater(u StoreCategoryImageUpdater) *Handler {
 	h.storeCatUpdater = u
+	return h
+}
+
+// WithScenarios добавляет поддержку управления сценариями.
+func (h *Handler) WithScenarios(sm ScenarioManager) *Handler {
+	h.scenarios = sm
 	return h
 }
 
@@ -90,6 +105,17 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.Han
 		admin.POST("/categories", h.AdminCreateCategory)
 		admin.PATCH("/categories/:id/image", h.AdminUpdateCategoryImage)
 		admin.DELETE("/categories/:id", h.AdminDeleteCategory)
+		// Фоны типов магазинов
+		if h.storeCatUpdater != nil {
+			admin.PATCH("/store-category-meta/:type/image", h.AdminUpdateStoreCategoryImage)
+		}
+		// Сценарии
+		if h.scenarios != nil {
+			admin.GET("/scenarios", h.AdminGetScenarios)
+			admin.POST("/scenarios", h.AdminCreateScenario)
+			admin.PATCH("/scenarios/:id", h.AdminUpdateScenario)
+			admin.DELETE("/scenarios/:id", h.AdminDeleteScenario)
+		}
 		// Рецепты
 		if h.recipes != nil {
 			admin.GET("/recipes", h.AdminGetRecipes)
@@ -548,6 +574,93 @@ func (h *Handler) saveUploadedImage(ctx context.Context, c *gin.Context) (string
 	return h.uploadsBaseURL + "/uploads/" + fileName, nil
 }
 
+// ─── Scenario admin handlers ──────────────────────────────────────────────────
+
+func (h *Handler) AdminGetScenarios(c *gin.Context) {
+	items, err := h.scenarios.GetAllScenarios(c.Request.Context())
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось получить сценарии", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, items)
+}
+
+func (h *Handler) AdminCreateScenario(c *gin.Context) {
+	var s models.Scenario
+	if err := c.ShouldBindJSON(&s); err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный формат", err.Error())
+		return
+	}
+	created, err := h.scenarios.CreateScenario(c.Request.Context(), s)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось создать сценарий", err.Error())
+		return
+	}
+	c.JSON(http.StatusCreated, created)
+}
+
+func (h *Handler) AdminUpdateScenario(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID", "")
+		return
+	}
+	var s models.Scenario
+	if err := c.ShouldBindJSON(&s); err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный формат", err.Error())
+		return
+	}
+	updated, err := h.scenarios.UpdateScenario(c.Request.Context(), id, s)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось обновить сценарий", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, updated)
+}
+
+func (h *Handler) AdminDeleteScenario(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID", "")
+		return
+	}
+	if err := h.scenarios.DeleteScenario(c.Request.Context(), id); err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось удалить сценарий", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// AdminUpdateStoreCategoryImage обновляет фоновое изображение типа магазина.
+func (h *Handler) AdminUpdateStoreCategoryImage(c *gin.Context) {
+	ctx, span := observability.StartSpan(c.Request.Context(), "admin.update_store_category_image")
+	defer span.End()
+
+	categoryType := strings.ToUpper(c.Param("type"))
+	validTypes := map[string]bool{"FOOD": true, "PHARMACY": true, "BUILDING": true, "HOME": true, "CLOTHES": true, "AUTO": true}
+	if !validTypes[categoryType] {
+		h.respondError(c, http.StatusBadRequest, "неверный тип категории", "")
+		return
+	}
+
+	_ = c.Request.ParseMultipartForm(20 << 20)
+	imageURL, err := h.saveUploadedImage(ctx, c)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "не удалось сохранить изображение", err.Error())
+		return
+	}
+	if imageURL == "" {
+		h.respondError(c, http.StatusBadRequest, "файл изображения обязателен", "")
+		return
+	}
+
+	if err := h.storeCatUpdater.UpdateStoreCategoryImage(ctx, categoryType, imageURL); err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось обновить изображение", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"image_url": imageURL})
+}
+
 // ─── Category admin handlers ──────────────────────────────────────────────────
 
 func (h *Handler) AdminGetCategories(c *gin.Context) {
@@ -700,7 +813,8 @@ func (h *Handler) DeleteFeatured(c *gin.Context) {
 
 func isValidFeaturedBlock(bt models.FeaturedBlockType) bool {
 	switch bt {
-	case models.FeaturedBlockNewItems, models.FeaturedBlockHits, models.FeaturedBlockMovieNight:
+	case models.FeaturedBlockNewItems, models.FeaturedBlockHits, models.FeaturedBlockMovieNight,
+		models.FeaturedBlockQuickSnack, models.FeaturedBlockLazyCook:
 		return true
 	}
 	return false

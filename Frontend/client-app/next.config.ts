@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   devIndicators: false,
   // Разрешаем доступ к dev-серверу с локального IP (не только localhost).
   // Без этого Next.js 15+ блокирует шрифты, HMR-вебсокеты и другие

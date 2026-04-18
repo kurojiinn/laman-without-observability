@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { adminApi, catalogApi, reviewsApi, isStoreOpen, resolveImageUrl, type Store, type Product, type Review, type Subcategory } from "@/lib/api";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
@@ -11,6 +11,8 @@ import StoreAvatar from "@/components/ui/StoreAvatar";
 
 // Re-export for backward compatibility (StoresTab, CategoriesTab импортируют отсюда)
 export { CATEGORY_META as STORE_CATEGORY_META };
+
+const PAGE_SIZE = 20;
 
 export default function StoreDetailView({
   store: initialStore,
@@ -30,14 +32,18 @@ export default function StoreDetailView({
 
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const offsetRef = useRef(0);
+
   const [reviews, setReviews] = useState<Review[]>([]);
   const [activeTab, setActiveTab] = useState<"products" | "reviews">("products");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-  // Подкатегории внутри магазина (для фильтра)
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string | null>(null);
-  const [subcategoryMap, setSubcategoryMap] = useState<Map<string, string>>(new Map());
-  const [subcategoryIds, setSubcategoryIds] = useState<string[]>([]);
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const { items: cartItems, addItem } = useCart();
   const { isAuthenticated, user } = useAuth();
@@ -53,44 +59,75 @@ export default function StoreDetailView({
   const [savingStore, setSavingStore] = useState(false);
   const [storeEditError, setStoreEditError] = useState<string | null>(null);
 
+  // Загружаем подкатегории магазина
   useEffect(() => {
-    setProductsLoading(true);
+    setSubcategories([]);
     setSelectedSubcategoryId(null);
-    setSubcategoryMap(new Map());
-    setSubcategoryIds([]);
-    catalogApi
-      .getStoreProducts(store.id)
-      .then((data) => setProducts(Array.isArray(data) ? data : []))
-      .catch(() => setProducts([]))
-      .finally(() => setProductsLoading(false));
-  }, [store.id]);
-
-  // Загружаем подкатегории для товаров этого магазина
-  useEffect(() => {
-    if (products.length === 0) return;
-
-    const uniqueSubcatIds = [...new Set(
-      products.map((p) => p.subcategory_id).filter((id): id is string => !!id)
-    )];
-    if (uniqueSubcatIds.length === 0) return;
-
-    const uniqueCatIds = [...new Set(products.map((p) => p.category_id).filter(Boolean))];
-
-    Promise.all(uniqueCatIds.map((cid) => catalogApi.getSubcategories(cid)))
-      .then((results) => {
-        const allSubcats: Subcategory[] = results.flat();
-        const map = new Map<string, string>();
-        for (const sc of allSubcats) {
-          if (uniqueSubcatIds.includes(sc.id)) map.set(sc.id, sc.name);
-        }
-        setSubcategoryMap(map);
-        const orderedIds = uniqueSubcatIds.filter((id) => map.has(id));
-        setSubcategoryIds(orderedIds);
-        const drinksId = [...map.entries()].find(([, name]) => name === "Напитки")?.[0];
-        setSelectedSubcategoryId(drinksId ?? orderedIds[0] ?? null);
+    catalogApi.getStoreSubcategories(store.id)
+      .then((data) => {
+        const list = Array.isArray(data) ? data : [];
+        setSubcategories(list);
+        const drinksId = list.find((s) => s.name === "Напитки")?.id;
+        setSelectedSubcategoryId(drinksId ?? list[0]?.id ?? null);
       })
       .catch(() => {});
-  }, [products]);
+  }, [store.id]);
+
+  // Первая загрузка / смена подкатегории / смена поиска
+  useEffect(() => {
+    setProducts([]);
+    setHasMore(true);
+    offsetRef.current = 0;
+    setProductsLoading(true);
+
+    catalogApi
+      .getStoreProducts(store.id, {
+        subcategory_id: search ? undefined : (selectedSubcategoryId ?? undefined),
+        search: search || undefined,
+        limit: PAGE_SIZE,
+        offset: 0,
+      })
+      .then((data) => {
+        const list = Array.isArray(data) ? data : [];
+        setProducts(list);
+        offsetRef.current = list.length;
+        setHasMore(list.length === PAGE_SIZE);
+      })
+      .catch(() => setProducts([]))
+      .finally(() => setProductsLoading(false));
+  }, [store.id, selectedSubcategoryId, search]);
+
+  const loadMore = useCallback(() => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    catalogApi
+      .getStoreProducts(store.id, {
+        subcategory_id: search ? undefined : (selectedSubcategoryId ?? undefined),
+        search: search || undefined,
+        limit: PAGE_SIZE,
+        offset: offsetRef.current,
+      })
+      .then((data) => {
+        const list = Array.isArray(data) ? data : [];
+        setProducts((prev) => [...prev, ...list]);
+        offsetRef.current += list.length;
+        setHasMore(list.length === PAGE_SIZE);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false));
+  }, [store.id, selectedSubcategoryId, search, loadingMore, hasMore]);
+
+  // IntersectionObserver — следит за sentinel-div внизу списка
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMore(); },
+      { rootMargin: "200px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadMore]);
 
   useEffect(() => {
     reviewsApi.getByStore(store.id)
@@ -126,16 +163,6 @@ export default function StoreDetailView({
       setSavingStore(false);
     }
   }
-
-  const visibleProducts = products
-    .filter((p) =>
-      !search.trim() ||
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.description ?? "").toLowerCase().includes(search.toLowerCase())
-    )
-    .filter((p) =>
-      !selectedSubcategoryId || p.subcategory_id === selectedSubcategoryId
-    );
 
   const avgRating =
     reviews.length > 0
@@ -234,42 +261,42 @@ export default function StoreDetailView({
       <div className="flex border-b border-gray-200 mb-5 gap-6">
         <button
           onClick={() => setActiveTab("products")}
-          className={`pb-3 text-sm font-semibold transition-colors border-b-2 ${
+          className={`pb-3 text-sm font-semibold transition-colors border-b-2 whitespace-nowrap ${
             activeTab === "products"
               ? "border-indigo-600 text-indigo-600"
               : "border-transparent text-gray-500 hover:text-gray-700"
           }`}
         >
-          Товары {!productsLoading && (search.trim() || selectedSubcategoryId) ? `(${visibleProducts.length} из ${products.length})` : products.length > 0 ? `(${products.length})` : ""}
+          Товары
         </button>
         <button
           onClick={() => setActiveTab("reviews")}
-          className={`pb-3 text-sm font-semibold transition-colors border-b-2 ${
+          className={`pb-3 text-sm font-semibold transition-colors border-b-2 whitespace-nowrap ${
             activeTab === "reviews"
               ? "border-indigo-600 text-indigo-600"
               : "border-transparent text-gray-500 hover:text-gray-700"
           }`}
         >
-          Отзывы {reviews.length > 0 ? `(${reviews.length})` : ""}
+          Отзывы
         </button>
       </div>
 
       {activeTab === "products" && (
         <>
           {/* Фильтр по подкатегориям */}
-          {!productsLoading && subcategoryIds.length > 0 && (
+          {subcategories.length > 0 && (
             <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 mb-4 -mx-4 px-4">
-              {subcategoryIds.map((id) => (
+              {subcategories.map((sc) => (
                 <button
-                  key={id}
-                  onClick={() => setSelectedSubcategoryId(id)}
+                  key={sc.id}
+                  onClick={() => setSelectedSubcategoryId(sc.id)}
                   className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                    selectedSubcategoryId === id
+                    selectedSubcategoryId === sc.id
                       ? "bg-indigo-600 text-white"
                       : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                   }`}
                 >
-                  {subcategoryMap.get(id)}
+                  {sc.name}
                 </button>
               ))}
             </div>
@@ -286,29 +313,35 @@ export default function StoreDetailView({
               <span className="text-5xl mb-4">📦</span>
               <p className="text-sm">Товары пока не добавлены</p>
             </div>
-          ) : visibleProducts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-              <span className="text-5xl mb-4">🔍</span>
-              <p className="text-sm">Ничего не найдено</p>
-            </div>
           ) : (
-            <div className="grid grid-cols-3 lg:grid-cols-4 gap-3">
-              {visibleProducts.map((product) => {
-                const cartItem = cartItems.find((i) => i.product.id === product.id);
-                return (
-                  <StoreProductCard
-                    key={product.id}
-                    product={product}
-                    cartQty={cartItem?.quantity ?? 0}
-                    onAdd={() => addItem(product)}
-                    onOpen={() => setSelectedProduct(product)}
-                    isTarget={product.id === targetProductId}
-                    storeOpen={storeOpen}
-                    isAdmin={effectiveIsAdmin}
-                  />
-                );
-              })}
-            </div>
+            <>
+              <div className="grid grid-cols-3 lg:grid-cols-4 gap-3">
+                {products.map((product) => {
+                  const cartItem = cartItems.find((i) => i.product.id === product.id);
+                  return (
+                    <StoreProductCard
+                      key={product.id}
+                      product={product}
+                      cartQty={cartItem?.quantity ?? 0}
+                      onAdd={() => addItem(product)}
+                      onOpen={() => setSelectedProduct(product)}
+                      isTarget={product.id === targetProductId}
+                      storeOpen={storeOpen}
+                      isAdmin={effectiveIsAdmin}
+                    />
+                  );
+                })}
+              </div>
+              {/* Sentinel для infinite scroll */}
+              <div ref={sentinelRef} className="h-4" />
+              {loadingMore && (
+                <div className="grid grid-cols-3 lg:grid-cols-4 gap-3 mt-3">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="bg-gray-100 rounded-2xl h-44 animate-pulse" />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </>
       )}

@@ -4,16 +4,29 @@ import (
 	"fmt"
 	"net/http"
 
+	"Laman/internal/middleware"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 type Handler struct {
-	svc *Service
+	svc         *Service
+	authService middleware.TokenValidator
 }
 
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *Service, authService middleware.TokenValidator) *Handler {
+	return &Handler{svc: svc, authService: authService}
+}
+
+func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
+	push := router.Group("/push")
+	push.GET("/vapid-key", h.GetVAPIDKey)
+
+	auth := push.Group("")
+	auth.Use(middleware.AuthMiddleware(h.authService))
+	auth.POST("/subscribe", h.Subscribe)
+	auth.POST("/unsubscribe", h.Unsubscribe)
 }
 
 type subscribeRequest struct {

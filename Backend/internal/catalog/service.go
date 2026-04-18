@@ -89,15 +89,16 @@ func (s *CatalogService) GetProductsWithFilters(
 	return products, nil
 }
 
-// GetStoreProducts получает товары конкретного магазина.
+// GetStoreProducts получает товары конкретного магазина с пагинацией.
 func (s *CatalogService) GetStoreProducts(
 	ctx context.Context,
 	storeID uuid.UUID,
 	subcategoryID *uuid.UUID,
 	search *string,
 	availableOnly bool,
+	limit, offset int,
 ) ([]models.Product, error) {
-	products, err := s.productRepo.GetByStoreID(ctx, storeID, subcategoryID, search, availableOnly)
+	products, err := s.productRepo.GetByStoreID(ctx, storeID, subcategoryID, search, availableOnly, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось получить товары магазина: %w", err)
 	}

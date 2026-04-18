@@ -10,6 +10,7 @@ import (
 
 	"Laman/internal/models"
 	"Laman/internal/observability"
+	"Laman/internal/push"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -28,6 +29,7 @@ type OrderService struct {
 	storeRepo         StoreRepository
 	courierService    CourierService
 	notifier          *observability.TelegramNotifier
+	pusher            *push.Service
 	logger            *zap.Logger
 	serviceFeePercent float64
 	deliveryFee       float64
@@ -84,6 +86,7 @@ func NewOrderService(
 	deliveryFee float64,
 	courierService CourierService,
 	notifier *observability.TelegramNotifier,
+	pusher *push.Service,
 	logger *zap.Logger,
 	hub *events.Hub,
 ) *OrderService {
@@ -99,6 +102,7 @@ func NewOrderService(
 		deliveryFee:       deliveryFee,
 		courierService:    courierService,
 		notifier:          notifier,
+		pusher:            pusher,
 		logger:            logger,
 		hub:               hub,
 	}
@@ -475,6 +479,13 @@ func (s *OrderService) UpdateOrderStatus(ctx context.Context, id uuid.UUID, newS
 		return fmt.Errorf("не удалось обновить статус заказа: %w", err)
 	}
 
+	// Push-уведомления для авторизованного клиента
+	if s.pusher != nil && order.UserID != nil {
+		if n, ok := orderStatusNotification(newStatus); ok {
+			s.pusher.SendToUser(ctx, *order.UserID, n)
+		}
+	}
+
 	if newStatus == models.OrderStatusCancelled && s.notifier != nil {
 		itemsText := s.buildItemsText(ctx, order.ID)
 		customer := fmt.Sprintf("Пользователь %s", shortUUID(order.ID))
@@ -503,4 +514,20 @@ func (s *OrderService) UpdateOrderStatus(ctx context.Context, id uuid.UUID, newS
 	}
 
 	return nil
+}
+
+// orderStatusNotification возвращает текст push-уведомления для клиента.
+func orderStatusNotification(status models.OrderStatus) (push.Notification, bool) {
+	msgs := map[models.OrderStatus][2]string{
+		models.OrderStatusAssembling:        {"Заказ собирается", "Сборщик начал формировать ваш заказ"},
+		models.OrderStatusNeedsConfirmation: {"Нужно уточнение", "Свяжитесь с нами — по вашему заказу есть вопрос"},
+		models.OrderStatusCourierPickedUp:   {"Курьер в пути", "Курьер забрал ваш заказ и едет к вам"},
+		models.OrderStatusDelivering:        {"Курьер едет к вам", "Совсем скоро ваш заказ будет у вас"},
+		models.OrderStatusDelivered:         {"Заказ доставлен", "Ваш заказ доставлен. Приятного!"},
+		models.OrderStatusCancelled:         {"Заказ отменён", "Ваш заказ был отменён"},
+	}
+	if m, ok := msgs[status]; ok {
+		return push.Notification{Title: m[0], Body: m[1], URL: "/orders"}, true
+	}
+	return push.Notification{}, false
 }

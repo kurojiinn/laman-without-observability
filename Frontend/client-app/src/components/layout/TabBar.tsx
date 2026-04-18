@@ -66,7 +66,7 @@ export default function TabBar({ active, onChange, isAdmin }: TabBarProps) {
         className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-100 pb-safe"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
-        <div className={`grid h-16`} style={{ gridTemplateColumns: `repeat(${colCount}, 1fr)` }}>
+        <div className={`grid h-20`} style={{ gridTemplateColumns: `repeat(${colCount}, 1fr)` }}>
           {visibleTabs.map((tab) => {
             const isActive = active === tab.id;
             const showBadge = tab.id === "cart" && totalCount > 0;
@@ -74,7 +74,7 @@ export default function TabBar({ active, onChange, isAdmin }: TabBarProps) {
               <button
                 key={tab.id}
                 onClick={() => onChange(tab.id)}
-                className={`flex flex-col items-center justify-center gap-0.5 relative transition-colors ${
+                className={`flex flex-col items-center justify-center gap-1 relative transition-colors ${
                   isActive ? "text-indigo-600" : "text-gray-400"
                 }`}
               >

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -70,8 +71,6 @@ func (h *Handler) RegisterAdminRoutes(router *gin.RouterGroup, authMW gin.Handle
 		recipes.POST("/:id/products", h.AdminAddRecipeProduct)
 		recipes.DELETE("/:id/products/:product_id", h.AdminRemoveRecipeProduct)
 	}
-	router.PATCH("/catalog/store-category-meta/:type/image", authMW, adminMW, h.AdminUpdateStoreCategoryImage)
-
 	scenarios := router.Group("/catalog/scenarios", authMW, adminMW)
 	{
 		scenarios.GET("/all", h.AdminGetScenarios)
@@ -352,7 +351,20 @@ func (h *Handler) GetStoreProducts(c *gin.Context) {
 
 	availableOnly := c.Query("available_only") == "true"
 
-	products, err := h.catalogService.GetStoreProducts(ctx, storeID, subcategoryID, search, availableOnly)
+	limit := 20
+	offset := 0
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
+		}
+	}
+	if o := c.Query("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
+			offset = v
+		}
+	}
+
+	products, err := h.catalogService.GetStoreProducts(ctx, storeID, subcategoryID, search, availableOnly, limit, offset)
 	if err != nil {
 		h.logger.Error("Не удалось получить товары магазина",
 			zap.String("store_id", storeID.String()),
@@ -590,20 +602,24 @@ func (h *Handler) extractUserID(c *gin.Context) (uuid.UUID, bool) {
 	return userID, ok
 }
 
-// extractUserIDAndRole читает JWT и возвращает userID + роль.
+// extractUserIDAndRole читает JWT из Bearer-заголовка или httpOnly cookie и возвращает userID + роль.
 func (h *Handler) extractUserIDAndRole(c *gin.Context) (uuid.UUID, string, bool) {
 	if h.authService == nil {
 		return uuid.Nil, "", false
 	}
-	authHeader := c.GetHeader("Authorization")
-	if authHeader == "" {
+	var token string
+	if authHeader := c.GetHeader("Authorization"); authHeader != "" {
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			return uuid.Nil, "", false
+		}
+		token = parts[1]
+	} else if cookie, err := c.Cookie("auth_token"); err == nil && cookie != "" {
+		token = cookie
+	} else {
 		return uuid.Nil, "", false
 	}
-	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || parts[0] != "Bearer" {
-		return uuid.Nil, "", false
-	}
-	userID, role, err := h.authService.ValidateToken(c.Request.Context(), parts[1])
+	userID, role, err := h.authService.ValidateToken(c.Request.Context(), token)
 	if err != nil {
 		return uuid.Nil, "", false
 	}

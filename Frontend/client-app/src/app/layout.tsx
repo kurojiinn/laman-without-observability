@@ -6,6 +6,7 @@ import { OrderNotificationProvider } from "@/context/OrderNotificationContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import AuthModal from "@/components/ui/AuthModal";
 import OrderUpdateModal from "@/components/ui/OrderUpdateModal";
+import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -50,6 +51,7 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="min-h-full flex flex-col">
+        <ServiceWorkerRegistrar />
         <ThemeProvider>
           <AuthProvider>
             <CartProvider>

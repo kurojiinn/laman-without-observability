@@ -96,16 +96,10 @@ export const updateStoreCategoryImage = async (
 ): Promise<{ image_url: string }> => {
   const form = new FormData();
   form.append("image", image);
-  // эндпоинт под /api/v1/catalog (не /admin), поэтому используем publicClient с Basic auth
-  const { data } = await publicClient.patch<{ image_url: string }>(
-    `/catalog/store-category-meta/${categoryType}/image`,
+  const { data } = await createAdminClient(user, password).patch<{ image_url: string }>(
+    `/store-category-meta/${categoryType}/image`,
     form,
-    {
-      headers: {
-        "Content-Type": "multipart/form-data",
-        Authorization: "Basic " + btoa(`${user}:${password}`),
-      },
-    }
+    { headers: { "Content-Type": "multipart/form-data" } }
   );
   return data;
 };
@@ -304,7 +298,7 @@ export const removeRecipeProduct = async (
 import type { Scenario } from "../types";
 
 export const fetchScenarios = async (user: string, password: string): Promise<Scenario[]> => {
-  const { data } = await createAdminClient(user, password).get<Scenario[]>("/catalog/scenarios/all");
+  const { data } = await createAdminClient(user, password).get<Scenario[]>("/scenarios");
   return data ?? [];
 };
 
@@ -313,7 +307,7 @@ export const createScenario = async (
   password: string,
   payload: Omit<Scenario, "id" | "created_at" | "updated_at">
 ): Promise<Scenario> => {
-  const { data } = await createAdminClient(user, password).post<Scenario>("/catalog/scenarios", payload);
+  const { data } = await createAdminClient(user, password).post<Scenario>("/scenarios", payload);
   return data;
 };
 
@@ -323,10 +317,10 @@ export const updateScenario = async (
   id: string,
   payload: Omit<Scenario, "id" | "created_at" | "updated_at">
 ): Promise<Scenario> => {
-  const { data } = await createAdminClient(user, password).patch<Scenario>(`/catalog/scenarios/${id}`, payload);
+  const { data } = await createAdminClient(user, password).patch<Scenario>(`/scenarios/${id}`, payload);
   return data;
 };
 
 export const deleteScenario = async (user: string, password: string, id: string) => {
-  await createAdminClient(user, password).delete(`/catalog/scenarios/${id}`);
+  await createAdminClient(user, password).delete(`/scenarios/${id}`);
 };

@@ -583,41 +583,43 @@ function ShowcasePage({
   if (typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] bg-white overflow-hidden flex flex-col animate-slide-in-right">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-100 flex-shrink-0">
-        <button onClick={onClose} className="w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors flex-shrink-0">
-          <svg className="w-4 h-4 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-          </svg>
-        </button>
-        <h1 className="text-lg font-bold text-gray-900">{block.emoji} {block.title}</h1>
-      </div>
+    <div className="fixed inset-0 z-[9999] bg-white overflow-hidden">
+      <div className="flex flex-col h-full animate-slide-in-right">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-100 flex-shrink-0">
+          <button onClick={onClose} className="w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors flex-shrink-0">
+            <svg className="w-4 h-4 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+          <h1 className="text-lg font-bold text-gray-900">{block.emoji} {block.title}</h1>
+        </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto overscroll-contain p-4">
-        {loading ? (
-          <div className="grid grid-cols-3 gap-3">
-            {Array.from({ length: 6 }).map((_, i) => <div key={i} className="bg-gray-100 rounded-2xl h-52 animate-pulse" />)}
-          </div>
-        ) : visibleProducts.length === 0 ? (
-          <div className="flex flex-col items-center py-20 text-gray-400">
-            <span className="text-5xl mb-3">🛍️</span>
-            <p className="text-sm">Товары скоро появятся</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-3">
-            {visibleProducts.map((product) => (
-              <HomeProductCard
-                key={product.id}
-                product={product}
-                storeName={storeMap[product.store_id]?.name}
-                onOpen={() => onOpenProduct(product)}
-                onShowInStore={() => { onClose(); onOpenStore(product.store_id, product.id); }}
-              />
-            ))}
-          </div>
-        )}
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4">
+          {loading ? (
+            <div className="grid grid-cols-3 gap-3">
+              {Array.from({ length: 6 }).map((_, i) => <div key={i} className="bg-gray-100 rounded-2xl h-52 animate-pulse" />)}
+            </div>
+          ) : visibleProducts.length === 0 ? (
+            <div className="flex flex-col items-center py-20 text-gray-400">
+              <span className="text-5xl mb-3">🛍️</span>
+              <p className="text-sm">Товары скоро появятся</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
+              {visibleProducts.map((product) => (
+                <HomeProductCard
+                  key={product.id}
+                  product={product}
+                  storeName={storeMap[product.store_id]?.name}
+                  onOpen={() => onOpenProduct(product)}
+                  onShowInStore={() => { onClose(); onOpenStore(product.store_id, product.id); }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>,
     document.body
@@ -639,7 +641,8 @@ function RecipesModal({
   useBodyScrollLock();
   if (typeof document === "undefined") return null;
   return createPortal(
-    <div className="fixed inset-0 z-[9999] bg-white flex flex-col animate-slide-in-right">
+    <div className="fixed inset-0 z-[9999] bg-white overflow-hidden">
+      <div className="flex flex-col h-full animate-slide-in-right">
       <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-100 flex-shrink-0" style={{ background: "linear-gradient(135deg, #059669 0%, #0d9488 100%)" }}>
         <button onClick={onClose} className="w-9 h-9 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors flex-shrink-0">
           <svg className="w-4 h-4 text-white" viewBox="0 0 20 20" fill="currentColor">
@@ -675,6 +678,7 @@ function RecipesModal({
             </button>
           ))}
         </div>
+      </div>
       </div>
     </div>,
     document.body
@@ -725,7 +729,8 @@ function RecipeDetailModal({
 
   if (typeof document === "undefined") return null;
   return createPortal(
-    <div className="fixed inset-0 z-[10000] bg-white flex flex-col animate-slide-in-right">
+    <div className="fixed inset-0 z-[10000] bg-white overflow-hidden">
+      <div className="flex flex-col h-full animate-slide-in-right">
       <div className="relative flex flex-col h-full overflow-hidden">
         <div className="relative bg-gradient-to-r from-emerald-500 to-teal-600 px-4 pt-4 pb-5">
           <button onClick={onClose} className="mb-3 w-9 h-9 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors">
@@ -796,6 +801,7 @@ function RecipeDetailModal({
             </button>
           </div>
         )}
+      </div>
       </div>
     </div>,
     document.body

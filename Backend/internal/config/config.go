@@ -13,11 +13,18 @@ type Config struct {
 	Database DatabaseConfig
 	JWT      JWTConfig
 	SMS      SMSConfig
-	Jaeger   JaegerConfig
 	Telegram TelegramConfig
 	Admin    AdminConfig
 	CORS     CORSConfig
 	Redis    RedisConfig
+	VAPID    VAPIDConfig
+}
+
+// VAPIDConfig содержит ключи для Web Push уведомлений.
+type VAPIDConfig struct {
+	PublicKey  string
+	PrivateKey string
+	Email      string
 }
 
 // ServerConfig содержит конфигурацию сервера.
@@ -50,11 +57,6 @@ type JWTConfig struct {
 type SMSConfig struct {
 	RuAPIKey string
 	TestMode bool
-}
-
-// JaegerConfig содержит конфигурацию трейсинга Jaeger.
-type JaegerConfig struct {
-	Endpoint string
 }
 
 // TelegramConfig содержит конфигурацию Telegram бота.
@@ -107,9 +109,6 @@ func Load() (*Config, error) {
 			RuAPIKey: getEnv("SMS_RU_KEY", getEnv("SMSRU_API_KEY", "")),
 			TestMode: getEnvBool("SMS_RU_TEST", false),
 		},
-		Jaeger: JaegerConfig{
-			Endpoint: getEnv("JAEGER_ENDPOINT", "http://jaeger:14268/api/traces"),
-		},
 		Telegram: TelegramConfig{
 			BotToken:       getEnv("TG_BOT_TOKEN", ""),
 			ChatID:         getEnv("TG_CHAT_ID", ""),
@@ -127,6 +126,11 @@ func Load() (*Config, error) {
 			Port:     getEnv("REDIS_PORT", "6379"),
 			Password: getEnv("REDIS_PASSWORD", ""),
 			DB:       getEnvAsInt("REDIS_DB", 0),
+		},
+		VAPID: VAPIDConfig{
+			PublicKey:  getEnv("VAPID_PUBLIC_KEY", ""),
+			PrivateKey: getEnv("VAPID_PRIVATE_KEY", ""),
+			Email:      getEnv("VAPID_EMAIL", ""),
 		},
 	}
 

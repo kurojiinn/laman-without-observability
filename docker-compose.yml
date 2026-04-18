@@ -16,6 +16,19 @@ services:
     networks:
       - laman-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: laman-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    networks:
+      - laman-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   api:
     build:
       context: ./Backend
@@ -32,7 +45,6 @@ services:
       SERVER_PORT: ${SERVER_PORT}
       SERVER_HOST: ${SERVER_HOST}
       PUBLIC_URL: http://${HOST_IP}:8080
-      JAEGER_ENDPOINT: ${JAEGER_ENDPOINT}
       SMS_RU_KEY: ${SMS_RU_KEY}
       SMSRU_API_KEY: ${SMSRU_API_KEY}
       TG_BOT_TOKEN: ${TG_BOT_TOKEN}
@@ -55,68 +67,9 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
-      jaeger:
-        condition: service_started
     networks:
       - laman-network
     restart: unless-stopped
-
-  jaeger:
-    image: jaegertracing/all-in-one:latest
-    container_name: laman-jaeger
-    environment:
-      - COLLECTOR_OTLP_ENABLED=true
-    ports:
-      - "127.0.0.1:16686:16686"
-    networks:
-      - laman-network
-    restart: unless-stopped
-
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: laman-prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-    ports:
-      - "127.0.0.1:9090:9090"
-    volumes:
-      - ./Backend/docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    networks:
-      - laman-network
-    restart: unless-stopped
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: laman-grafana
-    environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
-      - GF_USERS_ALLOW_SIGN_UP=false
-    ports:
-      - "127.0.0.1:3001:3000"
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./Backend/docker/grafana/provisioning:/etc/grafana/provisioning
-    depends_on:
-      - prometheus
-    networks:
-      - laman-network
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    container_name: laman-redis
-    command: redis-server --requirepass ${REDIS_PASSWORD}
-    networks:
-      - laman-network
-    restart: unless-stopped
-    healthcheck:
-      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   nginx:
     image: nginx:alpine
@@ -139,5 +92,3 @@ networks:
 
 volumes:
   postgres_data:
-  prometheus_data:
-  grafana_data:

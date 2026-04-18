@@ -26,12 +26,10 @@ import (
 	"Laman/internal/observability"
 	"Laman/internal/orders"
 	"Laman/internal/payments"
+	"Laman/internal/push"
 	"Laman/internal/users"
 
-	_ "net/http/pprof"
-
 	"github.com/gin-gonic/gin"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
@@ -48,18 +46,6 @@ func main() {
 		log.Fatalf("Не удалось инициализировать логгер: %v", err)
 	}
 	defer func() { _ = logger.Sync() }()
-
-	// Инициализация трейсинга
-	tp, err := observability.InitTracing(cfg)
-	if err != nil {
-		logger.Warn("Не удалось инициализировать трейсинг", zap.Error(err))
-	} else {
-		defer func() {
-			if err := tp.Shutdown(context.Background()); err != nil {
-				logger.Error("Не удалось остановить tracer provider", zap.Error(err))
-			}
-		}()
-	}
 
 	// Инициализация базы данных
 	db, err := database.New(&cfg.Database)
@@ -137,6 +123,7 @@ func main() {
 	userService := users.NewUserService(userRepo)
 	catalogService := catalog.NewCatalogService(categoryRepo, subcategoryRepo, productRepo, storeRepo, reviewRepo, featuredRepo, recipeRepo, scenarioRepo, storeCatMetaRepo)
 	courierService := courier.NewCourierService(courierRepo)
+	pushService := push.NewService(db.DB.DB, logger, cfg.VAPID.PublicKey, cfg.VAPID.PrivateKey, cfg.VAPID.Email)
 	orderService := orders.NewOrderService(
 		db,
 		orderRepo,
@@ -149,6 +136,7 @@ func main() {
 		200.0, // 200 руб. стоимость доставки
 		courierService,
 		telegramNotifier,
+		pushService,
 		logger,
 		hub,
 	)
@@ -162,16 +150,14 @@ func main() {
 	orderHandler := orders.NewHandler(orderService, authService, hub)
 	adminRepo := admin.NewPostgresRepository(db)
 	adminService := admin.NewService(adminRepo, logger)
-	adminHandler := admin.NewHandler(adminService, logger, cfg.Server.PublicURL).WithRecipes(catalogService)
+	adminHandler := admin.NewHandler(adminService, logger, cfg.Server.PublicURL).WithRecipes(catalogService).WithStoreCategoryUpdater(catalogService).WithScenarios(catalogService)
 	courierHandler := courier.NewHandler(courierService, authService, logger)
 	pickerHandler := picker.NewHandler(pickerService, logger, authService, hub)
 	favoritesHandler := favorites.NewHandler(favoritesService, authService, logger)
+	pushHandler := push.NewHandler(pushService, authService)
 
 	// Настройка роутера
-	router := setupRouter(logger, cfg, authService, authHandler, userHandler, catalogHandler, orderHandler, adminHandler, courierHandler, pickerHandler, favoritesHandler)
-
-	// Настройка эндпоинта метрик (только для admin)
-	router.GET("/metrics", middleware.AdminAuthMiddleware(cfg.Admin), gin.WrapH(promhttp.Handler()))
+	router := setupRouter(logger, cfg, authService, authHandler, userHandler, catalogHandler, orderHandler, adminHandler, courierHandler, pickerHandler, favoritesHandler, pushHandler)
 
 	// Настройка health check
 	router.GET("/health", func(c *gin.Context) {
@@ -226,6 +212,7 @@ func setupRouter(
 	courierHandler *courier.Handler,
 	pickerHandler *picker.Handler,
 	favoritesHandler *favorites.Handler,
+	pushHandler *push.Handler,
 ) *gin.Engine {
 	router := gin.New()
 
@@ -256,8 +243,8 @@ func setupRouter(
 		courierHandler.RegisterRoutes(v1)
 		pickerHandler.RegisterRoutes(v1)
 		favoritesHandler.RegisterRoutes(v1)
+		pushHandler.RegisterRoutes(v1)
 	}
 
-	router.GET("/debug/pprof/*any", middleware.AdminAuthMiddleware(cfg.Admin), gin.WrapH(http.DefaultServeMux))
 	return router
 }

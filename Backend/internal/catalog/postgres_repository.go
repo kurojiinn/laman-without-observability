@@ -113,7 +113,7 @@ func (r *postgresProductRepository) GetAll(ctx context.Context, categoryID *uuid
 	return products, err
 }
 
-func (r *postgresProductRepository) GetByStoreID(ctx context.Context, storeID uuid.UUID, subcategoryID *uuid.UUID, search *string, availableOnly bool) ([]models.Product, error) {
+func (r *postgresProductRepository) GetByStoreID(ctx context.Context, storeID uuid.UUID, subcategoryID *uuid.UUID, search *string, availableOnly bool, limit, offset int) ([]models.Product, error) {
 	var products []models.Product
 	query := `SELECT id, category_id, subcategory_id, store_id, name, description, image_url, price, weight, is_available, created_at, updated_at FROM products WHERE store_id = $1`
 	args := []interface{}{storeID}
@@ -134,6 +134,11 @@ func (r *postgresProductRepository) GetByStoreID(ctx context.Context, storeID uu
 	}
 
 	query += " ORDER BY name"
+
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
+		args = append(args, limit, offset)
+	}
 
 	err := r.db.SelectContext(ctx, &products, query, args...)
 	return products, err
