@@ -11,6 +11,7 @@ type Category struct {
 	ID          uuid.UUID `db:"id" json:"id"`
 	Name        string    `db:"name" json:"name"`
 	Description *string   `db:"description" json:"description,omitempty"`
+	ImageURL    *string   `db:"image_url" json:"image_url,omitempty"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
@@ -126,6 +127,12 @@ type FeaturedProduct struct {
 	BlockType FeaturedBlockType `db:"block_type" json:"block_type"`
 	Position  int               `db:"position"   json:"position"`
 	CreatedAt time.Time         `db:"created_at" json:"created_at"`
+}
+
+// StoreCategoryMeta хранит настройки отображения типа магазина (фоновое изображение).
+type StoreCategoryMeta struct {
+	CategoryType string  `db:"category_type" json:"category_type"`
+	ImageURL     *string `db:"image_url"     json:"image_url,omitempty"`
 }
 
 // StoreCategoryType представляет тип магазина.

@@ -1,8 +1,13 @@
 package catalog
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -24,6 +29,7 @@ type Handler struct {
 	catalogService *CatalogService
 	authService    TokenValidator
 	logger         *zap.Logger
+	uploadsBaseURL string
 }
 
 // NewHandler создает новый обработчик каталога.
@@ -32,6 +38,12 @@ func NewHandler(catalogService *CatalogService, logger *zap.Logger) *Handler {
 		catalogService: catalogService,
 		logger:         logger,
 	}
+}
+
+// WithUploadsBaseURL задаёт базовый URL для загрузок.
+func (h *Handler) WithUploadsBaseURL(url string) *Handler {
+	h.uploadsBaseURL = strings.TrimRight(url, "/")
+	return h
 }
 
 // WithAuth добавляет TokenValidator для защищённых эндпоинтов отзывов.
@@ -58,9 +70,11 @@ func (h *Handler) RegisterAdminRoutes(router *gin.RouterGroup, authMW gin.Handle
 		recipes.POST("/:id/products", h.AdminAddRecipeProduct)
 		recipes.DELETE("/:id/products/:product_id", h.AdminRemoveRecipeProduct)
 	}
+	router.PATCH("/catalog/store-category-meta/:type/image", authMW, adminMW, h.AdminUpdateStoreCategoryImage)
+
 	scenarios := router.Group("/catalog/scenarios", authMW, adminMW)
 	{
-		scenarios.GET("", h.AdminGetScenarios)
+		scenarios.GET("/all", h.AdminGetScenarios)
 		scenarios.POST("", h.AdminCreateScenario)
 		scenarios.PATCH("/:id", h.AdminUpdateScenario)
 		scenarios.DELETE("/:id", h.AdminDeleteScenario)
@@ -79,6 +93,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 		catalog.GET("/recipes", h.GetRecipes)
 		catalog.GET("/recipes/:id", h.GetRecipe)
 		catalog.GET("/scenarios", h.GetScenarios)
+		catalog.GET("/store-category-meta", h.GetStoreCategoryMeta)
 	}
 
 	stores := router.Group("/stores")
@@ -852,4 +867,100 @@ func (h *Handler) AdminDeleteScenario(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// ─── Store category meta ───────────────────────────────────────────────────────
+
+func (h *Handler) GetStoreCategoryMeta(c *gin.Context) {
+	items, err := h.catalogService.GetStoreCategoryMeta(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, items)
+}
+
+func (h *Handler) AdminUpdateStoreCategoryImage(c *gin.Context) {
+	categoryType := strings.ToUpper(c.Param("type"))
+	validTypes := map[string]bool{"FOOD": true, "PHARMACY": true, "BUILDING": true, "HOME": true, "CLOTHES": true, "AUTO": true}
+	if !validTypes[categoryType] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный тип категории"})
+		return
+	}
+
+	_ = c.Request.ParseMultipartForm(20 << 20)
+	imageURL, err := h.saveUploadedImageCatalog(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if imageURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "файл изображения обязателен"})
+		return
+	}
+
+	if err := h.catalogService.UpdateStoreCategoryImage(c.Request.Context(), categoryType, imageURL); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"image_url": imageURL})
+}
+
+var allowedMIMETypesCatalog = []struct {
+	magic []byte
+	ext   string
+}{
+	{[]byte{0xFF, 0xD8, 0xFF}, ".jpg"},
+	{[]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, ".png"},
+	{[]byte{0x47, 0x49, 0x46, 0x38}, ".gif"},
+	{[]byte{0x52, 0x49, 0x46, 0x46}, ".webp"},
+}
+
+func (h *Handler) saveUploadedImageCatalog(c *gin.Context) (string, error) {
+	fileHeader, err := c.FormFile("image")
+	if err != nil {
+		return "", nil
+	}
+	f, err := fileHeader.Open()
+	if err != nil {
+		return "", fmt.Errorf("не удалось открыть файл")
+	}
+	defer f.Close()
+
+	header := make([]byte, 12)
+	if _, err := io.ReadFull(f, header); err != nil && err != io.ErrUnexpectedEOF {
+		return "", fmt.Errorf("не удалось прочитать файл")
+	}
+
+	var ext string
+	for _, t := range allowedMIMETypesCatalog {
+		if len(header) >= len(t.magic) && bytes.Equal(header[:len(t.magic)], t.magic) {
+			if t.ext == ".webp" {
+				if len(header) >= 12 && string(header[8:12]) == "WEBP" {
+					ext = ".webp"
+					break
+				}
+				return "", fmt.Errorf("недопустимый тип файла")
+			}
+			ext = t.ext
+			break
+		}
+	}
+	if ext == "" {
+		return "", fmt.Errorf("разрешены только JPEG, PNG, GIF, WebP")
+	}
+
+	if err := os.MkdirAll("uploads", 0o755); err != nil {
+		return "", fmt.Errorf("не удалось подготовить папку загрузок")
+	}
+	fileName := uuid.NewString() + ext
+	if err := c.SaveUploadedFile(fileHeader, filepath.Join("uploads", fileName)); err != nil {
+		return "", fmt.Errorf("не удалось сохранить изображение")
+	}
+
+	base := h.uploadsBaseURL
+	if base == "" {
+		base = ""
+	}
+	return base + "/uploads/" + fileName, nil
 }

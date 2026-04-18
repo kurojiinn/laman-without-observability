@@ -30,6 +30,11 @@ type Repository interface {
 	GetFeaturedList(ctx context.Context, blockType models.FeaturedBlockType) ([]models.FeaturedProduct, error)
 	AddFeatured(ctx context.Context, fp *models.FeaturedProduct) error
 	DeleteFeatured(ctx context.Context, id uuid.UUID) error
+	// Категории
+	GetCategories(ctx context.Context) ([]models.Category, error)
+	CreateCategory(ctx context.Context, cat *models.Category) error
+	UpdateCategoryImage(ctx context.Context, id uuid.UUID, imageURL string) error
+	DeleteCategory(ctx context.Context, id uuid.UUID) error
 }
 
 // postgresRepository реализует Repository на PostgreSQL.
@@ -357,3 +362,34 @@ func (r *postgresRepository) DeleteFeatured(ctx context.Context, id uuid.UUID) e
 }
 
 var errInvalidStatus = fmt.Errorf("некорректный статус заказа")
+
+// GetCategories возвращает все категории.
+func (r *postgresRepository) GetCategories(ctx context.Context) ([]models.Category, error) {
+	var cats []models.Category
+	err := r.db.SelectContext(ctx, &cats, `SELECT id, name, description, image_url, created_at, updated_at FROM categories ORDER BY name`)
+	return cats, err
+}
+
+// CreateCategory создаёт новую категорию.
+func (r *postgresRepository) CreateCategory(ctx context.Context, cat *models.Category) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO categories (id, name, description, image_url, created_at, updated_at) VALUES ($1, $2, $3, $4, NOW(), NOW())`,
+		cat.ID, cat.Name, cat.Description, cat.ImageURL,
+	)
+	return err
+}
+
+// UpdateCategoryImage обновляет фоновое изображение категории.
+func (r *postgresRepository) UpdateCategoryImage(ctx context.Context, id uuid.UUID, imageURL string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE categories SET image_url = $1, updated_at = NOW() WHERE id = $2`,
+		imageURL, id,
+	)
+	return err
+}
+
+// DeleteCategory удаляет категорию (без удаления товаров).
+func (r *postgresRepository) DeleteCategory(ctx context.Context, id uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM categories WHERE id = $1`, id)
+	return err
+}

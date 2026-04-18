@@ -43,6 +43,77 @@ export const fetchCategories = async (): Promise<Category[]> => {
   return data ?? [];
 };
 
+export const fetchAdminCategories = async (user: string, password: string): Promise<Category[]> => {
+  const { data } = await createAdminClient(user, password).get<Category[]>("/categories");
+  return data ?? [];
+};
+
+export const createCategory = async (
+  user: string,
+  password: string,
+  name: string,
+  image?: File | null
+): Promise<Category> => {
+  const form = new FormData();
+  form.append("name", name);
+  if (image) form.append("image", image);
+  const { data } = await createAdminClient(user, password).post<Category>("/categories", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+};
+
+export const updateCategoryImage = async (
+  user: string,
+  password: string,
+  categoryId: string,
+  image: File
+): Promise<{ image_url: string }> => {
+  const form = new FormData();
+  form.append("image", image);
+  const { data } = await createAdminClient(user, password).patch<{ image_url: string }>(
+    `/categories/${categoryId}/image`,
+    form,
+    { headers: { "Content-Type": "multipart/form-data" } }
+  );
+  return data;
+};
+
+// ─── Store category meta (фоны типов магазинов) ───────────────────────────────
+
+export type StoreCategoryMeta = { category_type: string; image_url?: string | null };
+
+export const fetchStoreCategoryMeta = async (): Promise<StoreCategoryMeta[]> => {
+  const { data } = await publicClient.get<StoreCategoryMeta[]>("/catalog/store-category-meta");
+  return data ?? [];
+};
+
+export const updateStoreCategoryImage = async (
+  user: string,
+  password: string,
+  categoryType: string,
+  image: File
+): Promise<{ image_url: string }> => {
+  const form = new FormData();
+  form.append("image", image);
+  // эндпоинт под /api/v1/catalog (не /admin), поэтому используем publicClient с Basic auth
+  const { data } = await publicClient.patch<{ image_url: string }>(
+    `/catalog/store-category-meta/${categoryType}/image`,
+    form,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+        Authorization: "Basic " + btoa(`${user}:${password}`),
+      },
+    }
+  );
+  return data;
+};
+
+export const deleteCategory = async (user: string, password: string, categoryId: string) => {
+  await createAdminClient(user, password).delete(`/categories/${categoryId}`);
+};
+
 export const fetchProducts = async (user: string, password: string, storeId: string): Promise<Product[]> => {
   const { data } = await createAdminClient(user, password).get<Product[]>(`/products?store_id=${storeId}`);
   return data ?? [];
@@ -233,7 +304,7 @@ export const removeRecipeProduct = async (
 import type { Scenario } from "../types";
 
 export const fetchScenarios = async (user: string, password: string): Promise<Scenario[]> => {
-  const { data } = await createAdminClient(user, password).get<Scenario[]>("/catalog/scenarios");
+  const { data } = await createAdminClient(user, password).get<Scenario[]>("/catalog/scenarios/all");
   return data ?? [];
 };
 

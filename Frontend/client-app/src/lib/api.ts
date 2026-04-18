@@ -28,6 +28,10 @@ export function resolveImageUrl(url: string | undefined | null): string | undefi
   }
 }
 
+export function getUploadUrl(filename: string): string {
+  return resolveImageUrl(`http://placeholder/uploads/${filename}`) ?? `/uploads/${filename}`;
+}
+
 function getBaseHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -200,6 +204,7 @@ export const catalogApi = {
   getRecipes: () => api.get<RecipeWithProducts[]>("/v1/catalog/recipes"),
   getRecipe: (id: string) => api.get<RecipeWithProducts>(`/v1/catalog/recipes/${id}`),
   getScenarios: () => api.get<Scenario[]>("/v1/catalog/scenarios"),
+  getStoreCategoryMeta: () => api.get<{ category_type: string; image_url?: string | null }[]>("/v1/catalog/store-category-meta"),
 };
 
 export interface Recipe {

@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { catalogApi, resolveImageUrl, type Product, type Store, type RecipeWithProducts, type Scenario } from "@/lib/api";
-import { useFavorites } from "@/context/FavoritesContext";
-import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import ProductModal from "@/components/ui/ProductModal";
 
@@ -28,11 +27,12 @@ const SHOWCASES: Record<ShowcaseKey, ShowcaseBlock> = {
 
 interface Props {
   onOpenStore: (storeId: string, productId?: string) => void;
+  onGoToCart: () => void;
   search: string;
   activeCity: string;
 }
 
-export default function HomeTab({ onOpenStore, search, activeCity }: Props) {
+export default function HomeTab({ onOpenStore, onGoToCart, search, activeCity }: Props) {
   const [storeMap, setStoreMap] = useState<Record<string, Store>>({});
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [newItems, setNewItems] = useState<Product[]>([]);
@@ -119,6 +119,7 @@ export default function HomeTab({ onOpenStore, search, activeCity }: Props) {
               onViewAll={() => handleOpenShowcase("new_items")}
               onOpenProduct={setSelectedProduct}
               onOpenStore={onOpenStore}
+              badge="new"
             />
           )}
 
@@ -133,12 +134,18 @@ export default function HomeTab({ onOpenStore, search, activeCity }: Props) {
               onViewAll={() => handleOpenShowcase("hits")}
               onOpenProduct={setSelectedProduct}
               onOpenStore={onOpenStore}
+              badge="hot"
             />
           )}
 
           {/* ── Рецепты ── */}
           {recipes.length > 0 && (
-            <RecipesBanner recipes={recipes} onOpen={() => setOpenRecipesModal(true)} />
+            <RecipesBanner
+              recipes={recipes}
+              onOpen={() => setOpenRecipesModal(true)}
+              onOpenRecipe={handleOpenRecipe}
+              recipeLoading={recipeLoading}
+            />
           )}
 
           {/* ── Благотворительность ── */}
@@ -165,7 +172,6 @@ export default function HomeTab({ onOpenStore, search, activeCity }: Props) {
         </>
       )}
 
-      {/* ── Модальное окно витрины ── */}
       {openShowcase && (
         <ShowcasePage
           block={SHOWCASES[openShowcase] ?? { key: openShowcase, title: openShowcase, subtitle: "", emoji: "⚡", gradient: "from-indigo-500 to-violet-600" }}
@@ -199,6 +205,7 @@ export default function HomeTab({ onOpenStore, search, activeCity }: Props) {
           activeCity={activeCity}
           onClose={() => setOpenRecipe(null)}
           onOpenProduct={setSelectedProduct}
+          onGoToCart={() => { setOpenRecipe(null); setOpenRecipesModal(false); onGoToCart(); }}
         />
       )}
 
@@ -260,6 +267,7 @@ function FeaturedSection({
   onViewAll,
   onOpenProduct,
   onOpenStore,
+  badge,
 }: {
   title: string;
   emoji: string;
@@ -269,6 +277,7 @@ function FeaturedSection({
   onViewAll: () => void;
   onOpenProduct: (p: Product) => void;
   onOpenStore: (storeId: string, productId?: string) => void;
+  badge?: "new" | "hot";
 }) {
   const visible = products
     .filter((p) => storeMap[p.store_id]?.city === activeCity)
@@ -287,7 +296,7 @@ function FeaturedSection({
           Смотреть все &rsaquo;
         </button>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         {visible.map((product) => (
           <HomeProductCard
             key={product.id}
@@ -295,6 +304,7 @@ function FeaturedSection({
             storeName={storeMap[product.store_id]?.name}
             onOpen={() => onOpenProduct(product)}
             onShowInStore={() => onOpenStore(product.store_id, product.id)}
+            badge={badge}
           />
         ))}
       </div>
@@ -304,30 +314,38 @@ function FeaturedSection({
 
 // ─── RecipesBanner ────────────────────────────────────────────────────────────
 
-function RecipesBanner({ recipes, onOpen }: { recipes: RecipeWithProducts[]; onOpen: () => void }) {
+function RecipesBanner({ recipes, onOpen, onOpenRecipe, recipeLoading }: {
+  recipes: RecipeWithProducts[];
+  onOpen: () => void;
+  onOpenRecipe: (id: string) => void;
+  recipeLoading: boolean;
+}) {
   return (
     <button
       onClick={onOpen}
       className="w-full text-left rounded-2xl overflow-hidden relative active:scale-[0.98] transition-all"
       style={{ background: "linear-gradient(135deg, #059669 0%, #0d9488 100%)" }}
     >
-      <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full bg-white/5" />
       <div className="relative p-4 flex gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-1">🤌 РЕЦЕПТЫ</p>
           <h3 className="text-lg font-extrabold text-white leading-tight">Что приготовить сегодня?</h3>
           <p className="text-white/70 text-xs mt-1">Идеи блюд и всё нужное добавим в корзину</p>
-          <span className="inline-block mt-3 px-4 py-1.5 bg-black/25 rounded-full text-white text-xs font-semibold">
+          <span className="inline-block mt-3 px-4 py-1.5 bg-black/50 rounded-full text-white text-xs font-semibold">
             Смотреть рецепты
           </span>
         </div>
         <div className="flex-shrink-0 flex flex-col gap-1.5 justify-center">
           {recipes.slice(0, 2).map((r) => (
-            <div key={r.id} className="flex items-center gap-2 bg-white/10 rounded-xl px-2 py-1.5">
+            <div
+              key={r.id}
+              onClick={(e) => { e.stopPropagation(); if (!recipeLoading) onOpenRecipe(r.id); }}
+              className="flex items-center gap-2 bg-white/15 rounded-xl px-2 py-1.5 cursor-pointer active:bg-white/25 transition-colors"
+            >
               {r.image_url ? (
-                <img src={resolveImageUrl(r.image_url)} alt={r.name} className="w-7 h-7 rounded-lg object-cover flex-shrink-0" />
+                <img src={resolveImageUrl(r.image_url)} alt={r.name} className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
               ) : (
-                <span className="w-7 h-7 flex items-center justify-center text-lg flex-shrink-0">🍽️</span>
+                <span className="w-8 h-8 flex items-center justify-center text-lg flex-shrink-0">🍽️</span>
               )}
               <div className="min-w-0">
                 <p className="text-white text-[11px] font-semibold truncate max-w-[90px]">{r.name}</p>
@@ -562,8 +580,10 @@ function ShowcasePage({
   useBodyScrollLock();
   const visibleProducts = products.filter((p) => storeMap[p.store_id]?.city === activeCity);
 
-  return (
-    <div className="fixed inset-0 z-[200] bg-white overflow-hidden flex flex-col">
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] bg-white overflow-hidden flex flex-col animate-slide-in-right">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-100 flex-shrink-0">
         <button onClick={onClose} className="w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors flex-shrink-0">
@@ -577,7 +597,7 @@ function ShowcasePage({
       {/* Content */}
       <div className="flex-1 overflow-y-auto overscroll-contain p-4">
         {loading ? (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {Array.from({ length: 6 }).map((_, i) => <div key={i} className="bg-gray-100 rounded-2xl h-52 animate-pulse" />)}
           </div>
         ) : visibleProducts.length === 0 ? (
@@ -586,7 +606,7 @@ function ShowcasePage({
             <p className="text-sm">Товары скоро появятся</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {visibleProducts.map((product) => (
               <HomeProductCard
                 key={product.id}
@@ -599,7 +619,8 @@ function ShowcasePage({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -616,65 +637,63 @@ function RecipesModal({
   recipeLoading: boolean;
 }) {
   useBodyScrollLock();
-  return (
-    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm overflow-hidden" onClick={onClose}>
-      <div className="relative bg-white w-full sm:max-w-2xl sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92dvh] min-h-[80dvh] sm:min-h-0" onClick={(e) => e.stopPropagation()}>
-        <div className="bg-gradient-to-r from-emerald-500 to-teal-600 px-5 pt-5 pb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-3xl">👨‍🍳</span>
-              <div>
-                <h2 className="text-lg font-bold text-white">Рецепты</h2>
-                <p className="text-white/75 text-xs">Выбери блюдо и собери ингредиенты</p>
-              </div>
-            </div>
-            <button onClick={onClose} className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors">
-              <svg className="w-4 h-4 text-white" viewBox="0 0 16 16" fill="none"><path d="M2 2l12 12M14 2L2 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-            </button>
-          </div>
-        </div>
-        <div className="overflow-y-auto overscroll-contain flex-1 p-4 bg-gray-50">
-          <div className="grid grid-cols-2 gap-3">
-            {recipes.map((recipe) => (
-              <button key={recipe.id} onClick={() => onOpenRecipe(recipe.id)} disabled={recipeLoading} className="text-left bg-white border border-gray-100 rounded-2xl overflow-hidden hover:shadow-md active:scale-[0.98] transition-all disabled:opacity-50 flex flex-col">
-                <div className="aspect-square w-full bg-gray-50 overflow-hidden flex items-center justify-center">
-                  {recipe.image_url ? (
-                    <img src={resolveImageUrl(recipe.image_url)} alt={recipe.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-5xl">🍽️</span>
-                  )}
-                </div>
-                <div className="p-3 flex flex-col flex-1 gap-1">
-                  <p className="font-semibold text-gray-900 text-sm leading-tight line-clamp-2">{recipe.name}</p>
-                  {recipe.description && <p className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed">{recipe.description}</p>}
-                  <div className="flex items-center gap-1 mt-auto pt-2">
-                    <span className="text-xs text-emerald-600 font-semibold">Собрать блюдо</span>
-                    <svg className="w-3 h-3 text-emerald-500" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] bg-white flex flex-col animate-slide-in-right">
+      <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-100 flex-shrink-0" style={{ background: "linear-gradient(135deg, #059669 0%, #0d9488 100%)" }}>
+        <button onClick={onClose} className="w-9 h-9 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors flex-shrink-0">
+          <svg className="w-4 h-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+          </svg>
+        </button>
+        <div>
+          <h1 className="text-base font-bold text-white">👨‍🍳 Рецепты</h1>
+          <p className="text-white/70 text-xs">Выбери блюдо и собери ингредиенты</p>
         </div>
       </div>
-    </div>
+      <div className="overflow-y-auto overscroll-contain flex-1 p-4 bg-gray-50">
+        <div className="grid grid-cols-2 gap-3">
+          {recipes.map((recipe) => (
+            <button key={recipe.id} onClick={() => onOpenRecipe(recipe.id)} disabled={recipeLoading} className="text-left bg-white border border-gray-100 rounded-2xl overflow-hidden hover:shadow-md active:scale-[0.98] transition-all disabled:opacity-50 flex flex-col">
+              <div className="aspect-square w-full bg-gray-50 overflow-hidden flex items-center justify-center">
+                {recipe.image_url ? (
+                  <img src={resolveImageUrl(recipe.image_url)} alt={recipe.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-5xl">🍽️</span>
+                )}
+              </div>
+              <div className="p-3 flex flex-col flex-1 gap-1">
+                <p className="font-semibold text-gray-900 text-sm leading-tight line-clamp-2">{recipe.name}</p>
+                {recipe.description && <p className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed">{recipe.description}</p>}
+                <div className="flex items-center gap-1 mt-auto pt-2">
+                  <span className="text-xs text-emerald-600 font-semibold">Собрать блюдо</span>
+                  <svg className="w-3 h-3 text-emerald-500" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 
 // ─── Recipe Detail Modal ──────────────────────────────────────────────────────
 
 function RecipeDetailModal({
-  recipe, storeMap, activeCity, onClose, onOpenProduct,
+  recipe, storeMap, activeCity, onClose, onOpenProduct, onGoToCart,
 }: {
   recipe: RecipeWithProducts;
   storeMap: Record<string, Store>;
   activeCity: string;
   onClose: () => void;
   onOpenProduct: (p: Product) => void;
+  onGoToCart: () => void;
 }) {
-  const { addItem } = useCart();
+  const { addItem, removeItem } = useCart();
   const [addedAll, setAddedAll] = useState(false);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   useBodyScrollLock();
@@ -691,20 +710,28 @@ function RecipeDetailModal({
     visibleProducts.forEach((ingredient) => { for (let i = 0; i < ingredient.quantity; i++) addItem(ingredient); });
     setAddedAll(true);
     setAddedIds(new Set(visibleProducts.map((p) => p.id)));
-    setTimeout(() => setAddedAll(false), 2500);
+    setTimeout(() => onGoToCart(), 600);
   }
 
   function handleAddOne(ingredient: RecipeWithProducts["products"][number]) {
-    for (let i = 0; i < ingredient.quantity; i++) addItem(ingredient);
-    setAddedIds((prev) => new Set([...prev, ingredient.id]));
+    if (addedIds.has(ingredient.id)) {
+      removeItem(ingredient.id);
+      setAddedIds((prev) => { const s = new Set(prev); s.delete(ingredient.id); return s; });
+    } else {
+      for (let i = 0; i < ingredient.quantity; i++) addItem(ingredient);
+      setAddedIds((prev) => new Set([...prev, ingredient.id]));
+    }
   }
 
-  return (
-    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm overflow-hidden" onClick={onClose}>
-      <div className="relative bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92dvh] min-h-[80dvh] sm:min-h-0" onClick={(e) => e.stopPropagation()}>
-        <div className="relative bg-gradient-to-r from-emerald-500 to-teal-600 px-5 pt-5 pb-5">
-          <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors">
-            <svg className="w-4 h-4 text-white" viewBox="0 0 16 16" fill="none"><path d="M2 2l12 12M14 2L2 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[10000] bg-white flex flex-col animate-slide-in-right">
+      <div className="relative flex flex-col h-full overflow-hidden">
+        <div className="relative bg-gradient-to-r from-emerald-500 to-teal-600 px-4 pt-4 pb-5">
+          <button onClick={onClose} className="mb-3 w-9 h-9 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors">
+            <svg className="w-4 h-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+            </svg>
           </button>
           <div className="flex items-start gap-4">
             {recipe.image_url && (
@@ -770,7 +797,8 @@ function RecipeDetailModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -800,7 +828,7 @@ function SearchResults({
 
   if (loading) {
     return (
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         {Array.from({ length: 4 }).map((_, i) => <div key={i} className="bg-gray-100 rounded-2xl h-52 animate-pulse" />)}
       </div>
     );
@@ -818,7 +846,7 @@ function SearchResults({
   return (
     <div>
       <p className="text-sm font-semibold text-gray-500 mb-3">Результаты поиска ({visible.length})</p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         {visible.map((product) => (
           <HomeProductCard
             key={product.id}
@@ -836,54 +864,46 @@ function SearchResults({
 // ─── Home Product Card ────────────────────────────────────────────────────────
 
 function HomeProductCard({
-  product, storeName, onOpen, onShowInStore,
+  product, storeName, onOpen, onShowInStore, badge,
 }: {
   product: Product;
   storeName?: string;
   onOpen: () => void;
-  onShowInStore: () => void;
+  onShowInStore?: () => void;
+  badge?: "new" | "hot";
 }) {
-  const { isFavorite, toggleFavorite } = useFavorites();
-  const { isAuthenticated, openAuthModal } = useAuth();
-  const fav = isFavorite(product.id);
-
-  function handleFav(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (!isAuthenticated) { openAuthModal(); return; }
-    toggleFavorite(product);
-  }
-
   return (
     <div
-      className="relative bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col hover:shadow-md transition-shadow cursor-pointer"
+      className="relative bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col active:scale-[0.97] transition-transform cursor-pointer"
       onClick={onOpen}
     >
-      <button onClick={handleFav} className="absolute top-2 right-2 z-10 w-8 h-8 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow-sm transition-colors">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill={fav ? "#ef4444" : "none"} stroke={fav ? "#ef4444" : "#9ca3af"} strokeWidth="2">
-          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-        </svg>
-      </button>
+      {badge === "new" && (
+        <span className="absolute top-2 left-2 z-10 bg-indigo-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none tracking-wide">
+          Новинка
+        </span>
+      )}
+      {badge === "hot" && (
+        <span className="absolute top-1.5 left-2 z-10 text-base leading-none">🔥</span>
+      )}
 
       <div className="aspect-square bg-gray-50 overflow-hidden">
         {product.image_url ? (
           <img src={resolveImageUrl(product.image_url)} alt={product.name} className="w-full h-full object-cover" />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-4xl">🛍️</div>
+          <div className="w-full h-full flex items-center justify-center text-3xl">🛍️</div>
         )}
       </div>
-      <div className="p-3 flex flex-col flex-1 gap-1">
-        {storeName && <p className="text-[10px] text-gray-400 font-medium truncate">{storeName}</p>}
-        <p className="text-xs sm:text-sm font-semibold text-gray-900 line-clamp-2 flex-1 leading-tight break-words">{product.name}</p>
-        <p className="text-sm font-bold text-gray-900 mt-1">{product.price.toLocaleString("ru-RU")} ₽</p>
-        <button
-          onClick={(e) => { e.stopPropagation(); onShowInStore(); }}
-          className="mt-2 w-full flex items-center justify-center gap-1 py-1.5 rounded-xl bg-white border border-gray-200 text-gray-700 text-xs font-semibold hover:bg-gray-50 transition-colors"
-        >
-          <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
-          </svg>
-          В магазин
-        </button>
+      <div className="p-2 flex flex-col gap-0.5">
+        {storeName && (
+          <div className="flex items-center gap-1 min-w-0">
+            <svg className="w-3 h-3 text-gray-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3z" />
+            </svg>
+            <p className="text-[10px] text-gray-400 font-medium truncate">{storeName}</p>
+          </div>
+        )}
+        <p className="text-xs font-bold text-gray-900">{product.price.toLocaleString("ru-RU")} ₽</p>
+        <p className="text-[10px] text-gray-400 line-clamp-2 leading-tight break-words">{product.name}</p>
       </div>
     </div>
   );

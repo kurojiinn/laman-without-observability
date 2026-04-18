@@ -102,6 +102,34 @@ type ImportResult struct {
 	Inserted int
 }
 
+// GetCategories возвращает все категории.
+func (s *Service) GetCategories(ctx context.Context) ([]models.Category, error) {
+	return s.repo.GetCategories(ctx)
+}
+
+// CreateCategory создаёт новую категорию.
+func (s *Service) CreateCategory(ctx context.Context, name string, imageURL *string) (*models.Category, error) {
+	cat := &models.Category{
+		ID:       uuid.New(),
+		Name:     strings.TrimSpace(name),
+		ImageURL: imageURL,
+	}
+	if err := s.repo.CreateCategory(ctx, cat); err != nil {
+		return nil, err
+	}
+	return cat, nil
+}
+
+// UpdateCategoryImage обновляет изображение категории.
+func (s *Service) UpdateCategoryImage(ctx context.Context, id uuid.UUID, imageURL string) error {
+	return s.repo.UpdateCategoryImage(ctx, id, imageURL)
+}
+
+// DeleteCategory удаляет категорию без удаления товаров.
+func (s *Service) DeleteCategory(ctx context.Context, id uuid.UUID) error {
+	return s.repo.DeleteCategory(ctx, id)
+}
+
 // ImportProducts выполняет массовый импорт товаров из Excel/CSV.
 func (s *Service) ImportProducts(ctx context.Context, filePath string, originalName string) (*ImportResult, error) {
 	ctx, span := observability.StartSpan(ctx, "admin.import_products.service")

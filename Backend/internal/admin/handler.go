@@ -31,17 +31,29 @@ type RecipeManager interface {
 	RemoveRecipeProduct(ctx context.Context, recipeID uuid.UUID, productID uuid.UUID) error
 }
 
+// StoreCategoryImageUpdater обновляет фоновое изображение типа магазина.
+type StoreCategoryImageUpdater interface {
+	UpdateStoreCategoryImage(ctx context.Context, categoryType string, imageURL string) error
+}
+
 // Handler принимает admin-запросы и проксирует их в сервис.
 type Handler struct {
-	service        *Service
-	logger         *zap.Logger
-	uploadsBaseURL string
-	recipes        RecipeManager
+	service          *Service
+	logger           *zap.Logger
+	uploadsBaseURL   string
+	recipes          RecipeManager
+	storeCatUpdater  StoreCategoryImageUpdater
 }
 
 // WithRecipes добавляет поддержку управления рецептами.
 func (h *Handler) WithRecipes(rm RecipeManager) *Handler {
 	h.recipes = rm
+	return h
+}
+
+// WithStoreCategoryUpdater добавляет поддержку обновления фонов типов магазинов.
+func (h *Handler) WithStoreCategoryUpdater(u StoreCategoryImageUpdater) *Handler {
+	h.storeCatUpdater = u
 	return h
 }
 
@@ -73,6 +85,11 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.Han
 		admin.GET("/featured", h.GetFeatured)
 		admin.POST("/featured", h.AddFeatured)
 		admin.DELETE("/featured/:id", h.DeleteFeatured)
+		// Категории
+		admin.GET("/categories", h.AdminGetCategories)
+		admin.POST("/categories", h.AdminCreateCategory)
+		admin.PATCH("/categories/:id/image", h.AdminUpdateCategoryImage)
+		admin.DELETE("/categories/:id", h.AdminDeleteCategory)
 		// Рецепты
 		if h.recipes != nil {
 			admin.GET("/recipes", h.AdminGetRecipes)
@@ -529,6 +546,82 @@ func (h *Handler) saveUploadedImage(ctx context.Context, c *gin.Context) (string
 	)
 
 	return h.uploadsBaseURL + "/uploads/" + fileName, nil
+}
+
+// ─── Category admin handlers ──────────────────────────────────────────────────
+
+func (h *Handler) AdminGetCategories(c *gin.Context) {
+	cats, err := h.service.GetCategories(c.Request.Context())
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось получить категории", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, cats)
+}
+
+func (h *Handler) AdminCreateCategory(c *gin.Context) {
+	ctx, span := observability.StartSpan(c.Request.Context(), "admin.create_category")
+	defer span.End()
+
+	_ = c.Request.ParseMultipartForm(20 << 20)
+	name := strings.TrimSpace(c.PostForm("name"))
+	if name == "" {
+		h.respondError(c, http.StatusBadRequest, "name обязателен", "")
+		return
+	}
+
+	var imageURL *string
+	if url, err := h.saveUploadedImage(ctx, c); err == nil && url != "" {
+		imageURL = &url
+	}
+
+	cat, err := h.service.CreateCategory(ctx, name, imageURL)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось создать категорию", err.Error())
+		return
+	}
+	c.JSON(http.StatusCreated, cat)
+}
+
+func (h *Handler) AdminUpdateCategoryImage(c *gin.Context) {
+	ctx, span := observability.StartSpan(c.Request.Context(), "admin.update_category_image")
+	defer span.End()
+
+	catID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID категории", "")
+		return
+	}
+
+	_ = c.Request.ParseMultipartForm(20 << 20)
+	imageURL, err := h.saveUploadedImage(ctx, c)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "не удалось сохранить изображение", err.Error())
+		return
+	}
+	if imageURL == "" {
+		h.respondError(c, http.StatusBadRequest, "файл изображения обязателен", "")
+		return
+	}
+
+	if err := h.service.UpdateCategoryImage(ctx, catID, imageURL); err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось обновить изображение", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"image_url": imageURL})
+}
+
+func (h *Handler) AdminDeleteCategory(c *gin.Context) {
+	catID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID категории", "")
+		return
+	}
+	if err := h.service.DeleteCategory(c.Request.Context(), catID); err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось удалить категорию", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
 // respondError возвращает единый формат ошибок для админки.

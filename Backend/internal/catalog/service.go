@@ -16,8 +16,9 @@ type CatalogService struct {
 	storeRepo       StoreRepository
 	reviewRepo      ReviewRepository
 	featuredRepo    FeaturedProductRepository
-	recipeRepo      RecipeRepository
-	scenarioRepo    ScenarioRepository
+	recipeRepo          RecipeRepository
+	scenarioRepo        ScenarioRepository
+	storeCatMetaRepo    StoreCategoryMetaRepository
 }
 
 // NewCatalogService создает новый сервис каталога.
@@ -30,17 +31,29 @@ func NewCatalogService(
 	featuredRepo FeaturedProductRepository,
 	recipeRepo RecipeRepository,
 	scenarioRepo ScenarioRepository,
+	storeCatMetaRepo StoreCategoryMetaRepository,
 ) *CatalogService {
 	return &CatalogService{
-		categoryRepo:    categoryRepo,
-		subcategoryRepo: subcategoryRepo,
-		productRepo:     productRepo,
-		storeRepo:       storeRepo,
-		reviewRepo:      reviewRepo,
-		featuredRepo:    featuredRepo,
-		recipeRepo:      recipeRepo,
-		scenarioRepo:    scenarioRepo,
+		categoryRepo:     categoryRepo,
+		subcategoryRepo:  subcategoryRepo,
+		productRepo:      productRepo,
+		storeRepo:        storeRepo,
+		reviewRepo:       reviewRepo,
+		featuredRepo:     featuredRepo,
+		recipeRepo:       recipeRepo,
+		scenarioRepo:     scenarioRepo,
+		storeCatMetaRepo: storeCatMetaRepo,
 	}
+}
+
+// GetStoreCategoryMeta возвращает настройки фонов типов магазинов.
+func (s *CatalogService) GetStoreCategoryMeta(ctx context.Context) ([]models.StoreCategoryMeta, error) {
+	return s.storeCatMetaRepo.GetAll(ctx)
+}
+
+// UpdateStoreCategoryImage обновляет фоновое изображение типа магазина.
+func (s *CatalogService) UpdateStoreCategoryImage(ctx context.Context, categoryType string, imageURL string) error {
+	return s.storeCatMetaRepo.UpdateImage(ctx, categoryType, imageURL)
 }
 
 // GetCategories получает все категории.

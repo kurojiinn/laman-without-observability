@@ -73,6 +73,26 @@ func (m *adminRepoMock) DeleteFeatured(ctx context.Context, id uuid.UUID) error 
 	return nil
 }
 
+func (m *adminRepoMock) GetAllOrders(ctx context.Context) ([]models.Order, error) {
+	return []models.Order{}, nil
+}
+
+func (m *adminRepoMock) GetCategories(ctx context.Context) ([]models.Category, error) {
+	return []models.Category{}, nil
+}
+
+func (m *adminRepoMock) CreateCategory(ctx context.Context, cat *models.Category) error {
+	return nil
+}
+
+func (m *adminRepoMock) UpdateCategoryImage(ctx context.Context, id uuid.UUID, imageURL string) error {
+	return nil
+}
+
+func (m *adminRepoMock) DeleteCategory(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+
 func TestUpdateOrderStatus_Valid(t *testing.T) {
 	repo := &adminRepoMock{}
 	service := NewService(repo, zap.NewNop())

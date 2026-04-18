@@ -36,7 +36,7 @@ export default function FavoritesTab({ search }: { search: string }) {
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+        <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="bg-gray-100 rounded-2xl aspect-[3/4] animate-pulse" />
           ))}
@@ -65,7 +65,7 @@ export default function FavoritesTab({ search }: { search: string }) {
           <p className="text-sm">Ничего не найдено</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+        <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
           {visibleFavorites.map((product) => (
             <FavoriteCard
               key={product.id}

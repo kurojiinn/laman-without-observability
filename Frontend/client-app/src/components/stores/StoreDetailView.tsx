@@ -84,7 +84,10 @@ export default function StoreDetailView({
           if (uniqueSubcatIds.includes(sc.id)) map.set(sc.id, sc.name);
         }
         setSubcategoryMap(map);
-        setSubcategoryIds(uniqueSubcatIds.filter((id) => map.has(id)));
+        const orderedIds = uniqueSubcatIds.filter((id) => map.has(id));
+        setSubcategoryIds(orderedIds);
+        const drinksId = [...map.entries()].find(([, name]) => name === "Напитки")?.[0];
+        setSelectedSubcategoryId(drinksId ?? orderedIds[0] ?? null);
       })
       .catch(() => {});
   }, [products]);
@@ -256,16 +259,6 @@ export default function StoreDetailView({
           {/* Фильтр по подкатегориям */}
           {!productsLoading && subcategoryIds.length > 0 && (
             <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 mb-4 -mx-4 px-4">
-              <button
-                onClick={() => setSelectedSubcategoryId(null)}
-                className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                  selectedSubcategoryId === null
-                    ? "bg-indigo-600 text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}
-              >
-                Все
-              </button>
               {subcategoryIds.map((id) => (
                 <button
                   key={id}
@@ -283,7 +276,7 @@ export default function StoreDetailView({
           )}
 
           {productsLoading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-3 lg:grid-cols-4 gap-3">
               {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="bg-gray-100 rounded-2xl h-44 animate-pulse" />
               ))}
@@ -299,7 +292,7 @@ export default function StoreDetailView({
               <p className="text-sm">Ничего не найдено</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-3 lg:grid-cols-4 gap-3">
               {visibleProducts.map((product) => {
                 const cartItem = cartItems.find((i) => i.product.id === product.id);
                 return (
@@ -675,7 +668,6 @@ function ReviewCard({
   const isOwner = !!currentUserId && review.user_id === currentUserId;
 
   async function handleDelete() {
-    if (!confirm("Удалить этот отзыв?")) return;
     setDeleting(true);
     try {
       if (isAdmin) {

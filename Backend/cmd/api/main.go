@@ -104,6 +104,7 @@ func main() {
 	featuredRepo := catalog.NewPostgresFeaturedProductRepository(db)
 	recipeRepo := catalog.NewPostgresRecipeRepository(db)
 	scenarioRepo := catalog.NewPostgresScenarioRepository(db)
+	storeCatMetaRepo := catalog.NewPostgresStoreCategoryMetaRepository(db)
 	orderRepo := orders.NewPostgresOrderRepository(db)
 	orderItemRepo := orders.NewPostgresOrderItemRepository(db)
 	paymentRepo := payments.NewPostgresPaymentRepository(db)
@@ -134,7 +135,7 @@ func main() {
 		cfg.SMS.TestMode,
 	)
 	userService := users.NewUserService(userRepo)
-	catalogService := catalog.NewCatalogService(categoryRepo, subcategoryRepo, productRepo, storeRepo, reviewRepo, featuredRepo, recipeRepo, scenarioRepo)
+	catalogService := catalog.NewCatalogService(categoryRepo, subcategoryRepo, productRepo, storeRepo, reviewRepo, featuredRepo, recipeRepo, scenarioRepo, storeCatMetaRepo)
 	courierService := courier.NewCourierService(courierRepo)
 	orderService := orders.NewOrderService(
 		db,
@@ -157,7 +158,7 @@ func main() {
 	// Инициализация обработчиков
 	authHandler := auth.NewHandler(authService, logger, cfg.Server.CookieSecure)
 	userHandler := users.NewHandler(userService, authService)
-	catalogHandler := catalog.NewHandler(catalogService, logger).WithAuth(authService)
+	catalogHandler := catalog.NewHandler(catalogService, logger).WithAuth(authService).WithUploadsBaseURL(cfg.Server.PublicURL)
 	orderHandler := orders.NewHandler(orderService, authService, hub)
 	adminRepo := admin.NewPostgresRepository(db)
 	adminService := admin.NewService(adminRepo, logger)

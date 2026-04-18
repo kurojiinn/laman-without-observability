@@ -7,8 +7,9 @@ export interface CategoryMeta {
   label: string;
   bg: string;           // bg для иконки-плашки
   badgeClass: string;   // pill-бейджик в шапке магазина
-  gridBg: string;       // градиент для плитки категорий
+  gridBg: string;       // градиент для плитки категорий (фоллбэк без фото)
   icon: React.ReactNode;
+  bgImageFile?: string; // имя файла в /uploads/ для фона плитки
 }
 
 const icons: Record<string, React.ReactNode> = {
@@ -78,6 +79,7 @@ export const CATEGORY_META: Record<string, CategoryMeta> = {
     badgeClass: "bg-emerald-100 text-emerald-700",
     gridBg: "from-emerald-100 to-green-50",
     icon: icons.FOOD,
+    bgImageFile: "38f37db1-5a5e-4004-abe6-8d82265ba6b1.jpg",
   },
   PHARMACY: {
     label: "Аптека",
@@ -85,6 +87,7 @@ export const CATEGORY_META: Record<string, CategoryMeta> = {
     badgeClass: "bg-rose-100 text-rose-700",
     gridBg: "from-rose-100 to-red-50",
     icon: icons.PHARMACY,
+    bgImageFile: "dc3268ee-6664-42af-8425-2bdf91bb43f8.jpg",
   },
   BUILDING: {
     label: "Стройматериалы",
@@ -92,6 +95,7 @@ export const CATEGORY_META: Record<string, CategoryMeta> = {
     badgeClass: "bg-amber-100 text-amber-700",
     gridBg: "from-amber-100 to-orange-50",
     icon: icons.BUILDING,
+    bgImageFile: "f1fd876b-bc08-4b30-b7f3-59e50d4d5874.jpeg",
   },
   HOME: {
     label: "Химия и быт",
@@ -99,6 +103,7 @@ export const CATEGORY_META: Record<string, CategoryMeta> = {
     badgeClass: "bg-sky-100 text-sky-700",
     gridBg: "from-sky-100 to-blue-50",
     icon: icons.HOME,
+    bgImageFile: "62e6ef7d-ac41-440a-9373-428669e84084.jpg",
   },
   CLOTHES: {
     label: "Одежда",
@@ -106,6 +111,7 @@ export const CATEGORY_META: Record<string, CategoryMeta> = {
     badgeClass: "bg-violet-100 text-violet-700",
     gridBg: "from-violet-100 to-purple-50",
     icon: icons.CLOTHES,
+    bgImageFile: "6f410dbd-19e5-4bfb-9639-e861c146b976.jpg",
   },
   AUTO: {
     label: "Авто",

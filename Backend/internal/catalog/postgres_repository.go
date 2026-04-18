@@ -24,14 +24,14 @@ func NewPostgresCategoryRepository(db *database.DB) CategoryRepository {
 
 func (r *postgresCategoryRepository) GetAll(ctx context.Context) ([]models.Category, error) {
 	var categories []models.Category
-	query := `SELECT id, name, description, created_at, updated_at FROM categories ORDER BY name`
+	query := `SELECT id, name, description, image_url, created_at, updated_at FROM categories ORDER BY name`
 	err := r.db.SelectContext(ctx, &categories, query)
 	return categories, err
 }
 
 func (r *postgresCategoryRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Category, error) {
 	var category models.Category
-	query := `SELECT id, name, description, created_at, updated_at FROM categories WHERE id = $1`
+	query := `SELECT id, name, description, image_url, created_at, updated_at FROM categories WHERE id = $1`
 	err := r.db.GetContext(ctx, &category, query, id)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("категория не найдена")
@@ -507,9 +507,9 @@ func (r *postgresRecipeRepository) RemoveProduct(ctx context.Context, recipeID u
 
 // ─── PostgresScenarioRepository ───────────────────────────────────────────────
 
-type postgresScenarioRepository struct{ db *sqlx.DB }
+type postgresScenarioRepository struct{ db *database.DB }
 
-func NewPostgresScenarioRepository(db *sqlx.DB) ScenarioRepository {
+func NewPostgresScenarioRepository(db *database.DB) ScenarioRepository {
 	return &postgresScenarioRepository{db: db}
 }
 
@@ -551,5 +551,27 @@ func (r *postgresScenarioRepository) Update(ctx context.Context, id uuid.UUID, s
 
 func (r *postgresScenarioRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM featured_scenarios WHERE id = $1`, id)
+	return err
+}
+
+// ─── PostgresStoreCategoryMetaRepository ─────────────────────────────────────
+
+type postgresStoreCategoryMetaRepository struct{ db *database.DB }
+
+func NewPostgresStoreCategoryMetaRepository(db *database.DB) StoreCategoryMetaRepository {
+	return &postgresStoreCategoryMetaRepository{db: db}
+}
+
+func (r *postgresStoreCategoryMetaRepository) GetAll(ctx context.Context) ([]models.StoreCategoryMeta, error) {
+	var rows []models.StoreCategoryMeta
+	err := r.db.SelectContext(ctx, &rows, `SELECT category_type, image_url FROM store_category_meta ORDER BY category_type`)
+	return rows, err
+}
+
+func (r *postgresStoreCategoryMetaRepository) UpdateImage(ctx context.Context, categoryType string, imageURL string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE store_category_meta SET image_url = $1, updated_at = NOW() WHERE category_type = $2`,
+		imageURL, categoryType,
+	)
 	return err
 }

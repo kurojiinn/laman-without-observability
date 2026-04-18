@@ -27,6 +27,7 @@ export type Category = {
   id: string;
   name: string;
   description?: string | null;
+  image_url?: string | null;
 };
 
 export type Product = {

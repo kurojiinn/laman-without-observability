@@ -85,7 +85,7 @@ export default function Home() {
           </div>
         ) : (
           <>
-            {activeTab === "home"       && <HomeTab onOpenStore={handleOpenStore} search={search} activeCity={activeCity} />}
+            {activeTab === "home"       && <HomeTab onOpenStore={handleOpenStore} onGoToCart={() => handleTabChange("cart")} search={search} activeCity={activeCity} />}
             {activeTab === "categories" && <CategoriesTab search={search} activeCity={activeCity} />}
             {activeTab === "favorites"  && <FavoritesTab search={search} />}
             {activeTab === "cart"       && <CartTab onGoToStore={(storeId, productId) => { handleTabChange("home"); handleOpenStore(storeId, productId); }} />}

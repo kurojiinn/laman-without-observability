@@ -80,6 +80,12 @@ type RecipeRepository interface {
 	RemoveProduct(ctx context.Context, recipeID uuid.UUID, productID uuid.UUID) error
 }
 
+// StoreCategoryMetaRepository управляет фоновыми изображениями типов магазинов.
+type StoreCategoryMetaRepository interface {
+	GetAll(ctx context.Context) ([]models.StoreCategoryMeta, error)
+	UpdateImage(ctx context.Context, categoryType string, imageURL string) error
+}
+
 // ReviewRepository определяет интерфейс для работы с отзывами.
 type ReviewRepository interface {
 	// GetByStoreID возвращает все отзывы для магазина (с телефоном пользователя).

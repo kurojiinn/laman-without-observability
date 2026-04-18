@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { catalogApi, isStoreOpen, type Store } from "@/lib/api";
+import { catalogApi, getUploadUrl, resolveImageUrl, isStoreOpen, type Store } from "@/lib/api";
 import StoreDetailView from "@/components/stores/StoreDetailView";
 import CategoryIcon, { CATEGORY_META, DEFAULT_META } from "@/components/ui/CategoryIcon";
 import StoreAvatar from "@/components/ui/StoreAvatar";
@@ -16,6 +16,7 @@ export default function CategoriesTab({ search, activeCity }: { search: string; 
   const [loadingStores, setLoadingStores] = useState(true);
   const [activeCategoryType, setActiveCategoryType] = useState<string | null>(null);
   const [selectedStore, setSelectedStore] = useState<Store | null>(null);
+  const [storeCatMeta, setStoreCatMeta] = useState<Record<string, string | null>>({});
 
   useEffect(() => {
     catalogApi
@@ -23,6 +24,14 @@ export default function CategoriesTab({ search, activeCity }: { search: string; 
       .then((data) => setAllStores(data ?? []))
       .catch(() => setAllStores([]))
       .finally(() => setLoadingStores(false));
+  }, []);
+
+  useEffect(() => {
+    catalogApi.getStoreCategoryMeta().then((items) => {
+      const map: Record<string, string | null> = {};
+      for (const item of items) map[item.category_type] = item.image_url ?? null;
+      setStoreCatMeta(map);
+    }).catch(() => {});
   }, []);
 
   // Магазины выбранного города
@@ -81,7 +90,7 @@ export default function CategoriesTab({ search, activeCity }: { search: string; 
         </div>
 
         {loadingStores ? (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="bg-gray-100 rounded-2xl h-20 animate-pulse" />
             ))}
@@ -92,7 +101,7 @@ export default function CategoriesTab({ search, activeCity }: { search: string; 
             <p className="text-sm">Магазины не найдены</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {filteredStores.map((store) => (
               <StoreRow
                 key={store.id}
@@ -115,7 +124,7 @@ export default function CategoriesTab({ search, activeCity }: { search: string; 
         <>
           <h1 className="text-xl font-bold text-gray-900 mb-4">Результаты поиска</h1>
           {loadingStores ? (
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               {Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="bg-gray-100 rounded-2xl h-20 animate-pulse" />
               ))}
@@ -126,7 +135,7 @@ export default function CategoriesTab({ search, activeCity }: { search: string; 
               <p className="text-sm">Ничего не найдено</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               {filteredStores.map((store) => (
                 <StoreRow
                   key={store.id}
@@ -143,29 +152,37 @@ export default function CategoriesTab({ search, activeCity }: { search: string; 
           <h1 className="text-xl font-bold text-gray-900 mb-4">Категории</h1>
 
           {loadingStores ? (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3 lg:gap-4">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="bg-gray-100 rounded-2xl h-28 animate-pulse" />
+                <div key={i} className="bg-gray-100 rounded-2xl h-28 lg:h-44 animate-pulse" />
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3 mb-8">
-              {categoriesWithCount.map(({ type, meta, count }) => (
-                <button
-                  key={type}
-                  onClick={() => { setActiveCategoryType(type); setView("stores"); }}
-                  className={`relative flex flex-col justify-between p-3 sm:p-4 rounded-2xl bg-gradient-to-br ${meta.gridBg} hover:shadow-md transition-all text-left min-h-[100px] sm:min-h-[110px]`}
-                >
-                  <CategoryIcon type={type} size="sm" className="sm:hidden" />
-                  <CategoryIcon type={type} size="md" className="hidden sm:flex" />
-                  <div className="mt-2">
-                    <p className="text-xs sm:text-sm font-bold text-gray-900 leading-tight">{meta.label}</p>
-                    {count > 0 && (
-                      <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5">{count} {pluralStore(count)}</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3 lg:gap-4 mb-8">
+              {categoriesWithCount.map(({ type, meta, count }) => {
+                const dynamicImg = storeCatMeta[type] ?? null;
+                const bgImg = dynamicImg ? resolveImageUrl(dynamicImg) : (meta.bgImageFile ? getUploadUrl(meta.bgImageFile) : null);
+                return (
+                  <button
+                    key={type}
+                    onClick={() => { setActiveCategoryType(type); setView("stores"); }}
+                    className={`relative flex flex-col justify-between p-3 sm:p-4 lg:p-6 rounded-2xl overflow-hidden hover:shadow-lg active:scale-[0.98] transition-all text-left min-h-[100px] sm:min-h-[110px] lg:min-h-[170px] ${bgImg ? "" : `bg-gradient-to-br ${meta.gridBg}`}`}
+                  >
+                    {bgImg && (
+                      <>
+                        <img src={bgImg} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/45" />
+                      </>
                     )}
-                  </div>
-                </button>
-              ))}
+                    <div className="relative flex flex-col justify-end h-full">
+                      <p className={`text-sm lg:text-base font-bold leading-tight ${bgImg ? "text-white" : "text-gray-900"}`}>{meta.label}</p>
+                      {count > 0 && (
+                        <p className={`text-[11px] lg:text-xs mt-0.5 ${bgImg ? "text-white/70" : "text-gray-500"}`}>{count} {pluralStore(count)}</p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
 
@@ -173,7 +190,7 @@ export default function CategoriesTab({ search, activeCity }: { search: string; 
           {!loadingStores && cityStores.length > 0 && (
             <div>
               <h2 className="text-base font-bold text-gray-900 mb-3">Все магазины</h2>
-              <div className="space-y-3">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 {cityStores.slice(0, 8).map((store) => (
                   <StoreRow
                     key={store.id}

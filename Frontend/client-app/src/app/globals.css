@@ -26,6 +26,15 @@
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* Анимация появления полноэкранных страниц (слайд справа) */
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+.animate-slide-in-right {
+  animation: slideInRight 0.25s ease-out forwards;
+}
+
 /* Предотвращаем авто-зум на iOS Safari при фокусе на инпуте (< 16px вызывает зум) */
 @media screen and (max-width: 768px) {
   input, select, textarea {
