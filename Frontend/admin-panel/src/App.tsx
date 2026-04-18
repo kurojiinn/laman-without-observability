@@ -8,6 +8,7 @@ import { ProductsPage } from "./pages/ProductsPage";
 import { VitrinaPage } from "./pages/VitrinaPage";
 import { RecipesPage } from "./pages/RecipesPage";
 import { OrdersPage } from "./pages/OrdersPage";
+import { ScenariosPage } from "./pages/ScenariosPage";
 
 function AdminApp() {
   const queryClient = useQueryClient();
@@ -97,6 +98,7 @@ function AdminApp() {
       {page === "vitrina" && <VitrinaPage user={creds.user} password={creds.password} />}
       {page === "recipes" && <RecipesPage user={creds.user} password={creds.password} />}
       {page === "orders" && <OrdersPage user={creds.user} password={creds.password} />}
+      {page === "scenarios" && <ScenariosPage user={creds.user} password={creds.password} />}
     </Layout>
   );
 }

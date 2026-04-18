@@ -58,6 +58,13 @@ func (h *Handler) RegisterAdminRoutes(router *gin.RouterGroup, authMW gin.Handle
 		recipes.POST("/:id/products", h.AdminAddRecipeProduct)
 		recipes.DELETE("/:id/products/:product_id", h.AdminRemoveRecipeProduct)
 	}
+	scenarios := router.Group("/catalog/scenarios", authMW, adminMW)
+	{
+		scenarios.GET("", h.AdminGetScenarios)
+		scenarios.POST("", h.AdminCreateScenario)
+		scenarios.PATCH("/:id", h.AdminUpdateScenario)
+		scenarios.DELETE("/:id", h.AdminDeleteScenario)
+	}
 }
 
 // RegisterRoutes регистрирует маршруты каталога.
@@ -71,6 +78,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 		catalog.GET("/featured", h.GetFeatured)
 		catalog.GET("/recipes", h.GetRecipes)
 		catalog.GET("/recipes/:id", h.GetRecipe)
+		catalog.GET("/scenarios", h.GetScenarios)
 	}
 
 	stores := router.Group("/stores")
@@ -749,6 +757,97 @@ func (h *Handler) AdminRemoveRecipeProduct(c *gin.Context) {
 		return
 	}
 	if err := h.catalogService.RemoveRecipeProduct(c.Request.Context(), recipeID, productID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// GetScenarios возвращает активные сценарии (публичный).
+func (h *Handler) GetScenarios(c *gin.Context) {
+	scenarios, err := h.catalogService.GetActiveScenarios(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, scenarios)
+}
+
+// AdminGetScenarios возвращает все сценарии (admin).
+func (h *Handler) AdminGetScenarios(c *gin.Context) {
+	scenarios, err := h.catalogService.GetAllScenarios(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, scenarios)
+}
+
+// AdminCreateScenario создаёт сценарий.
+func (h *Handler) AdminCreateScenario(c *gin.Context) {
+	var req struct {
+		Label      string `json:"label"       binding:"required"`
+		Subtitle   string `json:"subtitle"`
+		SectionKey string `json:"section_key" binding:"required"`
+		ImageURL   string `json:"image_url"`
+		Emoji      string `json:"emoji"`
+		Position   int    `json:"position"`
+		IsActive   bool   `json:"is_active"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	sc, err := h.catalogService.CreateScenario(c.Request.Context(), models.Scenario{
+		Label: req.Label, Subtitle: req.Subtitle, SectionKey: req.SectionKey,
+		ImageURL: req.ImageURL, Emoji: req.Emoji, Position: req.Position, IsActive: req.IsActive,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, sc)
+}
+
+// AdminUpdateScenario обновляет сценарий.
+func (h *Handler) AdminUpdateScenario(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID"})
+		return
+	}
+	var req struct {
+		Label      string `json:"label"`
+		Subtitle   string `json:"subtitle"`
+		SectionKey string `json:"section_key"`
+		ImageURL   string `json:"image_url"`
+		Emoji      string `json:"emoji"`
+		Position   int    `json:"position"`
+		IsActive   bool   `json:"is_active"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	sc, err := h.catalogService.UpdateScenario(c.Request.Context(), id, models.Scenario{
+		Label: req.Label, Subtitle: req.Subtitle, SectionKey: req.SectionKey,
+		ImageURL: req.ImageURL, Emoji: req.Emoji, Position: req.Position, IsActive: req.IsActive,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, sc)
+}
+
+// AdminDeleteScenario удаляет сценарий.
+func (h *Handler) AdminDeleteScenario(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID"})
+		return
+	}
+	if err := h.catalogService.DeleteScenario(c.Request.Context(), id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

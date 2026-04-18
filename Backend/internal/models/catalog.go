@@ -105,6 +105,20 @@ type RecipeIngredient struct {
 	Quantity int `db:"quantity" json:"quantity"`
 }
 
+// Scenario — карточка быстрого сценария на главном экране.
+type Scenario struct {
+	ID         uuid.UUID `db:"id"          json:"id"`
+	Label      string    `db:"label"       json:"label"`
+	Subtitle   string    `db:"subtitle"    json:"subtitle"`
+	SectionKey string    `db:"section_key" json:"section_key"`
+	ImageURL   string    `db:"image_url"   json:"image_url"`
+	Emoji      string    `db:"emoji"       json:"emoji"`
+	Position   int       `db:"position"    json:"position"`
+	IsActive   bool      `db:"is_active"   json:"is_active"`
+	CreatedAt  time.Time `db:"created_at"  json:"created_at"`
+	UpdatedAt  time.Time `db:"updated_at"  json:"updated_at"`
+}
+
 // FeaturedProduct связывает товар с блоком витрины.
 type FeaturedProduct struct {
 	ID        uuid.UUID         `db:"id"         json:"id"`

@@ -17,6 +17,7 @@ type CatalogService struct {
 	reviewRepo      ReviewRepository
 	featuredRepo    FeaturedProductRepository
 	recipeRepo      RecipeRepository
+	scenarioRepo    ScenarioRepository
 }
 
 // NewCatalogService создает новый сервис каталога.
@@ -28,6 +29,7 @@ func NewCatalogService(
 	reviewRepo ReviewRepository,
 	featuredRepo FeaturedProductRepository,
 	recipeRepo RecipeRepository,
+	scenarioRepo ScenarioRepository,
 ) *CatalogService {
 	return &CatalogService{
 		categoryRepo:    categoryRepo,
@@ -37,6 +39,7 @@ func NewCatalogService(
 		reviewRepo:      reviewRepo,
 		featuredRepo:    featuredRepo,
 		recipeRepo:      recipeRepo,
+		scenarioRepo:    scenarioRepo,
 	}
 }
 
@@ -245,4 +248,32 @@ func (s *CatalogService) AddRecipeProduct(ctx context.Context, recipeID uuid.UUI
 // RemoveRecipeProduct убирает ингредиент из рецепта.
 func (s *CatalogService) RemoveRecipeProduct(ctx context.Context, recipeID uuid.UUID, productID uuid.UUID) error {
 	return s.recipeRepo.RemoveProduct(ctx, recipeID, productID)
+}
+
+// GetActiveScenarios возвращает активные сценарии для главного экрана.
+func (s *CatalogService) GetActiveScenarios(ctx context.Context) ([]models.Scenario, error) {
+	return s.scenarioRepo.GetActive(ctx)
+}
+
+// GetAllScenarios возвращает все сценарии (для admin).
+func (s *CatalogService) GetAllScenarios(ctx context.Context) ([]models.Scenario, error) {
+	return s.scenarioRepo.GetAll(ctx)
+}
+
+// CreateScenario создаёт новый сценарий.
+func (s *CatalogService) CreateScenario(ctx context.Context, sc models.Scenario) (*models.Scenario, error) {
+	if sc.Label == "" {
+		return nil, fmt.Errorf("название обязательно")
+	}
+	return s.scenarioRepo.Create(ctx, sc)
+}
+
+// UpdateScenario обновляет сценарий.
+func (s *CatalogService) UpdateScenario(ctx context.Context, id uuid.UUID, sc models.Scenario) (*models.Scenario, error) {
+	return s.scenarioRepo.Update(ctx, id, sc)
+}
+
+// DeleteScenario удаляет сценарий.
+func (s *CatalogService) DeleteScenario(ctx context.Context, id uuid.UUID) error {
+	return s.scenarioRepo.Delete(ctx, id)
 }

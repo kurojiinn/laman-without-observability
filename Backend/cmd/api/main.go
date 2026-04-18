@@ -103,6 +103,7 @@ func main() {
 	reviewRepo := catalog.NewPostgresReviewRepository(db)
 	featuredRepo := catalog.NewPostgresFeaturedProductRepository(db)
 	recipeRepo := catalog.NewPostgresRecipeRepository(db)
+	scenarioRepo := catalog.NewPostgresScenarioRepository(db)
 	orderRepo := orders.NewPostgresOrderRepository(db)
 	orderItemRepo := orders.NewPostgresOrderItemRepository(db)
 	paymentRepo := payments.NewPostgresPaymentRepository(db)
@@ -133,7 +134,7 @@ func main() {
 		cfg.SMS.TestMode,
 	)
 	userService := users.NewUserService(userRepo)
-	catalogService := catalog.NewCatalogService(categoryRepo, subcategoryRepo, productRepo, storeRepo, reviewRepo, featuredRepo, recipeRepo)
+	catalogService := catalog.NewCatalogService(categoryRepo, subcategoryRepo, productRepo, storeRepo, reviewRepo, featuredRepo, recipeRepo, scenarioRepo)
 	courierService := courier.NewCourierService(courierRepo)
 	orderService := orders.NewOrderService(
 		db,
@@ -178,8 +179,12 @@ func main() {
 
 	// Создание HTTP сервера
 	srv := &http.Server{
-		Addr:    fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port),
-		Handler: router,
+		Addr:              fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port),
+		Handler:           router,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		// WriteTimeout не задан — SSE-эндпоинты держат соединение открытым.
 	}
 
 	// Запуск сервера в горутине

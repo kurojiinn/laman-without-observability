@@ -153,6 +153,17 @@ export interface Order {
   items?: OrderItem[];
 }
 
+export interface Scenario {
+  id: string;
+  label: string;
+  subtitle: string;
+  section_key: string;
+  image_url?: string;
+  emoji?: string;
+  position: number;
+  is_active: boolean;
+}
+
 export const catalogApi = {
   getCategories: () => api.get<Category[]>("/v1/catalog/categories"),
 
@@ -188,6 +199,7 @@ export const catalogApi = {
 
   getRecipes: () => api.get<RecipeWithProducts[]>("/v1/catalog/recipes"),
   getRecipe: (id: string) => api.get<RecipeWithProducts>(`/v1/catalog/recipes/${id}`),
+  getScenarios: () => api.get<Scenario[]>("/v1/catalog/scenarios"),
 };
 
 export interface Recipe {

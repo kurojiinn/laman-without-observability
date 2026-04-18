@@ -48,6 +48,15 @@ type FeaturedProductRepository interface {
 	GetByBlock(ctx context.Context, blockType models.FeaturedBlockType) ([]models.Product, error)
 }
 
+// ScenarioRepository определяет доступ к сценариям главного экрана.
+type ScenarioRepository interface {
+	GetActive(ctx context.Context) ([]models.Scenario, error)
+	GetAll(ctx context.Context) ([]models.Scenario, error)
+	Create(ctx context.Context, s models.Scenario) (*models.Scenario, error)
+	Update(ctx context.Context, id uuid.UUID, s models.Scenario) (*models.Scenario, error)
+	Delete(ctx context.Context, id uuid.UUID) error
+}
+
 // StoreRepository определяет интерфейс для доступа к данным магазинов.
 type StoreRepository interface {
 	// GetAll получает все магазины.

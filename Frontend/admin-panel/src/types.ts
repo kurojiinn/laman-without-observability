@@ -116,6 +116,27 @@ export type AdminOrder = {
 
 export type FeaturedBlockType = "new_items" | "hits" | "movie_night" | "quick_snack" | "lazy_cook";
 
+export type Scenario = {
+  id: string;
+  label: string;
+  subtitle: string;
+  section_key: string;
+  image_url: string;
+  emoji: string;
+  position: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export const SECTION_KEY_LABELS: Record<string, string> = {
+  new_items:   "✨ Новинки",
+  hits:        "🔥 Популярные",
+  movie_night: "🍿 Для кино",
+  quick_snack: "⚡ Быстрый перекус",
+  lazy_cook:   "😴 Лень готовить",
+};
+
 export const FEATURED_BLOCK_LABELS: Record<FeaturedBlockType, string> = {
   new_items: "✨ Новинки",
   hits: "🔥 Популярные",

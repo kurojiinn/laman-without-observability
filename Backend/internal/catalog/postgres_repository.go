@@ -504,3 +504,52 @@ func (r *postgresRecipeRepository) RemoveProduct(ctx context.Context, recipeID u
 	_, err := r.db.ExecContext(ctx, `DELETE FROM recipe_products WHERE recipe_id = $1 AND product_id = $2`, recipeID, productID)
 	return err
 }
+
+// ─── PostgresScenarioRepository ───────────────────────────────────────────────
+
+type postgresScenarioRepository struct{ db *sqlx.DB }
+
+func NewPostgresScenarioRepository(db *sqlx.DB) ScenarioRepository {
+	return &postgresScenarioRepository{db: db}
+}
+
+func (r *postgresScenarioRepository) GetActive(ctx context.Context) ([]models.Scenario, error) {
+	var rows []models.Scenario
+	err := r.db.SelectContext(ctx, &rows,
+		`SELECT id, label, subtitle, section_key, image_url, emoji, position, is_active, created_at, updated_at
+		 FROM featured_scenarios WHERE is_active = true ORDER BY position ASC`)
+	return rows, err
+}
+
+func (r *postgresScenarioRepository) GetAll(ctx context.Context) ([]models.Scenario, error) {
+	var rows []models.Scenario
+	err := r.db.SelectContext(ctx, &rows,
+		`SELECT id, label, subtitle, section_key, image_url, emoji, position, is_active, created_at, updated_at
+		 FROM featured_scenarios ORDER BY position ASC`)
+	return rows, err
+}
+
+func (r *postgresScenarioRepository) Create(ctx context.Context, s models.Scenario) (*models.Scenario, error) {
+	err := r.db.QueryRowContext(ctx,
+		`INSERT INTO featured_scenarios (label, subtitle, section_key, image_url, emoji, position, is_active)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		 RETURNING id, created_at, updated_at`,
+		s.Label, s.Subtitle, s.SectionKey, s.ImageURL, s.Emoji, s.Position, s.IsActive,
+	).Scan(&s.ID, &s.CreatedAt, &s.UpdatedAt)
+	return &s, err
+}
+
+func (r *postgresScenarioRepository) Update(ctx context.Context, id uuid.UUID, s models.Scenario) (*models.Scenario, error) {
+	s.ID = id
+	err := r.db.QueryRowContext(ctx,
+		`UPDATE featured_scenarios SET label=$1, subtitle=$2, section_key=$3, image_url=$4, emoji=$5, position=$6, is_active=$7, updated_at=NOW()
+		 WHERE id=$8 RETURNING updated_at`,
+		s.Label, s.Subtitle, s.SectionKey, s.ImageURL, s.Emoji, s.Position, s.IsActive, id,
+	).Scan(&s.UpdatedAt)
+	return &s, err
+}
+
+func (r *postgresScenarioRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM featured_scenarios WHERE id = $1`, id)
+	return err
+}

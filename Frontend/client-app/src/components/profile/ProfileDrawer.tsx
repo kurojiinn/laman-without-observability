@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useBodyScrollLockWhen } from "@/hooks/useBodyScrollLock";
 import { ordersApi, catalogApi, usersApi, type Order, type OrderItem, type UserProfile } from "@/lib/api";
+import PushNotificationButton from "@/components/ui/PushNotificationButton";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useCart, type CartItem } from "@/context/CartContext";
@@ -91,6 +92,11 @@ export default function ProfileDrawer({ open, onClose, onGoToCart }: Props) {
 
               {/* Переключатель темы */}
               <ThemeToggle isDark={theme === "dark"} onToggle={toggleTheme} />
+
+              {/* Уведомления */}
+              <div className="bg-gray-50 rounded-2xl px-4">
+                <PushNotificationButton />
+              </div>
 
               {/* Поддержка */}
               <button

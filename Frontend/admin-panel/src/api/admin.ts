@@ -227,3 +227,35 @@ export const removeRecipeProduct = async (
 ) => {
   await createAdminClient(user, password).delete(`/recipes/${recipeId}/products/${productId}`);
 };
+
+// ─── Scenarios ────────────────────────────────────────────────────────────────
+
+import type { Scenario } from "../types";
+
+export const fetchScenarios = async (user: string, password: string): Promise<Scenario[]> => {
+  const { data } = await createAdminClient(user, password).get<Scenario[]>("/catalog/scenarios");
+  return data ?? [];
+};
+
+export const createScenario = async (
+  user: string,
+  password: string,
+  payload: Omit<Scenario, "id" | "created_at" | "updated_at">
+): Promise<Scenario> => {
+  const { data } = await createAdminClient(user, password).post<Scenario>("/catalog/scenarios", payload);
+  return data;
+};
+
+export const updateScenario = async (
+  user: string,
+  password: string,
+  id: string,
+  payload: Omit<Scenario, "id" | "created_at" | "updated_at">
+): Promise<Scenario> => {
+  const { data } = await createAdminClient(user, password).patch<Scenario>(`/catalog/scenarios/${id}`, payload);
+  return data;
+};
+
+export const deleteScenario = async (user: string, password: string, id: string) => {
+  await createAdminClient(user, password).delete(`/catalog/scenarios/${id}`);
+};
