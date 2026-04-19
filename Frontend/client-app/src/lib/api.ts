@@ -14,14 +14,22 @@ function getBaseUrl(): string {
   return "http://localhost:8080/api";
 }
 
-// Нормализует image_url: заменяет любой хост из старых бэкендов
-// на текущий API-хост. image_url хранится в БД как абсолютный URL
-// с тем IP, который был прописан в PUBLIC_URL на момент загрузки.
+// Нормализует image_url из БД.
+// MinIO URL (/laman-images/...) отдаётся напрямую с заменой хоста на текущий.
+// Старые /uploads/ URL тоже корректируются на текущий API-хост.
 export function resolveImageUrl(url: string | undefined | null): string | undefined {
   if (!url) return undefined;
   try {
-    const apiHost = new URL(getBaseUrl()).origin;
     const parsed = new URL(url);
+    if (parsed.pathname.startsWith("/laman-images/")) {
+      // MinIO: заменяем хост на текущий, порт 9000
+      const minioHost = typeof window !== "undefined"
+        ? `http://${window.location.hostname}:9000`
+        : "http://localhost:9000";
+      return minioHost + parsed.pathname;
+    }
+    // Старые /uploads/ — переадресуем на API
+    const apiHost = new URL(getBaseUrl()).origin;
     return apiHost + parsed.pathname;
   } catch {
     return url;

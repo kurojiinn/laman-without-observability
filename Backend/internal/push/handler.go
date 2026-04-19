@@ -54,11 +54,7 @@ func (h *Handler) Subscribe(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.Subscribe(c.Request.Context(), uid, Subscription{
-		Endpoint: req.Endpoint,
-		P256dh:   req.P256dh,
-		Auth:     req.Auth,
-	}); err != nil {
+	if err := h.svc.Subscribe(c.Request.Context(), uid, Subscription(req)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "не удалось сохранить подписку"})
 		return
 	}

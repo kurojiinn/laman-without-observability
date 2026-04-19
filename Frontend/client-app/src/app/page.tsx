@@ -16,7 +16,7 @@ import { useAuth } from "@/context/AuthContext";
 const CITIES = ["Ойсхар", "Грозный"];
 
 const SEARCH_PLACEHOLDERS: Record<Tab, string> = {
-  home:       "Поиск товаров...",
+  home:       "Хлеб, молоко, лекарства...",
   categories: "Поиск магазинов...",
   favorites:  "Поиск в избранном...",
   cart:       "",
@@ -61,7 +61,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg-page)' }}>
       <Header
         search={search}
         onSearchChange={setSearch}
@@ -71,6 +71,7 @@ export default function Home() {
         onProfileClick={() => setProfileOpen(true)}
         activeCity={activeCity}
         onCityClick={() => setCityModalOpen(true)}
+        showGreeting={activeTab === "home" && !openStore && !storeLoading}
       />
 
       <TabBar active={activeTab} onChange={handleTabChange} isAdmin={isAdmin} />
@@ -107,7 +108,8 @@ export default function Home() {
             onClick={() => setCityModalOpen(false)}
           >
           <div
-            className="pointer-events-auto w-full sm:max-w-sm bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden"
+            className="pointer-events-auto w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden"
+            style={{ background: 'var(--bg-surface)' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
@@ -131,7 +133,7 @@ export default function Home() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <svg className="w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                    <svg className="w-4 h-4 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
                     </svg>
                     <span className={`text-sm font-semibold ${activeCity === city ? "text-indigo-700" : "text-gray-700"}`}>

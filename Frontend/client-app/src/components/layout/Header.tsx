@@ -11,6 +11,7 @@ interface HeaderProps {
   onProfileClick: () => void;
   activeCity: string;
   onCityClick: () => void;
+  showGreeting?: boolean;
 }
 
 export default function Header({
@@ -22,6 +23,7 @@ export default function Header({
   onProfileClick,
   activeCity,
   onCityClick,
+  showGreeting,
 }: HeaderProps) {
   const { isAuthenticated, user, openAuthModal } = useAuth();
 
@@ -34,7 +36,7 @@ export default function Header({
   }
 
   return (
-    <header className="sticky top-0 z-40 bg-white border-b border-gray-100">
+    <header className="z-40" style={{ background: 'var(--bg-page)' }}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
 
         {/* Строка 1: логотип + [поиск на sm+] + город + профиль */}
@@ -64,8 +66,8 @@ export default function Header({
                 value={search}
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder={searchPlaceholder}
-                className="w-full h-10 pl-9 pr-9 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
-                style={{ fontSize: 16 }}
+                className="w-full h-10 pl-9 pr-9 border border-gray-200 rounded-full text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+                style={{ fontSize: 16, background: 'var(--bg-input)' }}
               />
               {search && (
                 <button
@@ -117,6 +119,14 @@ export default function Header({
           </button>
         </div>
 
+        {/* Приветственный блок */}
+        {showGreeting && (
+          <div className="mb-3 px-1 py-2">
+            <p className="text-2xl font-bold text-gray-900">{activeCity}</p>
+            <p className="text-sm text-gray-500 mt-0.5">Доставим всё что нужно — быстро и удобно</p>
+          </div>
+        )}
+
         {/* Строка 2: поиск только на мобильном */}
         {showSearch && (
           <div className="sm:hidden pb-3">
@@ -129,8 +139,8 @@ export default function Header({
                 value={search}
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder={searchPlaceholder}
-                className="w-full h-10 pl-9 pr-9 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
-                style={{ fontSize: 16 }}
+                className="w-full h-10 pl-9 pr-9 border border-gray-200 rounded-full text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+                style={{ fontSize: 16, background: 'var(--bg-input)' }}
               />
               {search && (
                 <button

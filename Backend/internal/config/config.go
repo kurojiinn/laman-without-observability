@@ -18,6 +18,17 @@ type Config struct {
 	CORS     CORSConfig
 	Redis    RedisConfig
 	VAPID    VAPIDConfig
+	MinIO    MinIOConfig
+}
+
+// MinIOConfig содержит конфигурацию MinIO / S3-совместимого хранилища.
+type MinIOConfig struct {
+	Endpoint  string
+	PublicURL string
+	AccessKey string
+	SecretKey string
+	Bucket    string
+	UseSSL    bool
 }
 
 // VAPIDConfig содержит ключи для Web Push уведомлений.
@@ -131,6 +142,14 @@ func Load() (*Config, error) {
 			PublicKey:  getEnv("VAPID_PUBLIC_KEY", ""),
 			PrivateKey: getEnv("VAPID_PRIVATE_KEY", ""),
 			Email:      getEnv("VAPID_EMAIL", ""),
+		},
+		MinIO: MinIOConfig{
+			Endpoint:  getEnv("MINIO_ENDPOINT", "localhost:9000"),
+			PublicURL: getEnv("MINIO_PUBLIC_URL", "http://localhost:9000"),
+			AccessKey: getEnv("MINIO_ACCESS_KEY", ""),
+			SecretKey: getEnv("MINIO_SECRET_KEY", ""),
+			Bucket:    getEnv("MINIO_BUCKET", "laman-images"),
+			UseSSL:    getEnvBool("MINIO_USE_SSL", false),
 		},
 	}
 

@@ -63,8 +63,8 @@ export default function TabBar({ active, onChange, isAdmin }: TabBarProps) {
     <>
       {/* ── Мобильный: фиксированный bottom-nav ── */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-100 pb-safe"
-        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40"
+        style={{ background: 'var(--bg-surface)', paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
         <div className={`grid h-20`} style={{ gridTemplateColumns: `repeat(${colCount}, 1fr)` }}>
           {visibleTabs.map((tab) => {
@@ -81,7 +81,7 @@ export default function TabBar({ active, onChange, isAdmin }: TabBarProps) {
                 <div className="relative">
                   {tab.icon(isActive)}
                   {showBadge && (
-                    <span className="absolute -top-1 -right-1.5 min-w-[16px] h-4 bg-indigo-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5">
+                    <span className="absolute -top-1 -right-1.5 min-w-[16px] h-4 bg-indigo-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5">
                       {totalCount > 9 ? "9+" : totalCount}
                     </span>
                   )}
@@ -96,7 +96,7 @@ export default function TabBar({ active, onChange, isAdmin }: TabBarProps) {
       </nav>
 
       {/* ── Десктоп: горизонтальные вкладки под хедером ── */}
-      <nav className="hidden md:block bg-white border-b border-gray-100">
+      <nav className="hidden md:block border-b border-gray-100" style={{ background: 'var(--bg-surface)' }}>
         <div className="max-w-6xl mx-auto px-6 flex gap-1">
           {visibleTabs.map((tab) => {
             const isActive = active === tab.id;
@@ -114,7 +114,7 @@ export default function TabBar({ active, onChange, isAdmin }: TabBarProps) {
                 {tab.icon(isActive)}
                 {tab.label}
                 {showBadge && (
-                  <span className="ml-1 px-1.5 py-0.5 bg-indigo-600 text-white text-xs font-bold rounded-full leading-none">
+                  <span className="ml-1 px-1.5 py-0.5 bg-indigo-500 text-white text-xs font-bold rounded-full leading-none">
                     {totalCount}
                   </span>
                 )}

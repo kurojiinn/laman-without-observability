@@ -68,7 +68,7 @@ func (s *Service) SendToUser(ctx context.Context, userID uuid.UUID, n Notificati
 		s.logger.Error("push: query subscriptions", zap.Error(err))
 		return
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	payload, _ := json.Marshal(n)
 
@@ -99,7 +99,7 @@ func (s *Service) send(endpoint, p256dh, auth string, payload []byte) {
 		s.logger.Warn("push: send failed", zap.String("endpoint", endpoint), zap.Error(err))
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 }
 
 // VAPIDPublicKey возвращает публичный VAPID ключ для фронтенда.

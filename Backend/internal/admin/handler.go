@@ -6,14 +6,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"os"
+	"path/filepath"
+
 	"Laman/internal/models"
 	"Laman/internal/observability"
+	"Laman/internal/storage"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -46,12 +48,12 @@ type ScenarioManager interface {
 
 // Handler принимает admin-запросы и проксирует их в сервис.
 type Handler struct {
-	service          *Service
-	logger           *zap.Logger
-	uploadsBaseURL   string
-	recipes          RecipeManager
-	storeCatUpdater  StoreCategoryImageUpdater
-	scenarios        ScenarioManager
+	service         *Service
+	logger          *zap.Logger
+	storage         storage.Provider
+	recipes         RecipeManager
+	storeCatUpdater StoreCategoryImageUpdater
+	scenarios       ScenarioManager
 }
 
 // WithRecipes добавляет поддержку управления рецептами.
@@ -73,11 +75,11 @@ func (h *Handler) WithScenarios(sm ScenarioManager) *Handler {
 }
 
 // NewHandler создает handler для admin-роутов.
-func NewHandler(service *Service, logger *zap.Logger, uploadsBaseURL string) *Handler {
+func NewHandler(service *Service, logger *zap.Logger, store storage.Provider) *Handler {
 	return &Handler{
-		service:        service,
-		logger:         logger,
-		uploadsBaseURL: strings.TrimRight(uploadsBaseURL, "/"),
+		service: service,
+		logger:  logger,
+		storage: store,
 	}
 }
 
@@ -548,30 +550,48 @@ func (h *Handler) saveUploadedImage(ctx context.Context, c *gin.Context) (string
 		return "", err
 	}
 
-	if err := os.MkdirAll("uploads", 0o755); err != nil {
-		h.logger.Error("Не удалось создать папку uploads", zap.Error(err))
-		return "", fmt.Errorf("не удалось подготовить папку загрузок")
+	// Читаем весь файл для загрузки в MinIO.
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return "", fmt.Errorf("не удалось прочитать файл")
+	}
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return "", fmt.Errorf("не удалось прочитать файл")
 	}
 
-	fileName := uuid.NewString() + ext
-	targetPath := filepath.Join("uploads", fileName)
+	contentType := extToContentType(ext)
+	key := uuid.NewString() + ext
 
-	h.logger.Info("Загрузка изображения: сохранение файла",
+	h.logger.Info("Загрузка изображения: отправка в хранилище",
 		zap.String("filename", fileHeader.Filename),
-		zap.String("target", targetPath),
+		zap.String("key", key),
 	)
 
-	if err := c.SaveUploadedFile(fileHeader, targetPath); err != nil {
-		h.logger.Error("Загрузка изображения: ошибка сохранения", zap.Error(err))
+	url, err := h.storage.Upload(ctx, key, contentType, data)
+	if err != nil {
+		h.logger.Error("Загрузка изображения: ошибка загрузки в хранилище", zap.Error(err))
 		return "", fmt.Errorf("не удалось сохранить изображение")
 	}
 
 	uploadsTotal.Inc()
-	h.logger.Info("Загрузка изображения: успешно",
-		zap.String("url", h.uploadsBaseURL+"/uploads/"+fileName),
-	)
+	h.logger.Info("Загрузка изображения: успешно", zap.String("url", url))
 
-	return h.uploadsBaseURL + "/uploads/" + fileName, nil
+	return url, nil
+}
+
+func extToContentType(ext string) string {
+	switch ext {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	default:
+		return "application/octet-stream"
+	}
 }
 
 // ─── Scenario admin handlers ──────────────────────────────────────────────────

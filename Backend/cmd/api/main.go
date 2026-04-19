@@ -27,6 +27,7 @@ import (
 	"Laman/internal/orders"
 	"Laman/internal/payments"
 	"Laman/internal/push"
+	"Laman/internal/storage"
 	"Laman/internal/users"
 
 	"github.com/gin-gonic/gin"
@@ -148,9 +149,21 @@ func main() {
 	userHandler := users.NewHandler(userService, authService)
 	catalogHandler := catalog.NewHandler(catalogService, logger).WithAuth(authService).WithUploadsBaseURL(cfg.Server.PublicURL)
 	orderHandler := orders.NewHandler(orderService, authService, hub)
+	minioProvider, err := storage.NewMinIOProvider(
+		cfg.MinIO.Endpoint,
+		cfg.MinIO.PublicURL,
+		cfg.MinIO.AccessKey,
+		cfg.MinIO.SecretKey,
+		cfg.MinIO.Bucket,
+		cfg.MinIO.UseSSL,
+	)
+	if err != nil {
+		logger.Fatal("Не удалось подключиться к MinIO", zap.Error(err))
+	}
+
 	adminRepo := admin.NewPostgresRepository(db)
 	adminService := admin.NewService(adminRepo, logger)
-	adminHandler := admin.NewHandler(adminService, logger, cfg.Server.PublicURL).WithRecipes(catalogService).WithStoreCategoryUpdater(catalogService).WithScenarios(catalogService)
+	adminHandler := admin.NewHandler(adminService, logger, minioProvider).WithRecipes(catalogService).WithStoreCategoryUpdater(catalogService).WithScenarios(catalogService)
 	courierHandler := courier.NewHandler(courierService, authService, logger)
 	pickerHandler := picker.NewHandler(pickerService, logger, authService, hub)
 	favoritesHandler := favorites.NewHandler(favoritesService, authService, logger)
@@ -227,9 +240,6 @@ func setupRouter(
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20) // 1MB
 		c.Next()
 	})
-
-	// Статика для загруженных файлов
-	router.Static("/uploads", "./uploads")
 
 	// API v1 маршруты
 	v1 := router.Group("/api/v1")

@@ -4,6 +4,9 @@
 
 :root {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --bg-page: #F5F6FC;
+  --bg-surface: #ffffff;
+  --bg-input: #ffffff;
 }
 
 /* Предотвращаем выход длинных слов за пределы блоков */
@@ -51,6 +54,9 @@
 
 html.dark {
   color-scheme: dark;
+  --bg-page: #08091C;
+  --bg-surface: #121430;
+  --bg-input: #121430;
 }
 
 /* Фоны */

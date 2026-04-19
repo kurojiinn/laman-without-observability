@@ -80,7 +80,7 @@ export default function HomeTab({ onOpenStore, onGoToCart, search, activeCity }:
   const q = search.trim().toLowerCase();
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 space-y-6">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 space-y-6" style={{ color: 'inherit' }}>
 
       {/* ── Промо-карусель ── */}
       <PromoBannerCarousel />
@@ -92,7 +92,7 @@ export default function HomeTab({ onOpenStore, onGoToCart, search, activeCity }:
           {/* ── Быстрые сценарии ── */}
           {scenarios.length > 0 && (
             <section>
-              <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center justify-between mb-3">
                 <h2 className="text-base font-bold text-gray-900">Быстрые сценарии</h2>
                 <button className="text-sm font-semibold text-indigo-500">Все &rsaquo;</button>
               </div>
@@ -880,11 +880,12 @@ function HomeProductCard({
 }) {
   return (
     <div
-      className="relative bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col active:scale-[0.97] transition-transform cursor-pointer"
+      className="relative rounded-2xl overflow-hidden flex flex-col active:scale-[0.97] transition-transform cursor-pointer"
+      style={{ background: 'var(--bg-surface)' }}
       onClick={onOpen}
     >
       {badge === "new" && (
-        <span className="absolute top-2 left-2 z-10 bg-indigo-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none tracking-wide">
+        <span className="absolute top-2 left-2 z-10 bg-indigo-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none tracking-wide">
           Новинка
         </span>
       )}
