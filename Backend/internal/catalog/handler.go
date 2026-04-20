@@ -364,7 +364,8 @@ func (h *Handler) GetStoreProducts(c *gin.Context) {
 		}
 	}
 
-	products, err := h.catalogService.GetStoreProducts(ctx, storeID, subcategoryID, search, availableOnly, limit, offset)
+	sort := c.Query("sort")
+	products, err := h.catalogService.GetStoreProducts(ctx, storeID, subcategoryID, search, availableOnly, sort, limit, offset)
 	if err != nil {
 		h.logger.Error("Не удалось получить товары магазина",
 			zap.String("store_id", storeID.String()),

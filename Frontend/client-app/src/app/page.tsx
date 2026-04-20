@@ -38,6 +38,7 @@ export default function Home() {
   const [openStore, setOpenStore] = useState<Store | null>(null);
   const [storeLoading, setStoreLoading] = useState(false);
   const [targetProductId, setTargetProductId] = useState<string | undefined>(undefined);
+  const [sort, setSort] = useState("");
 
   function handleOpenStore(storeId: string, productId?: string) {
     setTargetProductId(productId);
@@ -52,6 +53,7 @@ export default function Home() {
   function handleCloseStore() {
     setOpenStore(null);
     setTargetProductId(undefined);
+    setSort("");
   }
 
   function handleTabChange(tab: Tab) {
@@ -72,6 +74,9 @@ export default function Home() {
         activeCity={activeCity}
         onCityClick={() => setCityModalOpen(true)}
         showGreeting={activeTab === "home" && !openStore && !storeLoading}
+        showSort={!!openStore}
+        sort={sort}
+        onSortChange={setSort}
       />
 
       <TabBar active={activeTab} onChange={handleTabChange} isAdmin={isAdmin} />
@@ -79,7 +84,7 @@ export default function Home() {
       <main className="flex-1 pb-20 md:pb-0">
         {/* Магазин открытый с главной — показываем внутри main (хедер и таббар остаются) */}
         {openStore ? (
-          <StoreDetailView store={openStore} onBack={handleCloseStore} targetProductId={targetProductId} search={search} isAdmin={isAdmin} />
+          <StoreDetailView store={openStore} onBack={handleCloseStore} targetProductId={targetProductId} search={search} sort={sort} isAdmin={isAdmin} />
         ) : storeLoading ? (
           <div className="flex items-center justify-center py-32">
             <div className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />

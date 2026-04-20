@@ -30,7 +30,7 @@ type ProductRepository interface {
 	GetAll(ctx context.Context, categoryID *uuid.UUID, subcategoryID *uuid.UUID, search *string, availableOnly bool) ([]models.Product, error)
 
 	// GetByStoreID получает товары конкретного магазина с фильтрами и пагинацией.
-	GetByStoreID(ctx context.Context, storeID uuid.UUID, subcategoryID *uuid.UUID, search *string, availableOnly bool, limit, offset int) ([]models.Product, error)
+	GetByStoreID(ctx context.Context, storeID uuid.UUID, subcategoryID *uuid.UUID, search *string, availableOnly bool, sort string, limit, offset int) ([]models.Product, error)
 
 	// GetByID получает товар по ID.
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Product, error)

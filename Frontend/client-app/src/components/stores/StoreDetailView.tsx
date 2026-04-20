@@ -12,6 +12,13 @@ import StoreAvatar from "@/components/ui/StoreAvatar";
 // Re-export for backward compatibility (StoresTab, CategoriesTab импортируют отсюда)
 export { CATEGORY_META as STORE_CATEGORY_META };
 
+const SORT_OPTIONS = [
+  { label: "По умолчанию", value: "" },
+  { label: "Дешевле", value: "price_asc" },
+  { label: "Дороже", value: "price_desc" },
+  { label: "Новые", value: "newest" },
+];
+
 const PAGE_SIZE = 20;
 
 export default function StoreDetailView({
@@ -19,12 +26,16 @@ export default function StoreDetailView({
   onBack,
   targetProductId,
   search = "",
+  sort: sortProp,
+  onSortChange,
   isAdmin = false,
 }: {
   store: Store;
   onBack: () => void;
   targetProductId?: string;
   search?: string;
+  sort?: string;
+  onSortChange?: (v: string) => void;
   isAdmin?: boolean;
 }) {
   const [store, setStore] = useState<Store>(initialStore);
@@ -42,6 +53,11 @@ export default function StoreDetailView({
 
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string | null>(null);
+  const [localSort, setLocalSort] = useState("");
+  const sort = sortProp !== undefined ? sortProp : localSort;
+  const handleSortChange = onSortChange ?? setLocalSort;
+  const [sortOpen, setSortOpen] = useState(false);
+  const sortRef = useRef<HTMLDivElement | null>(null);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -58,6 +74,15 @@ export default function StoreDetailView({
   const [editStoreCloses, setEditStoreCloses] = useState(store.closes_at ?? "");
   const [savingStore, setSavingStore] = useState(false);
   const [storeEditError, setStoreEditError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!sortOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (sortRef.current && !sortRef.current.contains(e.target as Node)) setSortOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [sortOpen]);
 
   // Загружаем подкатегории магазина
   useEffect(() => {
@@ -84,6 +109,7 @@ export default function StoreDetailView({
       .getStoreProducts(store.id, {
         subcategory_id: search ? undefined : (selectedSubcategoryId ?? undefined),
         search: search || undefined,
+        sort: sort || undefined,
         limit: PAGE_SIZE,
         offset: 0,
       })
@@ -95,7 +121,7 @@ export default function StoreDetailView({
       })
       .catch(() => setProducts([]))
       .finally(() => setProductsLoading(false));
-  }, [store.id, selectedSubcategoryId, search]);
+  }, [store.id, selectedSubcategoryId, search, sort]);
 
   const loadMore = useCallback(() => {
     if (loadingMore || !hasMore) return;
@@ -104,6 +130,7 @@ export default function StoreDetailView({
       .getStoreProducts(store.id, {
         subcategory_id: search ? undefined : (selectedSubcategoryId ?? undefined),
         search: search || undefined,
+        sort: sort || undefined,
         limit: PAGE_SIZE,
         offset: offsetRef.current,
       })
@@ -115,7 +142,7 @@ export default function StoreDetailView({
       })
       .catch(() => {})
       .finally(() => setLoadingMore(false));
-  }, [store.id, selectedSubcategoryId, search, loadingMore, hasMore]);
+  }, [store.id, selectedSubcategoryId, search, sort, loadingMore, hasMore]);
 
   // IntersectionObserver — следит за sentinel-div внизу списка
   useEffect(() => {
@@ -258,7 +285,7 @@ export default function StoreDetailView({
       </div>
 
       {/* Вкладки */}
-      <div className="flex border-b border-gray-200 mb-5 gap-6">
+      <div className="flex items-center border-b border-gray-200 mb-5 gap-6">
         <button
           onClick={() => setActiveTab("products")}
           className={`pb-3 text-sm font-semibold transition-colors border-b-2 whitespace-nowrap ${
@@ -279,6 +306,38 @@ export default function StoreDetailView({
         >
           Отзывы
         </button>
+
+        {/* Фильтр сортировки */}
+        {activeTab === "products" && (
+          <div className="relative ml-auto pb-2" ref={sortRef}>
+            <button
+              onClick={() => setSortOpen((v) => !v)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+                sort ? "bg-indigo-50 text-indigo-600" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" d="M3 5h14M6 10h8M9 15h2" />
+              </svg>
+              {sort ? SORT_OPTIONS.find(o => o.value === sort)?.label : "Сортировка"}
+            </button>
+            {sortOpen && (
+              <div className="absolute right-0 top-9 w-44 rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50 bg-white">
+                {SORT_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                      sort === opt.value ? "text-indigo-600 font-semibold bg-indigo-50" : "text-gray-700 hover:bg-gray-50"
+                    }`}
+                    onClick={() => { handleSortChange(opt.value); setSortOpen(false); }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {activeTab === "products" && (

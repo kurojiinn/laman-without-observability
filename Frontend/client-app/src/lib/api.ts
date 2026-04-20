@@ -202,11 +202,12 @@ export const catalogApi = {
   getStoreSubcategories: (storeId: string) =>
     api.get<Subcategory[]>(`/v1/stores/${storeId}/subcategories`),
 
-  getStoreProducts: (storeId: string, params?: { search?: string; subcategory_id?: string; limit?: number; offset?: number }) => {
+  getStoreProducts: (storeId: string, params?: { search?: string; subcategory_id?: string; sort?: string; limit?: number; offset?: number }) => {
     const q = new URLSearchParams();
     q.set("available_only", "true");
     if (params?.search) q.set("search", params.search);
     if (params?.subcategory_id) q.set("subcategory_id", params.subcategory_id);
+    if (params?.sort) q.set("sort", params.sort);
     if (params?.limit !== undefined) q.set("limit", String(params.limit));
     if (params?.offset !== undefined) q.set("offset", String(params.offset));
     return api.get<Product[]>(`/v1/stores/${storeId}/products?${q}`);

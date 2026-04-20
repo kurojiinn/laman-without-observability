@@ -96,9 +96,10 @@ func (s *CatalogService) GetStoreProducts(
 	subcategoryID *uuid.UUID,
 	search *string,
 	availableOnly bool,
+	sort string,
 	limit, offset int,
 ) ([]models.Product, error) {
-	products, err := s.productRepo.GetByStoreID(ctx, storeID, subcategoryID, search, availableOnly, limit, offset)
+	products, err := s.productRepo.GetByStoreID(ctx, storeID, subcategoryID, search, availableOnly, sort, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось получить товары магазина: %w", err)
 	}

@@ -35,6 +35,8 @@ import (
 )
 
 func main() {
+	gin.SetMode(gin.ReleaseMode)
+
 	// Загрузка конфигурации
 	cfg, err := config.Load()
 	if err != nil {
