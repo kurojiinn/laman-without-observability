@@ -8,6 +8,7 @@ import ProductModal from "@/components/ui/ProductModal";
 import { useFavorites } from "@/context/FavoritesContext";
 import { CATEGORY_META, DEFAULT_META } from "@/components/ui/CategoryIcon";
 import StoreAvatar from "@/components/ui/StoreAvatar";
+import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
 
 // Re-export for backward compatibility (StoresTab, CategoriesTab импортируют отсюда)
 export { CATEGORY_META as STORE_CATEGORY_META };
@@ -198,8 +199,15 @@ export default function StoreDetailView({
 
   const storeOpen = isStoreOpen(store);
 
+  const { style: swipeStyle, handlers: swipeHandlers } = useSwipeToDismiss({
+    onDismiss: onBack,
+    direction: "right",
+    threshold: 80,
+  });
+
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+    <div className="overflow-x-hidden">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6" style={swipeStyle} {...swipeHandlers}>
       <button
         onClick={onBack}
         className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-5"
@@ -473,6 +481,7 @@ export default function StoreDetailView({
           onProductUpdated={(updated) => setProducts((prev) => prev.map((p) => p.id === updated.id ? updated : p))}
         />
       )}
+    </div>
     </div>
   );
 }

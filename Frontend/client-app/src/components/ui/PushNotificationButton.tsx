@@ -34,7 +34,12 @@ export default function PushNotificationButton() {
       setState("default");
     } else {
       const ok = await subscribeToPush();
-      setState(ok ? "granted" : await getPushState());
+      if (ok) {
+        setState("granted");
+      } else {
+        const ps = await getPushState();
+        setState(ps === "denied" ? "denied" : "default");
+      }
     }
     setBusy(false);
   }

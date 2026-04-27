@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { catalogApi, type Category, type Subcategory, type Product } from "@/lib/api";
+import { catalogApi, resolveImageUrl, type Category, type Subcategory, type Product } from "@/lib/api";
 import { useCart } from "@/context/CartContext";
 import ProductModal from "@/components/ui/ProductModal";
 import { useFavorites } from "@/context/FavoritesContext";
@@ -185,7 +185,7 @@ function ProductCard({ product, onOpen }: { product: Product; onOpen: () => void
       </button>
       <div className="aspect-square bg-gray-50 overflow-hidden">
         {product.image_url ? (
-          <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+          <img src={resolveImageUrl(product.image_url)} alt={product.name} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-4xl">🛍️</div>
         )}

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
 import { catalogApi, resolveImageUrl, type Product, type Store, type RecipeWithProducts, type Scenario } from "@/lib/api";
 import { useCart } from "@/context/CartContext";
 import ProductModal from "@/components/ui/ProductModal";
@@ -229,11 +230,7 @@ export default function HomeTab({ onOpenStore, onGoToCart, search, activeCity }:
 // ─── ScenarioCard ─────────────────────────────────────────────────────────────
 
 function ScenarioCard({ scenario, onClick }: { scenario: Scenario; onClick: () => void }) {
-  const imgSrc = scenario.image_url
-    ? scenario.image_url.startsWith("http")
-      ? scenario.image_url
-      : scenario.image_url
-    : null;
+  const imgSrc = scenario.image_url ? resolveImageUrl(scenario.image_url) ?? null : null;
 
   return (
     <button
@@ -525,9 +522,17 @@ function PromoBannerCarousel() {
 
 function PromoModal({ banner, onClose }: { banner: PromoBannerType; onClose: () => void }) {
   useBodyScrollLock();
-  return (
-    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="relative bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+  const { style: swipeStyle, backdropStyle, handlers: swipeHandlers } = useSwipeToDismiss({ onDismiss: onClose });
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-[9000] bg-black/50 backdrop-blur-sm" onClick={onClose} style={backdropStyle} />
+      <div className="fixed inset-0 z-[9001] flex items-end sm:items-center justify-center pointer-events-none">
+      <div className="pointer-events-auto relative bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl" style={swipeStyle} onClick={(e) => e.stopPropagation()}>
+        {/* Drag handle — mobile only */}
+        <div className="sm:hidden flex justify-center py-2.5 flex-shrink-0 touch-none select-none cursor-grab" {...swipeHandlers}>
+          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+        </div>
         <div className="relative px-6 pt-7 pb-6 text-white overflow-hidden" style={{ background: banner.modal.headerBg }}>
           <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/5" />
           <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 bg-white/15 hover:bg-white/25 rounded-full flex items-center justify-center transition-colors">
@@ -559,7 +564,9 @@ function PromoModal({ banner, onClose }: { banner: PromoBannerType; onClose: () 
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </>,
+    document.body
   );
 }
 
@@ -578,13 +585,15 @@ function ShowcasePage({
   onOpenStore: (storeId: string, productId?: string) => void;
 }) {
   useBodyScrollLock();
+  const { style: swipeStyle, handlers: swipeHandlers } = useSwipeToDismiss({ onDismiss: onClose, threshold: 80, direction: "right" });
   const visibleProducts = products.filter((p) => storeMap[p.store_id]?.city === activeCity);
 
   if (typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] bg-white overflow-hidden">
-      <div className="flex flex-col h-full animate-slide-in-right">
+    <div className="fixed inset-0 z-[9999] overflow-hidden">
+      {/* handlers на весь wrapper — gesture detection отличает свайп вправо от вертикального скролла */}
+      <div className="flex flex-col h-full bg-white animate-slide-in-right" style={swipeStyle} {...swipeHandlers}>
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-100 flex-shrink-0">
           <button onClick={onClose} className="w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors flex-shrink-0">
@@ -629,7 +638,7 @@ function ShowcasePage({
 // ─── Recipes Modal ────────────────────────────────────────────────────────────
 
 function RecipesModal({
-  recipes, storeMap, activeCity, onClose, onOpenRecipe, recipeLoading,
+  recipes, storeMap: _storeMap, activeCity: _activeCity, onClose, onOpenRecipe, recipeLoading,
 }: {
   recipes: RecipeWithProducts[];
   storeMap: Record<string, Store>;
@@ -639,10 +648,11 @@ function RecipesModal({
   recipeLoading: boolean;
 }) {
   useBodyScrollLock();
+  const { style: swipeStyle, handlers: swipeHandlers } = useSwipeToDismiss({ onDismiss: onClose, threshold: 80, direction: "right" });
   if (typeof document === "undefined") return null;
   return createPortal(
-    <div className="fixed inset-0 z-[9999] bg-white overflow-hidden">
-      <div className="flex flex-col h-full animate-slide-in-right">
+    <div className="fixed inset-0 z-[9999] overflow-hidden">
+      <div className="flex flex-col h-full bg-white animate-slide-in-right" style={swipeStyle} {...swipeHandlers}>
       <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-100 flex-shrink-0" style={{ background: "linear-gradient(135deg, #059669 0%, #0d9488 100%)" }}>
         <button onClick={onClose} className="w-9 h-9 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors flex-shrink-0">
           <svg className="w-4 h-4 text-white" viewBox="0 0 20 20" fill="currentColor">
@@ -727,10 +737,12 @@ function RecipeDetailModal({
     }
   }
 
+  const { style: swipeStyle, handlers: swipeHandlers } = useSwipeToDismiss({ onDismiss: onClose, threshold: 80, direction: "right" });
+
   if (typeof document === "undefined") return null;
   return createPortal(
-    <div className="fixed inset-0 z-[10000] bg-white overflow-hidden">
-      <div className="flex flex-col h-full animate-slide-in-right">
+    <div className="fixed inset-0 z-[10000] overflow-hidden">
+      <div className="flex flex-col h-full bg-white animate-slide-in-right" style={swipeStyle} {...swipeHandlers}>
       <div className="relative flex flex-col h-full overflow-hidden">
         <div className="relative bg-gradient-to-r from-emerald-500 to-teal-600 px-4 pt-4 pb-5">
           <button onClick={onClose} className="mb-3 w-9 h-9 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors">
@@ -870,7 +882,7 @@ function SearchResults({
 // ─── Home Product Card ────────────────────────────────────────────────────────
 
 function HomeProductCard({
-  product, storeName, onOpen, onShowInStore, badge,
+  product, storeName, onOpen, onShowInStore: _onShowInStore, badge,
 }: {
   product: Product;
   storeName?: string;
@@ -920,9 +932,17 @@ function HomeProductCard({
 
 function CharityModal({ onClose }: { onClose: () => void }) {
   useBodyScrollLock();
-  return (
-    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="relative bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col max-h-[85dvh]" onClick={(e) => e.stopPropagation()}>
+  const { style: swipeStyle, backdropStyle, handlers: swipeHandlers } = useSwipeToDismiss({ onDismiss: onClose });
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-[9000] bg-black/40 backdrop-blur-sm" onClick={onClose} style={backdropStyle} />
+      <div className="fixed inset-0 z-[9001] flex items-end sm:items-center justify-center pointer-events-none">
+      <div className="pointer-events-auto relative bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col max-h-[85dvh]" style={swipeStyle} onClick={(e) => e.stopPropagation()}>
+        {/* Drag handle — mobile only */}
+        <div className="sm:hidden flex justify-center py-2.5 flex-shrink-0 touch-none select-none cursor-grab" {...swipeHandlers}>
+          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+        </div>
         <div className="relative flex-shrink-0 px-6 pt-6 pb-5 text-white overflow-hidden rounded-t-3xl" style={{ background: "linear-gradient(135deg, #92400e 0%, #b45309 40%, #d97706 100%)" }}>
           <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full opacity-10 bg-white" />
           <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors z-10">
@@ -962,6 +982,8 @@ function CharityModal({ onClose }: { onClose: () => void }) {
           <p className="text-[11px] text-gray-400 text-center">Функция пожертвования появится совсем скоро</p>
         </div>
       </div>
-    </div>
+      </div>
+    </>,
+    document.body
   );
 }

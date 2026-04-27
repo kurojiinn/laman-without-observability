@@ -24,7 +24,7 @@ services:
       - laman-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping" ]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -44,25 +44,31 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       SERVER_PORT: ${SERVER_PORT}
       SERVER_HOST: ${SERVER_HOST}
-      PUBLIC_URL: http://${HOST_IP}:8080
+      PUBLIC_URL: https://${HOST_IP}
       SMS_RU_KEY: ${SMS_RU_KEY}
       SMSRU_API_KEY: ${SMSRU_API_KEY}
+      SMS_RU_TEST: ${SMS_RU_TEST}
       TG_BOT_TOKEN: ${TG_BOT_TOKEN}
       TG_CHAT_ID: ${TG_CHAT_ID}
       TG_COURIER_GROUP_ID: ${TG_COURIER_GROUP_ID}
       ADMIN_USER: ${ADMIN_USER}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      CORS_ORIGINS: http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://${HOST_IP}:3000,http://${HOST_IP}:5173,http://${HOST_IP}:5174
+      COOKIE_SECURE: ${COOKIE_SECURE}
+      CORS_ORIGINS: https://${HOST_IP},https://${HOST_IP}:5173,https://${HOST_IP}:5174,http://${HOST_IP}:3000,http://${HOST_IP}:5173,http://${HOST_IP}:5174,http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:3000
       REDIS_URL: ${REDIS_URL}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
-      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL}
+      MINIO_ENDPOINT: minio:9000
+      # MinIO публичный URL — через nginx, без порта 9000
+      MINIO_PUBLIC_URL: https://${HOST_IP}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_BUCKET: ${MINIO_BUCKET}
-      MINIO_USE_SSL: ${MINIO_USE_SSL}
+      MINIO_USE_SSL: "false"
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+      VAPID_EMAIL: ${VAPID_EMAIL}
     ports:
       - "8080:8080"
     volumes:
@@ -83,9 +89,11 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
-    ports:
-      - "9000:9000"
-      # 9001 (MinIO console) не пробрасываем в прод — доступен только через ssh tunnel
+    # Порты НЕ пробрасываем — MinIO доступен только через nginx (/laman-images/)
+    # Для доступа к консоли MinIO используй: ssh -L 9001:localhost:9001 user@server
+    expose:
+      - "9000"
+      - "9001"
     volumes:
       - minio_data:/data
     networks:
@@ -97,17 +105,38 @@ services:
       timeout: 5s
       retries: 5
 
+  minio-init:
+    image: minio/mc:latest
+    container_name: laman-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY} &&
+        mc mb --ignore-existing local/${MINIO_BUCKET} &&
+        mc anonymous set download local/${MINIO_BUCKET}
+      "
+    networks:
+      - laman-network
+    restart: "no"
+
   client-app:
     build:
       context: ./Frontend/client-app
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://${HOST_IP}:8080/api/v1
+        # /api — без /v1, клиент сам дописывает /v1/...
+        NEXT_PUBLIC_API_URL: https://${HOST_IP}/api
+        NEXT_PUBLIC_MINIO_URL: https://${HOST_IP}
     container_name: laman-client-app
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     depends_on:
-      - api
+      api:
+        condition: service_started
+      minio:
+        condition: service_healthy
     networks:
       - laman-network
     restart: unless-stopped
@@ -117,10 +146,11 @@ services:
       context: ./Frontend/admin-panel
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: http://${HOST_IP}:8080
+        # Без /api — axios сам дописывает /api/v1
+        VITE_API_BASE_URL: https://${HOST_IP}
     container_name: laman-admin-panel
-    ports:
-      - "5173:5173"
+    expose:
+      - "5173"
     depends_on:
       - api
     networks:
@@ -132,10 +162,10 @@ services:
       context: ./Frontend/picker-panel
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: http://${HOST_IP}:8080
+        VITE_API_BASE_URL: https://${HOST_IP}
     container_name: laman-picker-panel
-    ports:
-      - "5174:5174"
+    expose:
+      - "5174"
     depends_on:
       - api
     networks:
@@ -153,6 +183,9 @@ services:
       - ./nginx/certs:/etc/nginx/certs:ro
     depends_on:
       - api
+      - client-app
+      - admin-panel
+      - picker-panel
     networks:
       - laman-network
     restart: unless-stopped

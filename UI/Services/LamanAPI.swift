@@ -57,7 +57,7 @@ final class LamanAPI {
            let url = URL(string: plistBaseURL) {
             return url
         }
-        return URL(string: "http://192.168.0.104:8080")!
+        return URL(string: "http://192.168.32.225:8080")!
     }
 
     init(baseURL: URL = LamanAPI.resolveBaseURL(), session: URLSession = .shared) {

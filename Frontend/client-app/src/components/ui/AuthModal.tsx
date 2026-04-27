@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { authApi } from "@/lib/api";
 import { useBodyScrollLockWhen } from "@/hooks/useBodyScrollLock";
+import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
 
 type Tab = "login" | "register";
 
@@ -12,19 +13,28 @@ export default function AuthModal() {
   const [tab, setTab] = useState<Tab>("login");
 
   useBodyScrollLockWhen(isAuthModalOpen);
+  const { style: swipeStyle, backdropStyle, handlers: swipeHandlers } = useSwipeToDismiss({ onDismiss: closeAuthModal, isOpen: isAuthModalOpen });
 
   if (!isAuthModalOpen) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-md"
-      onClick={closeAuthModal}
-    >
+    <div className="fixed inset-0 z-50" onClick={closeAuthModal}>
+      {/* Backdrop — fades out as modal is dragged */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-md pointer-events-none" style={backdropStyle} />
+
+      <div className="relative h-full flex items-end sm:items-center justify-center">
       <div
-        className="relative flex w-full sm:max-w-3xl sm:mx-6 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[92dvh] overflow-y-auto overscroll-contain"
+        className="relative flex flex-col w-full sm:max-w-3xl sm:mx-6 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[92dvh] overflow-y-auto overscroll-contain"
+        style={swipeStyle}
         onClick={(e) => e.stopPropagation()}
       >
-        <LeftPanel />
+        {/* Drag handle — mobile only */}
+        <div className="sm:hidden flex justify-center py-2.5 flex-shrink-0 touch-none select-none cursor-grab bg-white" {...swipeHandlers}>
+          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+        </div>
+
+        <div className="flex">
+          <LeftPanel />
 
         <div className="relative flex flex-col w-full sm:max-w-sm bg-white px-6 sm:px-10 py-8 sm:py-10">
           {/* Крестик */}
@@ -82,7 +92,9 @@ export default function AuthModal() {
             </button>
           </div>
         </div>
+        </div>{/* /flex row */}
       </div>
+      </div>{/* /flex centering wrapper */}
     </div>
   );
 }
@@ -189,26 +201,77 @@ function ErrorBanner({ message }: { message: string }) {
   );
 }
 
+/* ─── Поле ввода телефона с постоянным префиксом +7 ─── */
+function PhoneInput({
+  digits,
+  onChange,
+  disabled,
+}: {
+  digits: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div
+      className={
+        "flex items-center h-11 bg-gray-50 border border-gray-200 rounded-xl overflow-hidden " +
+        "focus-within:bg-white focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100 transition-all duration-150"
+      }
+    >
+      <span className="pl-4 pr-1 text-sm text-gray-500 font-medium select-none flex-shrink-0">
+        +7
+      </span>
+      <input
+        type="tel"
+        inputMode="numeric"
+        maxLength={10}
+        value={digits}
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 10))}
+        placeholder="9000000000"
+        disabled={disabled}
+        className="flex-1 h-full bg-transparent text-sm text-gray-900 placeholder-gray-400 focus:outline-none pr-4"
+      />
+    </div>
+  );
+}
+
 /* ─── Форма входа ─────────────────────────────────────────────────────────── */
 /*
- * Шаг 1: POST /api/v1/auth/request-code { phone } → OTP отправлен на телефон
+ * Шаг 1: GET /api/v1/auth/check-user — проверяем, есть ли пользователь
+ *        POST /api/v1/auth/request-code { phone } → OTP отправлен на телефон
  * Шаг 2: POST /api/v1/auth/verify-code  { phone, code } → { token, user }
- *        Если пользователь не найден — бэкенд вернёт ошибку.
  */
 function LoginForm() {
   const { login } = useAuth();
-  const [phone, setPhone] = useState("");
+  const [digits, setDigits] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"phone" | "code">("phone");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const phone = "+7" + digits;
+
   const handleRequestCode = async (e: FormEvent) => {
     e.preventDefault();
+    if (digits.length < 10) {
+      setError("Введите 10 цифр номера");
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
-      await authApi.requestCode(phone.trim());
+      // Проверяем существование пользователя, чтобы дать понятную ошибку заранее.
+      // Если endpoint недоступен — пропускаем проверку, не блокируем вход.
+      try {
+        const { exists } = await authApi.checkUser(phone);
+        if (!exists) {
+          setError("Номер не зарегистрирован. Перейдите на вкладку «Регистрация».");
+          return;
+        }
+      } catch {
+        // check-user недоступен — продолжаем без проверки
+      }
+      await authApi.requestCode(phone);
       setStep("code");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось отправить код");
@@ -222,7 +285,7 @@ function LoginForm() {
     setError(null);
     setLoading(true);
     try {
-      const res = await authApi.verifyCode(phone.trim(), code.trim());
+      const res = await authApi.verifyCode(phone, code.trim());
       login(res.token, res.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Неверный код");
@@ -237,21 +300,13 @@ function LoginForm() {
         {error && <ErrorBanner message={error} />}
         <div>
           <label className={LABEL_CLASS}>Номер телефона</label>
-          <input
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="+7 (900) 000-00-00"
-            className={INPUT_CLASS}
-            required
-            disabled={loading}
-          />
+          <PhoneInput digits={digits} onChange={setDigits} disabled={loading} />
         </div>
         <p className="text-xs text-gray-400">
           Отправим SMS с кодом подтверждения
         </p>
-        <button type="submit" className={SUBMIT_CLASS} disabled={loading}>
-          {loading ? "Отправляем..." : "Получить код"}
+        <button type="submit" className={SUBMIT_CLASS} disabled={loading || digits.length < 10}>
+          {loading ? "Проверяем..." : "Получить код"}
         </button>
       </form>
     );
@@ -307,23 +362,39 @@ function LoginForm() {
 
 /* ─── Форма регистрации ───────────────────────────────────────────────────── */
 /*
- * Шаг 1: POST /api/v1/auth/request-code  { phone }  → OTP отправлен на телефон
- * Шаг 2: POST /api/v1/auth/register      { phone, code, role: "CLIENT" } → { token, user }
+ * Шаг 1: GET /api/v1/auth/check-user — проверяем, что номер НЕ зарегистрирован
+ *        POST /api/v1/auth/request-code { phone } → OTP отправлен на телефон
+ * Шаг 2: POST /api/v1/auth/register    { phone, code, role: "CLIENT" } → { token, user }
  */
 function RegisterForm() {
   const { login } = useAuth();
-  const [phone, setPhone] = useState("");
+  const [digits, setDigits] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"phone" | "code">("phone");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const phone = "+7" + digits;
+
   const handleRequestCode = async (e: FormEvent) => {
     e.preventDefault();
+    if (digits.length < 10) {
+      setError("Введите 10 цифр номера");
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
-      await authApi.requestCode(phone.trim());
+      try {
+        const { exists } = await authApi.checkUser(phone);
+        if (exists) {
+          setError("Этот номер уже зарегистрирован. Перейдите на вкладку «Вход».");
+          return;
+        }
+      } catch {
+        // check-user недоступен — продолжаем без проверки
+      }
+      await authApi.requestCode(phone);
       setStep("code");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось отправить код");
@@ -337,7 +408,7 @@ function RegisterForm() {
     setError(null);
     setLoading(true);
     try {
-      const res = await authApi.register(phone.trim(), code.trim());
+      const res = await authApi.register(phone, code.trim());
       login(res.token, res.user);
     } catch (err) {
       setError(
@@ -355,21 +426,13 @@ function RegisterForm() {
         {error && <ErrorBanner message={error} />}
         <div>
           <label className={LABEL_CLASS}>Номер телефона</label>
-          <input
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="+7 (900) 000-00-00"
-            className={INPUT_CLASS}
-            required
-            disabled={loading}
-          />
+          <PhoneInput digits={digits} onChange={setDigits} disabled={loading} />
         </div>
         <p className="text-xs text-gray-400">
           Отправим SMS с кодом подтверждения
         </p>
-        <button type="submit" className={SUBMIT_CLASS} disabled={loading}>
-          {loading ? "Отправляем..." : "Получить код"}
+        <button type="submit" className={SUBMIT_CLASS} disabled={loading || digits.length < 10}>
+          {loading ? "Проверяем..." : "Получить код"}
         </button>
       </form>
     );

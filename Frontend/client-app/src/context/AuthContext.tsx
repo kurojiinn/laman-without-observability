@@ -54,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     tokenStore.clear();
     setUser(null);
+    authApi.logout().catch(() => {}); // очищает httpOnly cookie на сервере
   }, []);
 
   return (

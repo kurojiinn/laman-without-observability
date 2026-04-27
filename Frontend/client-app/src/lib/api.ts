@@ -22,9 +22,10 @@ export function resolveImageUrl(url: string | undefined | null): string | undefi
   try {
     const parsed = new URL(url);
     if (parsed.pathname.startsWith("/laman-images/")) {
-      // MinIO: заменяем хост на текущий, порт 9000
+      // NEXT_PUBLIC_MINIO_URL задаётся явно для локального dev (localhost:3000 ≠ nginx).
+      // В Docker window.location.origin уже указывает на nginx, переменная там не нужна.
       const minioHost = typeof window !== "undefined"
-        ? `http://${window.location.hostname}:9000`
+        ? (process.env.NEXT_PUBLIC_MINIO_URL || window.location.origin)
         : "http://localhost:9000";
       return minioHost + parsed.pathname;
     }
@@ -372,6 +373,13 @@ export const authApi = {
    */
   verifyCode: (phone: string, code: string) =>
     api.post<AuthResponse>("/v1/auth/verify-code", { phone, code }),
+
+  /** Проверить, зарегистрирован ли номер (без OTP). GET /api/v1/auth/check-user?phone= */
+  checkUser: (phone: string) =>
+    api.get<{ exists: boolean }>(`/v1/auth/check-user?phone=${encodeURIComponent(phone)}`),
+
+  /** Выход из аккаунта — бэкенд отзывает токен и очищает httpOnly cookie. POST /api/v1/auth/logout */
+  logout: () => api.post<void>("/v1/auth/logout", {}),
 
   /** Получить текущего пользователя по токену. GET /api/v1/auth/me */
   me: () => api.get<AuthUser>("/v1/auth/me"),

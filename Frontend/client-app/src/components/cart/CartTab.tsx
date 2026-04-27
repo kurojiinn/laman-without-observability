@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
-import { catalogApi, ordersApi, usersApi, isStoreOpen, type Store, type CreateOrderPayload, type Product, type OutOfStockAction } from "@/lib/api";
+import { catalogApi, ordersApi, usersApi, isStoreOpen, resolveImageUrl, type Store, type CreateOrderPayload, type Product, type OutOfStockAction } from "@/lib/api";
 import ProductModal from "@/components/ui/ProductModal";
 
 type View = "cart" | "checkout" | "success";
@@ -170,7 +170,7 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-8 h-8 bg-gray-50 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center">
                     {product.image_url ? (
-                      <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                      <img src={resolveImageUrl(product.image_url)} alt={product.name} className="w-full h-full object-cover" />
                     ) : (
                       <span className="text-sm">🛍️</span>
                     )}

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
 import { adminApi, resolveImageUrl, type Product } from "@/lib/api";
 import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
@@ -44,6 +46,7 @@ export default function ProductModal({ product, storeName, onClose, onGoToStore,
   }, [onClose]);
 
   useBodyScrollLock();
+  const { style: swipeStyle, backdropStyle, handlers: swipeHandlers } = useSwipeToDismiss({ onDismiss: onClose });
 
   function handleFavClick() {
     if (!isAuthenticated) {
@@ -92,17 +95,23 @@ export default function ProductModal({ product, storeName, onClose, onGoToStore,
 
   const totalPrice = product.price * qty;
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 z-[9998] bg-black/50" onClick={onClose} />
+      <div className="fixed inset-0 z-[10000] bg-black/50" onClick={onClose} style={backdropStyle} />
 
       {/* Sheet / Modal */}
       <div
-        className="fixed inset-x-0 bottom-0 sm:inset-0 z-[9999] flex items-end sm:items-center justify-center pointer-events-none"
+        className="fixed inset-x-0 bottom-0 sm:inset-0 z-[10001] flex items-end sm:items-center justify-center pointer-events-none"
         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
-      <div className="pointer-events-auto bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl max-h-[92dvh] overflow-y-auto overscroll-contain">
+      <div className="pointer-events-auto bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl max-h-[92dvh] overflow-y-auto overscroll-contain" style={swipeStyle}>
+        {/* Drag handle — mobile only */}
+        <div className="sm:hidden flex justify-center py-2.5 flex-shrink-0 touch-none select-none cursor-grab active:cursor-grabbing" {...swipeHandlers}>
+          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+        </div>
         {/* Image */}
         <div className="relative w-full aspect-square bg-gray-100">
           {product.image_url ? (
@@ -291,6 +300,7 @@ export default function ProductModal({ product, storeName, onClose, onGoToStore,
         </div>
       </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }

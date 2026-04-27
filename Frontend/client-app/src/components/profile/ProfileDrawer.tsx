@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useBodyScrollLockWhen } from "@/hooks/useBodyScrollLock";
+import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
 import { ordersApi, catalogApi, usersApi, type Order, type OrderItem, type UserProfile } from "@/lib/api";
 import PushNotificationButton from "@/components/ui/PushNotificationButton";
 import { useAuth } from "@/context/AuthContext";
@@ -48,6 +49,7 @@ export default function ProfileDrawer({ open, onClose, onGoToCart }: Props) {
   }, [open, isAuthenticated]);
 
   useBodyScrollLockWhen(open);
+  const { style: swipeStyle, backdropStyle, handlers: swipeHandlers } = useSwipeToDismiss({ onDismiss: onClose, isOpen: open });
 
   function handleLogout() {
     logout();
@@ -61,11 +63,19 @@ export default function ProfileDrawer({ open, onClose, onGoToCart }: Props) {
       <div
         className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
+        style={backdropStyle}
       />
 
-      <div className="fixed z-50 bg-white shadow-2xl flex flex-col
-        inset-x-0 bottom-0 rounded-t-2xl max-h-[90svh]
-        sm:inset-y-0 sm:right-0 sm:left-auto sm:w-96 sm:rounded-none sm:max-h-svh">
+      <div
+        className="fixed z-50 bg-white shadow-2xl flex flex-col
+          inset-x-0 bottom-0 rounded-t-2xl max-h-[90svh]
+          sm:inset-y-0 sm:right-0 sm:left-auto sm:w-96 sm:rounded-none sm:max-h-svh"
+        style={swipeStyle}
+      >
+        {/* Drag handle — mobile only */}
+        <div className="sm:hidden flex justify-center py-2.5 flex-shrink-0 touch-none select-none cursor-grab active:cursor-grabbing" {...swipeHandlers}>
+          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+        </div>
 
         {/* Шапка */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">

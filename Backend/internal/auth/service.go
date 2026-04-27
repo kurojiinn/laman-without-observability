@@ -142,6 +142,23 @@ type AuthResponse struct {
 	User  *models.User `json:"user"`
 }
 
+// CheckUserExists проверяет, зарегистрирован ли пользователь с данным номером телефона.
+// Не отправляет OTP — используется для проверки перед регистрацией/входом.
+func (s *AuthService) CheckUserExists(ctx context.Context, phone string) (bool, error) {
+	phone = normalizePhone(phone)
+	if phone == "" {
+		return false, fmt.Errorf("номер телефона пустой после очистки")
+	}
+	_, err := s.userRepo.GetByPhone(ctx, phone)
+	if err != nil {
+		if errors.Is(err, users.ErrUserNotFound) {
+			return false, nil
+		}
+		return false, fmt.Errorf("ошибка поиска пользователя: %w", err)
+	}
+	return true, nil
+}
+
 // SendCode отправляет код верификации на номер телефона.
 // В продакшене здесь будет интеграция с SMS-шлюзом.
 func (s *AuthService) SendCode(ctx context.Context, req SendCodeRequest) error {
@@ -258,6 +275,11 @@ func (s *AuthService) Register(ctx context.Context, req RegisterRequest) (*AuthR
 	defer span.End()
 	start := time.Now()
 
+	phone := normalizePhone(req.Phone)
+	if phone == "" {
+		return nil, fmt.Errorf("номер телефона пустой после очистки")
+	}
+
 	role, err := normalizeRole(req.Role)
 	if err != nil {
 		authOperationTotal.WithLabelValues("register", "error").Inc()
@@ -266,10 +288,10 @@ func (s *AuthService) Register(ctx context.Context, req RegisterRequest) (*AuthR
 	}
 	span.SetAttributes(
 		attribute.String("auth.role", role),
-		attribute.String("auth.phone_masked", maskPhone(req.Phone)),
+		attribute.String("auth.phone_masked", maskPhone(phone)),
 	)
 
-	_, err = s.userRepo.GetByPhone(ctx, req.Phone)
+	_, err = s.userRepo.GetByPhone(ctx, phone)
 	if err == nil {
 		authOperationTotal.WithLabelValues("register", "conflict").Inc()
 		authOperationDuration.WithLabelValues("register").Observe(time.Since(start).Seconds())
@@ -287,7 +309,7 @@ func (s *AuthService) Register(ctx context.Context, req RegisterRequest) (*AuthR
 		authOperationDuration.WithLabelValues("register").Observe(time.Since(start).Seconds())
 		return nil, ErrCodeRequired
 	}
-	if err := s.verifyAndConsumeCode(ctx, req.Phone, verificationCode); err != nil {
+	if err := s.verifyAndConsumeCode(ctx, phone, verificationCode); err != nil {
 		authOperationTotal.WithLabelValues("register", "error").Inc()
 		authOperationDuration.WithLabelValues("register").Observe(time.Since(start).Seconds())
 		return nil, err
@@ -295,7 +317,7 @@ func (s *AuthService) Register(ctx context.Context, req RegisterRequest) (*AuthR
 
 	user := &models.User{
 		ID:        uuid.New(),
-		Phone:     req.Phone,
+		Phone:     phone,
 		Role:      role,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -343,7 +365,7 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*AuthRespons
 		return nil, ErrOTPBlocked
 	}
 
-	user, err := s.userRepo.GetByPhone(ctx, req.Phone)
+	user, err := s.userRepo.GetByPhone(ctx, phone)
 	if err != nil {
 		if errors.Is(err, users.ErrUserNotFound) {
 			authOperationTotal.WithLabelValues("login", "registration_required").Inc()
@@ -393,7 +415,7 @@ func (s *AuthService) VerifyCode(ctx context.Context, req VerifyCodeRequest) (*A
 		return nil, ErrOTPBlocked
 	}
 
-	user, err := s.userRepo.GetByPhone(ctx, req.Phone)
+	user, err := s.userRepo.GetByPhone(ctx, phone)
 	if err != nil {
 		if errors.Is(err, users.ErrUserNotFound) {
 			authOperationTotal.WithLabelValues("verify_code", "registration_required").Inc()
@@ -405,7 +427,7 @@ func (s *AuthService) VerifyCode(ctx context.Context, req VerifyCodeRequest) (*A
 		return nil, fmt.Errorf("не удалось получить пользователя: %w", err)
 	}
 
-	if err := s.verifyAndConsumeCode(ctx, req.Phone, req.Code); err != nil {
+	if err := s.verifyAndConsumeCode(ctx, phone, req.Code); err != nil {
 		authOperationTotal.WithLabelValues("verify_code", "error").Inc()
 		authOperationDuration.WithLabelValues("verify_code").Observe(time.Since(start).Seconds())
 		return nil, err

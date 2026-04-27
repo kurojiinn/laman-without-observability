@@ -66,6 +66,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 		auth.POST("/verify-code", h.VerifyCode)
 		auth.POST("/register", h.Register)
 		auth.POST("/login", h.Login)
+		auth.GET("/check-user", h.CheckUser)
 		auth.GET("/me", middleware.AuthMiddleware(h.authService), h.GetMe)
 		auth.POST("/logout", middleware.AuthMiddleware(h.authService), h.Logout)
 	}
@@ -280,6 +281,22 @@ func (h *Handler) Logout(c *gin.Context) {
 
 	h.clearAuthCookie(c)
 	c.JSON(http.StatusOK, gin.H{"message": "успешный выход"})
+}
+
+// CheckUser обрабатывает GET /auth/check-user?phone=...
+// Возвращает {"exists": true/false} без отправки OTP.
+func (h *Handler) CheckUser(c *gin.Context) {
+	phone := strings.TrimSpace(c.Query("phone"))
+	if phone == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "phone обязателен"})
+		return
+	}
+	exists, err := h.authService.CheckUserExists(c.Request.Context(), phone)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"exists": exists})
 }
 
 // GetMe обрабатывает GET /auth/me
