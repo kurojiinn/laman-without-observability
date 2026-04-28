@@ -50,6 +50,11 @@ export default function Home() {
       .finally(() => setStoreLoading(false));
   }
 
+  function handleOpenStoreObject(store: Store) {
+    setOpenStore(store);
+    setTargetProductId(undefined);
+  }
+
   function handleCloseStore() {
     setOpenStore(null);
     setTargetProductId(undefined);
@@ -92,7 +97,7 @@ export default function Home() {
         ) : (
           <>
             {activeTab === "home"       && <HomeTab onOpenStore={handleOpenStore} onGoToCart={() => handleTabChange("cart")} search={search} activeCity={activeCity} />}
-            {activeTab === "categories" && <CategoriesTab search={search} activeCity={activeCity} />}
+            {activeTab === "categories" && <CategoriesTab search={search} activeCity={activeCity} onOpenStore={handleOpenStoreObject} />}
             {activeTab === "favorites"  && <FavoritesTab search={search} />}
             {activeTab === "cart"       && <CartTab onGoToStore={(storeId, productId) => { handleTabChange("home"); handleOpenStore(storeId, productId); }} />}
           </>

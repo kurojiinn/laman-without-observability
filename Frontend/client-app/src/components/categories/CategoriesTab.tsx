@@ -1,23 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { catalogApi, getUploadUrl, resolveImageUrl, isStoreOpen, type Store } from "@/lib/api";
-import StoreDetailView from "@/components/stores/StoreDetailView";
 import CategoryIcon, { CATEGORY_META, DEFAULT_META } from "@/components/ui/CategoryIcon";
 import StoreAvatar from "@/components/ui/StoreAvatar";
-import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
 
 const STORE_CATEGORY_TYPES = ["FOOD", "GROCERY", "PHARMACY", "SWEETS", "HOME", "BUILDING"];
 
-type View = "categories" | "stores" | "store";
+type View = "categories" | "stores";
 
-export default function CategoriesTab({ search, activeCity }: { search: string; activeCity: string }) {
+export default function CategoriesTab({ search, activeCity, onOpenStore }: { search: string; activeCity: string; onOpenStore: (store: Store) => void }) {
   const [view, setView] = useState<View>("categories");
   const [allStores, setAllStores] = useState<Store[]>([]);
   const [loadingStores, setLoadingStores] = useState(true);
   const [activeCategoryType, setActiveCategoryType] = useState<string | null>(null);
-  const [selectedStore, setSelectedStore] = useState<Store | null>(null);
   const [storeCatMeta, setStoreCatMeta] = useState<Record<string, string | null>>({});
 
   useEffect(() => {
@@ -58,17 +54,6 @@ export default function CategoriesTab({ search, activeCity }: { search: string; 
     return matchesCategory && matchesSearch;
   });
 
-  // ── Просмотр конкретного магазина (fullscreen portal, как ShowcasePage) ─────
-  if (view === "store" && selectedStore) {
-    return (
-      <StoreOverlay
-        store={selectedStore}
-        search={search}
-        onBack={() => { setSelectedStore(null); setView("stores"); }}
-      />
-    );
-  }
-
   // ── Список магазинов категории ─────────────────────────────────────────────
   if (view === "stores" && activeCategoryType) {
     const catMeta = CATEGORY_META[activeCategoryType] ?? DEFAULT_META;
@@ -107,7 +92,7 @@ export default function CategoriesTab({ search, activeCity }: { search: string; 
               <StoreRow
                 key={store.id}
                 store={store}
-                onClick={() => { if (isStoreOpen(store)) { setSelectedStore(store); setView("store"); } }}
+                onClick={() => { if (isStoreOpen(store)) onOpenStore(store); }}
               />
             ))}
           </div>
@@ -141,7 +126,7 @@ export default function CategoriesTab({ search, activeCity }: { search: string; 
                 <StoreRow
                   key={store.id}
                   store={store}
-                  onClick={() => { if (isStoreOpen(store)) { setActiveCategoryType(null); setSelectedStore(store); setView("store"); } }}
+                  onClick={() => { if (isStoreOpen(store)) { setActiveCategoryType(null); onOpenStore(store); } }}
                 />
               ))}
             </div>
@@ -196,7 +181,7 @@ export default function CategoriesTab({ search, activeCity }: { search: string; 
                   <StoreRow
                     key={store.id}
                     store={store}
-                    onClick={() => { if (isStoreOpen(store)) { setActiveCategoryType(null); setSelectedStore(store); setView("store"); } }}
+                    onClick={() => { if (isStoreOpen(store)) { setActiveCategoryType(null); onOpenStore(store); } }}
                   />
                 ))}
               </div>
@@ -261,25 +246,3 @@ function pluralStore(n: number) {
   return "магазинов";
 }
 
-// ── Fullscreen portal overlay для StoreDetailView (как ShowcasePage) ──────────
-
-function StoreOverlay({ store, search, onBack }: { store: Store; search: string; onBack: () => void }) {
-  const { style: swipeStyle, handlers: swipeHandlers } = useSwipeToDismiss({
-    onDismiss: onBack,
-    threshold: 80,
-    direction: "right",
-  });
-  if (typeof document === "undefined") return null;
-  return createPortal(
-    <div className="fixed inset-0 z-[9999] overflow-hidden">
-      <div
-        className="flex flex-col h-full animate-slide-in-right overflow-y-auto overscroll-contain"
-        style={{ ...swipeStyle, background: "var(--bg-page)", paddingTop: 'env(safe-area-inset-top, 0px)' }}
-        {...swipeHandlers}
-      >
-        <StoreDetailView store={store} search={search} onBack={onBack} disableSwipe />
-      </div>
-    </div>,
-    document.body
-  );
-}
