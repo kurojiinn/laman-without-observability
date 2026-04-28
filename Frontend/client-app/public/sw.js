@@ -1,4 +1,4 @@
-const CACHE = "laman-v3";
+const CACHE = "yuher-v1";
 const OFFLINE_URL = "/offline";
 
 self.addEventListener("install", (event) => {
@@ -35,7 +35,7 @@ self.addEventListener("fetch", (event) => {
 self.addEventListener("push", (event) => {
   const data = event.data?.json() ?? {};
   event.waitUntil(
-    self.registration.showNotification(data.title ?? "Laman", {
+    self.registration.showNotification(data.title ?? "Yuher", {
       body: data.body ?? "",
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",

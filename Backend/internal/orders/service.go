@@ -283,7 +283,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 			comment = *req.Comment
 		}
 
-		notifyCtx := observability.WithOrderMessageMeta(ctx, observability.OrderMessageMeta{
+		notifyCtx := observability.WithOrderMessageMeta(context.Background(), observability.OrderMessageMeta{
 			Customer: fmt.Sprintf("Пользователь %s", shortUUID(req.UserID)),
 			Phone:    phone,
 			Comment:  comment,
@@ -291,13 +291,17 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 			Items:    itemsText,
 		})
 
-		if err := s.notifier.NotifyNewOrder(notifyCtx, order); err != nil && s.logger != nil {
-			s.logger.Warn("Не удалось отправить уведомление в Telegram", zap.Error(err))
-		}
-
-		if err := s.notifier.NotifyNewOrderToCouriers(notifyCtx, order); err != nil && s.logger != nil {
-			s.logger.Warn("Не удалось отправить уведомление в Telegram для курьеров", zap.Error(err))
-		}
+		notifier := s.notifier
+		orderCopy := *order
+		logger := s.logger
+		go func() {
+			if err := notifier.NotifyNewOrder(notifyCtx, &orderCopy); err != nil && logger != nil {
+				logger.Warn("Не удалось отправить уведомление в Telegram", zap.Error(err))
+			}
+			if err := notifier.NotifyNewOrderToCouriers(notifyCtx, &orderCopy); err != nil && logger != nil {
+				logger.Warn("Не удалось отправить уведомление в Telegram для курьеров", zap.Error(err))
+			}
+		}()
 	}
 
 	return &models.OrderWithItems{
@@ -334,10 +338,14 @@ func (s *OrderService) assignCourier(ctx context.Context, order *models.Order) *
 		}
 
 		if s.notifier != nil {
-			err = s.notifier.NotifyNoCourierFound(ctx, order)
-			if err != nil {
-				s.logger.Warn("не удалось отправить сообщение", zap.Error(err))
-			}
+			notifier := s.notifier
+			orderCopy := *order
+			logger := s.logger
+			go func() {
+				if err := notifier.NotifyNoCourierFound(context.Background(), &orderCopy); err != nil {
+					logger.Warn("не удалось отправить сообщение", zap.Error(err))
+				}
+			}()
 		}
 
 	}

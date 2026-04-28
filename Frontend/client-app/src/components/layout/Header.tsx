@@ -79,7 +79,7 @@ export default function Header({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
-            <span className="font-bold text-gray-900 text-lg tracking-tight">Laman</span>
+            <span className="font-bold text-gray-900 text-lg tracking-tight">Yuher</span>
           </button>
 
           {/* Поиск — только на sm+ в первой строке */}

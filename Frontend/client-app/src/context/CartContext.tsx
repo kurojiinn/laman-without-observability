@@ -32,7 +32,7 @@ interface CartContextValue {
 
 const CartContext = createContext<CartContextValue | null>(null);
 
-const STORAGE_KEY = "laman_cart";
+const STORAGE_KEY = "yuher_cart";
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated, openAuthModal } = useAuth();

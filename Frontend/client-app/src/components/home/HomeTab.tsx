@@ -375,18 +375,18 @@ const PROMO_BANNERS = [
       title: "Скоро в вашем городе", emoji: "🗺️",
       headerBg: "linear-gradient(135deg, #0f172a, #1e40af)",
       body: [
-        { icon: "📍", title: "Уже работаем", desc: "Ойсхар — первый город Laman" },
+        { icon: "📍", title: "Уже работаем", desc: "Ойсхар — первый город Yuher" },
         { icon: "🚀", title: "Следующие города", desc: "Грозный, Гудермес, Аргун и другие города ЧР" },
         { icon: "🔔", title: "Узнайте первыми", desc: "Следите за нами в Instagram" },
       ],
       cta: "Быть в курсе новостей", ctaBg: "linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)",
-      ctaAction: "https://instagram.com/LamanDelivery", hideCta: false,
+      ctaAction: "https://instagram.com/YuherDelivery", hideCta: false,
     },
   },
   {
     id: "partner",
     tag: "Для бизнеса",
-    headline: "Добавь свой\nмагазин в Laman",
+    headline: "Добавь свой\nмагазин в Yuher",
     sub: "Тысячи клиентов — без затрат на доставку",
     emoji: "🤝",
     bg: "linear-gradient(135deg, #064e3b 0%, #065f46 50%, #059669 100%)",
@@ -408,7 +408,7 @@ const PROMO_BANNERS = [
   {
     id: "app",
     tag: "Скоро",
-    headline: "Laman\nв приложении",
+    headline: "Yuher\nв приложении",
     sub: "App Store и Google Play — уже скоро",
     emoji: "📱",
     bg: "linear-gradient(135deg, #3b0764 0%, #6d28d9 55%, #c026d3 100%)",
@@ -416,7 +416,7 @@ const PROMO_BANNERS = [
     chipColor: "bg-purple-400/20 text-purple-200",
     chips: ["iOS", "Android", "Пуш-уведомления"],
     modal: {
-      title: "Приложение Laman", emoji: "📱",
+      title: "Приложение Yuher", emoji: "📱",
       headerBg: "linear-gradient(135deg, #3b0764, #6d28d9)",
       body: [
         { icon: "⚡", title: "Молниеносный заказ", desc: "Сохранённые адреса и корзина за секунду" },
@@ -951,7 +951,7 @@ function CharityModal({ onClose }: { onClose: () => void }) {
           <div className="relative flex items-center gap-3">
             <span className="text-4xl">🫶</span>
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest opacity-60 mb-0.5">Laman Добро</p>
+              <p className="text-xs font-bold uppercase tracking-widest opacity-60 mb-0.5">Yuher Добро</p>
               <h2 className="text-xl font-bold leading-tight">Делимся теплом</h2>
               <p className="text-xs opacity-75 mt-0.5">Каждый рубль — это чья-то тарелка еды</p>
             </div>

@@ -136,7 +136,7 @@ function LeftPanel() {
             </svg>
           </div>
           <span className="text-white font-bold text-lg tracking-tight">
-            Laman
+            Yuher
           </span>
         </div>
       </div>

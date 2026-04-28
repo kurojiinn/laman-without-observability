@@ -1,7 +1,7 @@
 {
-  "name": "Laman",
-  "short_name": "Laman",
-  "description": "Dostavka v Groznyi",
+  "name": "Yuher",
+  "short_name": "Yuher",
+  "description": "Близкие магазины — быстрая доставка",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
