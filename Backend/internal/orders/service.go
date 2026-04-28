@@ -518,16 +518,5 @@ func (s *OrderService) UpdateOrderStatus(ctx context.Context, id uuid.UUID, newS
 
 // orderStatusNotification возвращает текст push-уведомления для клиента.
 func orderStatusNotification(status models.OrderStatus) (push.Notification, bool) {
-	msgs := map[models.OrderStatus][2]string{
-		models.OrderStatusAssembling:        {"Заказ собирается", "Сборщик начал формировать ваш заказ"},
-		models.OrderStatusNeedsConfirmation: {"Нужно уточнение", "Свяжитесь с нами — по вашему заказу есть вопрос"},
-		models.OrderStatusCourierPickedUp:   {"Курьер в пути", "Курьер забрал ваш заказ и едет к вам"},
-		models.OrderStatusDelivering:        {"Курьер едет к вам", "Совсем скоро ваш заказ будет у вас"},
-		models.OrderStatusDelivered:         {"Заказ доставлен", "Ваш заказ доставлен. Приятного!"},
-		models.OrderStatusCancelled:         {"Заказ отменён", "Ваш заказ был отменён"},
-	}
-	if m, ok := msgs[status]; ok {
-		return push.Notification{Title: m[0], Body: m[1], URL: "/orders"}, true
-	}
-	return push.Notification{}, false
+	return push.NotificationForOrderStatus(string(status))
 }

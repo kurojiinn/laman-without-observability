@@ -83,13 +83,13 @@ export default function HomeTab({ onOpenStore, onGoToCart, search, activeCity }:
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 space-y-6" style={{ color: 'inherit' }}>
 
-      {/* ── Промо-карусель ── */}
-      <PromoBannerCarousel />
-
       {q ? (
         <SearchResults q={q} activeCity={activeCity} storeMap={storeMap} onOpenStore={onOpenStore} onOpenProduct={setSelectedProduct} />
       ) : (
         <>
+          {/* ── Промо-карусель ── */}
+          <PromoBannerCarousel />
+
           {/* ── Быстрые сценарии ── */}
           {scenarios.length > 0 && (
             <section>
@@ -533,7 +533,7 @@ function PromoModal({ banner, onClose }: { banner: PromoBannerType; onClose: () 
         <div className="sm:hidden flex justify-center py-2.5 flex-shrink-0 touch-none select-none cursor-grab" {...swipeHandlers}>
           <div className="w-10 h-1 bg-gray-300 rounded-full" />
         </div>
-        <div className="relative px-6 pt-7 pb-6 text-white overflow-hidden" style={{ background: banner.modal.headerBg }}>
+        <div className="relative px-6 pt-7 pb-6 text-white overflow-hidden sm:touch-auto touch-none select-none" style={{ background: banner.modal.headerBg }} {...swipeHandlers}>
           <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/5" />
           <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 bg-white/15 hover:bg-white/25 rounded-full flex items-center justify-center transition-colors">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="white" strokeWidth="2" strokeLinecap="round" /></svg>
@@ -943,7 +943,7 @@ function CharityModal({ onClose }: { onClose: () => void }) {
         <div className="sm:hidden flex justify-center py-2.5 flex-shrink-0 touch-none select-none cursor-grab" {...swipeHandlers}>
           <div className="w-10 h-1 bg-gray-300 rounded-full" />
         </div>
-        <div className="relative flex-shrink-0 px-6 pt-6 pb-5 text-white overflow-hidden rounded-t-3xl" style={{ background: "linear-gradient(135deg, #92400e 0%, #b45309 40%, #d97706 100%)" }}>
+        <div className="relative flex-shrink-0 px-6 pt-6 pb-5 text-white overflow-hidden rounded-t-3xl sm:touch-auto touch-none select-none" style={{ background: "linear-gradient(135deg, #92400e 0%, #b45309 40%, #d97706 100%)" }} {...swipeHandlers}>
           <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full opacity-10 bg-white" />
           <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors z-10">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="white" strokeWidth="2" strokeLinecap="round" /></svg>

@@ -81,7 +81,7 @@ export default function Home() {
 
       <TabBar active={activeTab} onChange={handleTabChange} isAdmin={isAdmin} />
 
-      <main className="flex-1 pb-20 md:pb-0">
+      <main className="flex-1 pb-16 md:pb-0">
         {/* Магазин открытый с главной — показываем внутри main (хедер и таббар остаются) */}
         {openStore ? (
           <StoreDetailView store={openStore} onBack={handleCloseStore} targetProductId={targetProductId} search={search} sort={sort} isAdmin={isAdmin} />

@@ -112,13 +112,14 @@ export default function ProductModal({ product, storeName, onClose, onGoToStore,
         <div className="sm:hidden flex justify-center py-2.5 flex-shrink-0 touch-none select-none cursor-grab active:cursor-grabbing" {...swipeHandlers}>
           <div className="w-10 h-1 bg-gray-300 rounded-full" />
         </div>
-        {/* Image */}
-        <div className="relative w-full aspect-square bg-gray-100">
+        {/* Image — вся зона кратинки тоже работает как drag handle (mobile only) */}
+        <div className="relative w-full aspect-square bg-gray-100 sm:touch-auto touch-none select-none" {...swipeHandlers}>
           {product.image_url ? (
             <img
               src={resolveImageUrl(product.image_url)}
               alt={product.name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover pointer-events-none"
+              draggable={false}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-7xl">🛍️</div>

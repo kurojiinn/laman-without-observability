@@ -332,7 +332,7 @@ lint → build → deploy_staging (auto) → deploy_prod (manual)
 - Линтер перед каждым коммитом: `golangci-lint run ./...`
 - Миграции запускаются вручную: `cd Backend && make migrate-up` (postgres должен быть запущен)
 - `dist/` в picker-panel — старый билд, не используется в dev режиме
-- picker-panel и admin-panel Docker образы запускают `npm run dev` (не prod!)
+- picker-panel и admin-panel Docker образы делают `npm run build` → nginx (prod сборка)
   → при изменении кода нужно пересобирать образ: `docker-compose build <service>`
   → для активной разработки лучше запускать `npm run dev` локально
 

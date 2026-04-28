@@ -8,6 +8,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import type { Product } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
@@ -131,8 +132,9 @@ function StoreConflictModal({
   onClose: () => void;
   onClearCart: () => void;
 }) {
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[10002] flex items-end sm:items-center justify-center">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
@@ -173,7 +175,8 @@ function StoreConflictModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

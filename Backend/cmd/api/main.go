@@ -164,7 +164,7 @@ func main() {
 	}
 
 	adminRepo := admin.NewPostgresRepository(db)
-	adminService := admin.NewService(adminRepo, logger)
+	adminService := admin.NewService(adminRepo, logger, pushService)
 	adminHandler := admin.NewHandler(adminService, logger, minioProvider).WithRecipes(catalogService).WithStoreCategoryUpdater(catalogService).WithScenarios(catalogService)
 	courierHandler := courier.NewHandler(courierService, authService, logger)
 	pickerHandler := picker.NewHandler(pickerService, logger, authService, hub)

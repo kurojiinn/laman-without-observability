@@ -578,7 +578,7 @@ func NewPostgresStoreCategoryMetaRepository(db *database.DB) StoreCategoryMetaRe
 
 func (r *postgresStoreCategoryMetaRepository) GetAll(ctx context.Context) ([]models.StoreCategoryMeta, error) {
 	var rows []models.StoreCategoryMeta
-	err := r.db.SelectContext(ctx, &rows, `SELECT category_type, image_url FROM store_category_meta ORDER BY category_type`)
+	err := r.db.SelectContext(ctx, &rows, `SELECT category_type, name, description, image_url FROM store_category_meta ORDER BY category_type`)
 	return rows, err
 }
 
@@ -586,6 +586,14 @@ func (r *postgresStoreCategoryMetaRepository) UpdateImage(ctx context.Context, c
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE store_category_meta SET image_url = $1, updated_at = NOW() WHERE category_type = $2`,
 		imageURL, categoryType,
+	)
+	return err
+}
+
+func (r *postgresStoreCategoryMetaRepository) UpdateMeta(ctx context.Context, categoryType string, name, description string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE store_category_meta SET name = $1, description = $2, updated_at = NOW() WHERE category_type = $3`,
+		name, description, categoryType,
 	)
 	return err
 }

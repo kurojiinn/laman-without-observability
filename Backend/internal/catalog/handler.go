@@ -899,7 +899,7 @@ func (h *Handler) GetStoreCategoryMeta(c *gin.Context) {
 
 func (h *Handler) AdminUpdateStoreCategoryImage(c *gin.Context) {
 	categoryType := strings.ToUpper(c.Param("type"))
-	validTypes := map[string]bool{"FOOD": true, "PHARMACY": true, "BUILDING": true, "HOME": true, "CLOTHES": true, "AUTO": true}
+	validTypes := map[string]bool{"FOOD": true, "PHARMACY": true, "BUILDING": true, "HOME": true, "GROCERY": true, "SWEETS": true}
 	if !validTypes[categoryType] {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный тип категории"})
 		return

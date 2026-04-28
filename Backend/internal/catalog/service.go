@@ -56,6 +56,11 @@ func (s *CatalogService) UpdateStoreCategoryImage(ctx context.Context, categoryT
 	return s.storeCatMetaRepo.UpdateImage(ctx, categoryType, imageURL)
 }
 
+// UpdateStoreCategoryMeta обновляет название и описание типа магазина.
+func (s *CatalogService) UpdateStoreCategoryMeta(ctx context.Context, categoryType string, name, description string) error {
+	return s.storeCatMetaRepo.UpdateMeta(ctx, categoryType, name, description)
+}
+
 // GetCategories получает все категории.
 func (s *CatalogService) GetCategories(ctx context.Context) ([]models.Category, error) {
 	categories, err := s.categoryRepo.GetAll(ctx)

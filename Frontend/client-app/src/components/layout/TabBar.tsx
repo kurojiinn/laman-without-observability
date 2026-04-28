@@ -64,9 +64,9 @@ export default function TabBar({ active, onChange, isAdmin }: TabBarProps) {
       {/* ── Мобильный: фиксированный bottom-nav ── */}
       <nav
         className="md:hidden fixed bottom-0 left-0 right-0 z-40"
-        style={{ background: 'var(--bg-surface)', paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        style={{ background: 'var(--bg-surface)' }}
       >
-        <div className={`grid h-20`} style={{ gridTemplateColumns: `repeat(${colCount}, 1fr)` }}>
+        <div className={`grid h-16`} style={{ gridTemplateColumns: `repeat(${colCount}, 1fr)` }}>
           {visibleTabs.map((tab) => {
             const isActive = active === tab.id;
             const showBadge = tab.id === "cart" && totalCount > 0;

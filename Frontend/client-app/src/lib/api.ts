@@ -382,5 +382,5 @@ export const authApi = {
   logout: () => api.post<void>("/v1/auth/logout", {}),
 
   /** Получить текущего пользователя по токену. GET /api/v1/auth/me */
-  me: () => api.get<AuthUser>("/v1/auth/me"),
+  me: () => api.get<AuthUser & { token: string }>("/v1/auth/me"),
 };

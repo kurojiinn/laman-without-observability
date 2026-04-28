@@ -6,7 +6,7 @@ import StoreDetailView from "@/components/stores/StoreDetailView";
 import CategoryIcon, { CATEGORY_META, DEFAULT_META } from "@/components/ui/CategoryIcon";
 import StoreAvatar from "@/components/ui/StoreAvatar";
 
-const STORE_CATEGORY_TYPES = ["PHARMACY", "FOOD", "BUILDING", "HOME", "CLOTHES", "AUTO"];
+const STORE_CATEGORY_TYPES = ["FOOD", "GROCERY", "PHARMACY", "SWEETS", "HOME", "BUILDING"];
 
 type View = "categories" | "stores" | "store";
 
@@ -37,12 +37,14 @@ export default function CategoriesTab({ search, activeCity }: { search: string; 
   // Магазины выбранного города
   const cityStores = allStores.filter((s) => s.city === activeCity);
 
-  // Категории с количеством магазинов (только выбранный город)
-  const categoriesWithCount = STORE_CATEGORY_TYPES.map((type) => ({
-    type,
-    meta: CATEGORY_META[type] ?? DEFAULT_META,
-    count: cityStores.filter((s) => s.category_type === type).length,
-  }));
+  // Категории с количеством магазинов (только выбранный город, только непустые)
+  const categoriesWithCount = STORE_CATEGORY_TYPES
+    .map((type) => ({
+      type,
+      meta: CATEGORY_META[type] ?? DEFAULT_META,
+      count: cityStores.filter((s) => s.category_type === type).length,
+    }))
+    .filter(({ count }) => count > 0);
 
   // Магазины с учётом города, категории и поиска
   const filteredStores = cityStores.filter((s) => {

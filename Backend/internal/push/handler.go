@@ -27,6 +27,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	auth.Use(middleware.AuthMiddleware(h.authService))
 	auth.POST("/subscribe", h.Subscribe)
 	auth.POST("/unsubscribe", h.Unsubscribe)
+	auth.POST("/test", h.SendTest)
 }
 
 type subscribeRequest struct {
@@ -36,7 +37,7 @@ type subscribeRequest struct {
 }
 
 func (h *Handler) Subscribe(c *gin.Context) {
-	userID, ok := c.Get("userID")
+	userID, ok := c.Get("user_id")
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "не авторизован"})
 		return
@@ -63,7 +64,7 @@ func (h *Handler) Subscribe(c *gin.Context) {
 }
 
 func (h *Handler) Unsubscribe(c *gin.Context) {
-	userID, ok := c.Get("userID")
+	userID, ok := c.Get("user_id")
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "не авторизован"})
 		return
@@ -84,4 +85,25 @@ func (h *Handler) Unsubscribe(c *gin.Context) {
 
 func (h *Handler) GetVAPIDKey(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"public_key": h.svc.VAPIDPublicKey()})
+}
+
+// SendTest отправляет тестовое push-уведомление текущему пользователю.
+// Используется для проверки работоспособности всей цепочки доставки.
+func (h *Handler) SendTest(c *gin.Context) {
+	userID, ok := c.Get("user_id")
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "не авторизован"})
+		return
+	}
+	uid, err := uuid.Parse(fmt.Sprintf("%v", userID))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный user id"})
+		return
+	}
+	h.svc.SendToUser(c.Request.Context(), uid, Notification{
+		Title: "Тест Laman",
+		Body:  "Уведомления работают ✓",
+		URL:   "/",
+	})
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }

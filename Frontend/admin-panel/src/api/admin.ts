@@ -32,6 +32,31 @@ export const createStore = async (
   return data;
 };
 
+export const updateStore = async (
+  user: string,
+  password: string,
+  storeId: string,
+  payload: { name: string; address: string; city: string; description?: string; category_type: string }
+) => {
+  await createAdminClient(user, password).patch(`/stores/${storeId}`, payload);
+};
+
+export const uploadStoreImage = async (
+  user: string,
+  password: string,
+  storeId: string,
+  image: File
+): Promise<{ image_url: string }> => {
+  const form = new FormData();
+  form.append("image", image);
+  const { data } = await createAdminClient(user, password).patch<{ image_url: string }>(
+    `/stores/${storeId}/image`,
+    form,
+    { headers: { "Content-Type": "multipart/form-data" } }
+  );
+  return data;
+};
+
 export const deleteStore = async (user: string, password: string, storeId: string) => {
   await createAdminClient(user, password).delete(`/stores/${storeId}`);
 };
@@ -63,6 +88,15 @@ export const createCategory = async (
   return data;
 };
 
+export const updateCategory = async (
+  user: string,
+  password: string,
+  categoryId: string,
+  name: string
+): Promise<void> => {
+  await createAdminClient(user, password).patch(`/categories/${categoryId}`, { name });
+};
+
 export const updateCategoryImage = async (
   user: string,
   password: string,
@@ -81,11 +115,21 @@ export const updateCategoryImage = async (
 
 // ─── Store category meta (фоны типов магазинов) ───────────────────────────────
 
-export type StoreCategoryMeta = { category_type: string; image_url?: string | null };
+export type StoreCategoryMeta = { category_type: string; name?: string | null; description?: string | null; image_url?: string | null };
 
 export const fetchStoreCategoryMeta = async (): Promise<StoreCategoryMeta[]> => {
   const { data } = await publicClient.get<StoreCategoryMeta[]>("/catalog/store-category-meta");
   return data ?? [];
+};
+
+export const updateStoreCategoryMeta = async (
+  user: string,
+  password: string,
+  categoryType: string,
+  name: string,
+  description: string
+): Promise<void> => {
+  await createAdminClient(user, password).patch(`/store-category-meta/${categoryType}`, { name, description });
 };
 
 export const updateStoreCategoryImage = async (

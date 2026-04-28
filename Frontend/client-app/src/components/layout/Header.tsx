@@ -63,7 +63,7 @@ export default function Header({
   }
 
   return (
-    <header className="z-40" style={{ background: 'var(--bg-page)' }}>
+    <header className="z-40 pt-safe" style={{ background: 'var(--bg-page)' }}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
 
         {/* Строка 1: логотип + [поиск на sm+] + город + профиль */}

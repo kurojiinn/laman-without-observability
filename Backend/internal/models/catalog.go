@@ -129,9 +129,11 @@ type FeaturedProduct struct {
 	CreatedAt time.Time         `db:"created_at" json:"created_at"`
 }
 
-// StoreCategoryMeta хранит настройки отображения типа магазина (фоновое изображение).
+// StoreCategoryMeta хранит настройки отображения типа магазина.
 type StoreCategoryMeta struct {
 	CategoryType string  `db:"category_type" json:"category_type"`
+	Name         *string `db:"name"          json:"name,omitempty"`
+	Description  *string `db:"description"   json:"description,omitempty"`
 	ImageURL     *string `db:"image_url"     json:"image_url,omitempty"`
 }
 
@@ -140,9 +142,9 @@ type StoreCategoryType string
 
 const (
 	StoreCategoryFood     StoreCategoryType = "FOOD"
-	StoreCategoryClothes  StoreCategoryType = "CLOTHES"
+	StoreCategoryGrocery  StoreCategoryType = "GROCERY"
 	StoreCategoryBuilding StoreCategoryType = "BUILDING"
-	StoreCategoryAuto     StoreCategoryType = "AUTO"
+	StoreCategorySweets   StoreCategoryType = "SWEETS"
 	StoreCategoryHome     StoreCategoryType = "HOME"
 	StoreCategoryPharmacy StoreCategoryType = "PHARMACY"
 )

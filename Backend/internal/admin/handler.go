@@ -33,9 +33,10 @@ type RecipeManager interface {
 	RemoveRecipeProduct(ctx context.Context, recipeID uuid.UUID, productID uuid.UUID) error
 }
 
-// StoreCategoryImageUpdater обновляет фоновое изображение типа магазина.
+// StoreCategoryImageUpdater обновляет данные типа магазина.
 type StoreCategoryImageUpdater interface {
 	UpdateStoreCategoryImage(ctx context.Context, categoryType string, imageURL string) error
+	UpdateStoreCategoryMeta(ctx context.Context, categoryType string, name, description string) error
 }
 
 // ScenarioManager абстрагирует управление сценариями для admin-панели.
@@ -91,6 +92,8 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.Han
 		admin.GET("/dashboard/stats", h.GetDashboardStats)
 		admin.GET("/orders", h.GetAllOrders)
 		admin.POST("/stores", h.CreateStore)
+		admin.PATCH("/stores/:id", h.UpdateStore)
+		admin.PATCH("/stores/:id/image", h.UpdateStoreImage)
 		admin.DELETE("/stores/:id", h.DeleteStore)
 		admin.GET("/products", h.GetProducts)
 		admin.POST("/products", h.CreateProduct)
@@ -105,10 +108,12 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.Han
 		// Категории
 		admin.GET("/categories", h.AdminGetCategories)
 		admin.POST("/categories", h.AdminCreateCategory)
+		admin.PATCH("/categories/:id", h.AdminUpdateCategory)
 		admin.PATCH("/categories/:id/image", h.AdminUpdateCategoryImage)
 		admin.DELETE("/categories/:id", h.AdminDeleteCategory)
 		// Фоны типов магазинов
 		if h.storeCatUpdater != nil {
+			admin.PATCH("/store-category-meta/:type", h.AdminUpdateStoreCategoryMeta)
 			admin.PATCH("/store-category-meta/:type/image", h.AdminUpdateStoreCategoryImage)
 		}
 		// Сценарии
@@ -250,6 +255,56 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 }
 
 // DeleteStore удаляет магазин по ID.
+// UpdateStore обновляет поля магазина.
+// PATCH /api/v1/admin/stores/:id
+func (h *Handler) UpdateStore(c *gin.Context) {
+	storeID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID магазина", "")
+		return
+	}
+	var req struct {
+		Name         string `json:"name"`
+		Address      string `json:"address"`
+		City         string `json:"city"`
+		Description  string `json:"description"`
+		CategoryType string `json:"category_type"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(c, http.StatusBadRequest, "некорректные данные", err.Error())
+		return
+	}
+	if err := h.service.UpdateStore(c.Request.Context(), storeID, req.Name, req.Address, req.City, req.Description, models.StoreCategoryType(req.CategoryType)); err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось обновить магазин", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// UpdateStoreImage загружает новое фото магазина.
+// PATCH /api/v1/admin/stores/:id/image
+func (h *Handler) UpdateStoreImage(c *gin.Context) {
+	ctx, span := observability.StartSpan(c.Request.Context(), "admin.update_store_image")
+	defer span.End()
+
+	storeID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID магазина", "")
+		return
+	}
+	_ = c.Request.ParseMultipartForm(20 << 20)
+	imageURL, err := h.saveUploadedImage(ctx, c)
+	if err != nil || imageURL == "" {
+		h.respondError(c, http.StatusBadRequest, "изображение обязательно", "")
+		return
+	}
+	if err := h.service.repo.UpdateStoreImage(ctx, storeID, imageURL); err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось обновить фото", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"image_url": imageURL})
+}
+
 func (h *Handler) DeleteStore(c *gin.Context) {
 	storeID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -651,13 +706,37 @@ func (h *Handler) AdminDeleteScenario(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
+// AdminUpdateStoreCategoryMeta обновляет название и описание типа магазина.
+// PATCH /api/v1/admin/store-category-meta/:type
+func (h *Handler) AdminUpdateStoreCategoryMeta(c *gin.Context) {
+	categoryType := strings.ToUpper(c.Param("type"))
+	validTypes := map[string]bool{"FOOD": true, "PHARMACY": true, "BUILDING": true, "HOME": true, "GROCERY": true, "SWEETS": true}
+	if !validTypes[categoryType] {
+		h.respondError(c, http.StatusBadRequest, "неверный тип категории", "")
+		return
+	}
+	var req struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(c, http.StatusBadRequest, "некорректные данные", err.Error())
+		return
+	}
+	if err := h.storeCatUpdater.UpdateStoreCategoryMeta(c.Request.Context(), categoryType, req.Name, req.Description); err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось обновить категорию", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
 // AdminUpdateStoreCategoryImage обновляет фоновое изображение типа магазина.
 func (h *Handler) AdminUpdateStoreCategoryImage(c *gin.Context) {
 	ctx, span := observability.StartSpan(c.Request.Context(), "admin.update_store_category_image")
 	defer span.End()
 
 	categoryType := strings.ToUpper(c.Param("type"))
-	validTypes := map[string]bool{"FOOD": true, "PHARMACY": true, "BUILDING": true, "HOME": true, "CLOTHES": true, "AUTO": true}
+	validTypes := map[string]bool{"FOOD": true, "PHARMACY": true, "BUILDING": true, "HOME": true, "GROCERY": true, "SWEETS": true}
 	if !validTypes[categoryType] {
 		h.respondError(c, http.StatusBadRequest, "неверный тип категории", "")
 		return
@@ -714,6 +793,28 @@ func (h *Handler) AdminCreateCategory(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, cat)
+}
+
+// AdminUpdateCategory обновляет название категории товаров.
+// PATCH /api/v1/admin/categories/:id
+func (h *Handler) AdminUpdateCategory(c *gin.Context) {
+	catID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID категории", "")
+		return
+	}
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Name) == "" {
+		h.respondError(c, http.StatusBadRequest, "name обязателен", "")
+		return
+	}
+	if err := h.service.UpdateCategoryName(c.Request.Context(), catID, strings.TrimSpace(req.Name)); err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось обновить категорию", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
 func (h *Handler) AdminUpdateCategoryImage(c *gin.Context) {

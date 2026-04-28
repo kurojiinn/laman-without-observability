@@ -14,11 +14,11 @@ function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
   return arr.buffer;
 }
 
-// Safari не экспортирует PushManager как глобал — нужно проверять через SW registration.
+// Ждём активного SW через .ready (а не .getRegistration() — оно может вернуть installing/waiting).
 async function getRegistrationWithPush(): Promise<ServiceWorkerRegistration | null> {
   if (!("serviceWorker" in navigator) || !("Notification" in window)) return null;
   try {
-    const reg = await navigator.serviceWorker.getRegistration();
+    const reg = await navigator.serviceWorker.ready;
     if (!reg?.pushManager) return null;
     return reg;
   } catch {
@@ -29,15 +29,25 @@ async function getRegistrationWithPush(): Promise<ServiceWorkerRegistration | nu
 export async function getPushState(): Promise<"granted" | "denied" | "default" | "unsupported"> {
   const reg = await getRegistrationWithPush();
   if (!reg) return "unsupported";
-  return Notification.permission;
+  if (Notification.permission === "denied") return "denied";
+  if (Notification.permission !== "granted") return "default";
+  // Проверяем реальную подписку, а не только разрешение браузера
+  const sub = await reg.pushManager.getSubscription();
+  return sub ? "granted" : "default";
 }
 
 export async function subscribeToPush(): Promise<boolean> {
   const reg = await getRegistrationWithPush();
-  if (!reg) return false;
+  if (!reg) {
+    console.warn("[Push] SW not available or pushManager missing");
+    return false;
+  }
 
   const permission = await Notification.requestPermission();
-  if (permission !== "granted") return false;
+  if (permission !== "granted") {
+    console.warn("[Push] Permission not granted:", permission);
+    return false;
+  }
 
   try {
     const vapidKey = await getVapidKey();
@@ -53,7 +63,8 @@ export async function subscribeToPush(): Promise<boolean> {
       auth: json.keys?.auth,
     });
     return true;
-  } catch {
+  } catch (err) {
+    console.error("[Push] Subscribe failed:", err);
     return false;
   }
 }
@@ -65,6 +76,7 @@ export async function unsubscribeFromPush(): Promise<void> {
   const sub = await reg.pushManager.getSubscription();
   if (!sub) return;
 
-  await api.post("/v1/push/unsubscribe", { endpoint: sub.endpoint });
+  // Сначала удаляем из браузера (основное), потом уведомляем бэкенд (best-effort)
   await sub.unsubscribe();
+  api.post("/v1/push/unsubscribe", { endpoint: sub.endpoint }).catch(() => {});
 }

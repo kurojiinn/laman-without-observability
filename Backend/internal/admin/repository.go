@@ -18,12 +18,15 @@ type Repository interface {
 	GetDashboardStats(ctx context.Context) (*DashboardStats, error)
 	GetAllOrders(ctx context.Context) ([]models.Order, error)
 	CreateStore(ctx context.Context, store *models.Store) error
+	UpdateStore(ctx context.Context, id uuid.UUID, name, address, city, description string, categoryType models.StoreCategoryType) error
+	UpdateStoreImage(ctx context.Context, id uuid.UUID, imageURL string) error
 	DeleteStore(ctx context.Context, id uuid.UUID) error
 	CreateProduct(ctx context.Context, product *models.Product) error
 	DeleteProduct(ctx context.Context, id uuid.UUID) error
 	UpdateProduct(ctx context.Context, id uuid.UUID, req *UpdateProductRequest) (*models.Product, error)
 	GetProductsByStore(ctx context.Context, storeID uuid.UUID) ([]models.Product, error)
 	UpdateOrderStatus(ctx context.Context, id uuid.UUID, status models.OrderStatus) error
+	GetOrderUserID(ctx context.Context, id uuid.UUID) (*uuid.UUID, error)
 	GetCategoryAndStoreMaps(ctx context.Context) (map[string]uuid.UUID, map[string]uuid.UUID, error)
 	BulkInsertProducts(ctx context.Context, rows []ImportProductRow) error
 	// Витрина: управление блоками на главном экране
@@ -34,6 +37,7 @@ type Repository interface {
 	GetCategories(ctx context.Context) ([]models.Category, error)
 	CreateCategory(ctx context.Context, cat *models.Category) error
 	UpdateCategoryImage(ctx context.Context, id uuid.UUID, imageURL string) error
+	UpdateCategoryName(ctx context.Context, id uuid.UUID, name string) error
 	DeleteCategory(ctx context.Context, id uuid.UUID) error
 }
 
@@ -104,6 +108,31 @@ func (r *postgresRepository) CreateStore(ctx context.Context, store *models.Stor
 	return err
 }
 
+// UpdateStore обновляет поля магазина.
+func (r *postgresRepository) UpdateStore(ctx context.Context, id uuid.UUID, name, address, city, description string, categoryType models.StoreCategoryType) error {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE stores SET name=$1, address=$2, city=$3, description=$4, category_type=$5, updated_at=NOW() WHERE id=$6`,
+		name, address, city, description, categoryType, id,
+	)
+	if err != nil {
+		return err
+	}
+	affected, _ := res.RowsAffected()
+	if affected == 0 {
+		return fmt.Errorf("магазин не найден")
+	}
+	return nil
+}
+
+// UpdateStoreImage обновляет фото магазина.
+func (r *postgresRepository) UpdateStoreImage(ctx context.Context, id uuid.UUID, imageURL string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE stores SET image_url = $1, updated_at = NOW() WHERE id = $2`,
+		imageURL, id,
+	)
+	return err
+}
+
 // DeleteStore удаляет магазин и его товары в транзакции.
 func (r *postgresRepository) DeleteStore(ctx context.Context, id uuid.UUID) error {
 	return r.db.WithTx(ctx, func(tx *sqlx.Tx) error {
@@ -151,6 +180,16 @@ func (r *postgresRepository) UpdateOrderStatus(ctx context.Context, id uuid.UUID
 	query := `UPDATE orders SET status = $1, updated_at = NOW() WHERE id = $2`
 	_, err := r.db.ExecContext(ctx, query, status, id)
 	return err
+}
+
+// GetOrderUserID возвращает user_id заказа (nil для гостевого).
+func (r *postgresRepository) GetOrderUserID(ctx context.Context, id uuid.UUID) (*uuid.UUID, error) {
+	var userID *uuid.UUID
+	err := r.db.GetContext(ctx, &userID, `SELECT user_id FROM orders WHERE id = $1`, id)
+	if err != nil {
+		return nil, err
+	}
+	return userID, nil
 }
 
 // GetCategoryAndStoreMaps возвращает словари для поиска ID по имени.
@@ -384,6 +423,15 @@ func (r *postgresRepository) UpdateCategoryImage(ctx context.Context, id uuid.UU
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE categories SET image_url = $1, updated_at = NOW() WHERE id = $2`,
 		imageURL, id,
+	)
+	return err
+}
+
+// UpdateCategoryName обновляет название категории.
+func (r *postgresRepository) UpdateCategoryName(ctx context.Context, id uuid.UUID, name string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE categories SET name = $1, updated_at = NOW() WHERE id = $2`,
+		name, id,
 	)
 	return err
 }

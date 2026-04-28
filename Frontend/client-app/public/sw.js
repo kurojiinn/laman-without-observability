@@ -1,4 +1,4 @@
-const CACHE = "laman-v2";
+const CACHE = "laman-v3";
 const OFFLINE_URL = "/offline";
 
 self.addEventListener("install", (event) => {

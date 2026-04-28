@@ -1,12 +1,12 @@
-export type StoreCategoryType = "FOOD" | "CLOTHES" | "BUILDING" | "HOME" | "PHARMACY" | "AUTO";
+export type StoreCategoryType = "FOOD" | "GROCERY" | "BUILDING" | "HOME" | "PHARMACY" | "SWEETS";
 
 export const STORE_CATEGORY_LABELS: Record<StoreCategoryType, string> = {
-  FOOD: "🍔 Общепит",
-  CLOTHES: "👕 Одежда",
-  HOME: "🏠 Быт",
-  BUILDING: "🏗️ Стройка",
-  PHARMACY: "💊 Аптека",
-  AUTO: "🚗 Авто",
+  FOOD: "🍽️ Еда",
+  GROCERY: "🛒 Продукты",
+  HOME: "🧹 Химия и быт",
+  BUILDING: "🏗️ Стройматериалы",
+  PHARMACY: "💊 Аптеки",
+  SWEETS: "🍬 Сладости и подарки",
 };
 
 export type Store = {

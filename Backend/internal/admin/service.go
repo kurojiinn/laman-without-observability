@@ -9,6 +9,7 @@ import (
 
 	"Laman/internal/models"
 	"Laman/internal/observability"
+	"Laman/internal/push"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -18,11 +19,12 @@ import (
 type Service struct {
 	repo   Repository
 	logger *zap.Logger
+	pusher *push.Service
 }
 
 // NewService создает сервис admin-операций.
-func NewService(repo Repository, logger *zap.Logger) *Service {
-	return &Service{repo: repo, logger: logger}
+func NewService(repo Repository, logger *zap.Logger, pusher *push.Service) *Service {
+	return &Service{repo: repo, logger: logger, pusher: pusher}
 }
 
 // GetDashboardStats возвращает сводные метрики.
@@ -67,6 +69,11 @@ func (s *Service) GetAllOrders(ctx context.Context) ([]models.Order, error) {
 	return s.repo.GetAllOrders(ctx)
 }
 
+// UpdateStore обновляет поля магазина.
+func (s *Service) UpdateStore(ctx context.Context, id uuid.UUID, name, address, city, description string, categoryType models.StoreCategoryType) error {
+	return s.repo.UpdateStore(ctx, id, name, address, city, description, categoryType)
+}
+
 // DeleteStore удаляет магазин и связанные товары.
 func (s *Service) DeleteStore(ctx context.Context, id uuid.UUID) error {
 	return s.repo.DeleteStore(ctx, id)
@@ -91,10 +98,24 @@ func (s *Service) UpdateOrderStatus(ctx context.Context, id uuid.UUID, status st
 		string(models.OrderStatusDelivered),
 		string(models.OrderStatusCancelled),
 		string(models.OrderStatusNeedsConfirmation):
-		return s.repo.UpdateOrderStatus(ctx, id, models.OrderStatus(normalized))
+		// разрешено
 	default:
 		return errInvalidStatus
 	}
+
+	if err := s.repo.UpdateOrderStatus(ctx, id, models.OrderStatus(normalized)); err != nil {
+		return err
+	}
+
+	// Push клиенту по новому статусу.
+	if s.pusher != nil {
+		if userID, err := s.repo.GetOrderUserID(ctx, id); err == nil && userID != nil {
+			if n, ok := push.NotificationForOrderStatus(normalized); ok {
+				s.pusher.SendToUser(ctx, *userID, n)
+			}
+		}
+	}
+	return nil
 }
 
 // ImportResult описывает результат массового импорта.
@@ -123,6 +144,11 @@ func (s *Service) CreateCategory(ctx context.Context, name string, imageURL *str
 // UpdateCategoryImage обновляет изображение категории.
 func (s *Service) UpdateCategoryImage(ctx context.Context, id uuid.UUID, imageURL string) error {
 	return s.repo.UpdateCategoryImage(ctx, id, imageURL)
+}
+
+// UpdateCategoryName обновляет название категории.
+func (s *Service) UpdateCategoryName(ctx context.Context, id uuid.UUID, name string) error {
+	return s.repo.UpdateCategoryName(ctx, id, name)
 }
 
 // DeleteCategory удаляет категорию без удаления товаров.

@@ -58,18 +58,27 @@ export function useSwipeToDismiss({
       gesture.current = Math.abs(delta) > orthoDelta ? "target" : "ignore";
     }
 
-    // Only move element if we're tracking the target direction (and moving the right way)
-    if (gesture.current === "target" && delta > 0) {
-      currentOffset.current = delta;
-      setOffset(delta);
+    // Down-свайпы — только вниз. Right-свайпы — обе стороны (влево и вправо).
+    if (gesture.current === "target") {
+      if (direction === "down" && delta > 0) {
+        currentOffset.current = delta;
+        setOffset(delta);
+      } else if (direction === "right") {
+        currentOffset.current = delta;
+        setOffset(delta);
+      }
     }
   }
 
   function onTouchEnd() {
     setDragging(false);
     gesture.current = null;
-    if (currentOffset.current >= threshold) {
-      setOffset(1000);
+    if (Math.abs(currentOffset.current) >= threshold) {
+      // Уезжаем в сторону движения пальца (вправо или влево — для right; вниз — для down)
+      const exitOffset = direction === "down"
+        ? 1000
+        : (currentOffset.current > 0 ? window.innerWidth : -window.innerWidth);
+      setOffset(exitOffset);
       setTimeout(onDismiss, 240);
     } else {
       setOffset(0);
@@ -77,8 +86,8 @@ export function useSwipeToDismiss({
     }
   }
 
-  // Backdrop fades from 1 → 0 as offset goes 0 → 350px
-  const fadeOpacity = Math.max(0, 1 - offset / 350);
+  // Backdrop fades from 1 → 0 as |offset| goes 0 → 350px
+  const fadeOpacity = Math.max(0, 1 - Math.abs(offset) / 350);
 
   // Modal scales down slightly as it's dragged (bottom-sheet only)
   const scale = direction === "down" ? Math.max(0.88, 1 - offset * 0.00045) : 1;
@@ -94,11 +103,20 @@ export function useSwipeToDismiss({
         direction === "down"
           ? `translateY(${offset}px) scale(${scale})`
           : `translateX(${offset}px)`,
-      // Fullscreen right-swipe: fade the panel itself as it slides away
-      opacity: direction === "right" ? fadeOpacity : 1,
+      // Right-swipe: эффект "шторки" — панель уезжает в сторону, но не теряет прозрачность.
+      // Down-swipe: панель остаётся непрозрачной, фон затемняется.
+      opacity: 1,
       transition,
       willChange: "transform",
       transformOrigin: "bottom center",
+      // Тень от уезжающего края — усиливает ощущение шторки.
+      // При свайпе вправо тень слева, при свайпе влево — справа.
+      boxShadow:
+        direction === "right" && offset !== 0
+          ? (offset > 0
+              ? `-${Math.min(offset, 30)}px 0 ${Math.min(offset, 60)}px rgba(0,0,0,0.18)`
+              : `${Math.min(-offset, 30)}px 0 ${Math.min(-offset, 60)}px rgba(0,0,0,0.18)`)
+          : undefined,
     } as React.CSSProperties,
     backdropStyle: {
       opacity: fadeOpacity,

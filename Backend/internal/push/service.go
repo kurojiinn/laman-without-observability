@@ -2,11 +2,12 @@ package push
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
-	"fmt"
+	"io"
+	"strings"
 
 	webpush "github.com/SherClockHolmes/webpush-go"
-	"database/sql"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -71,14 +72,20 @@ func (s *Service) SendToUser(ctx context.Context, userID uuid.UUID, n Notificati
 	defer func() { _ = rows.Close() }()
 
 	payload, _ := json.Marshal(n)
+	count := 0
 
 	for rows.Next() {
 		var endpoint, p256dh, auth string
 		if err := rows.Scan(&endpoint, &p256dh, &auth); err != nil {
 			continue
 		}
+		count++
 		go s.send(endpoint, p256dh, auth, payload)
 	}
+	s.logger.Info("push: SendToUser",
+		zap.String("user_id", userID.String()),
+		zap.String("title", n.Title),
+		zap.Int("subs", count))
 }
 
 func (s *Service) send(endpoint, p256dh, auth string, payload []byte) {
@@ -89,10 +96,14 @@ func (s *Service) send(endpoint, p256dh, auth string, payload []byte) {
 			Auth:   auth,
 		},
 	}
+	subscriber := s.vapidEmail
+	if !strings.HasPrefix(subscriber, "mailto:") && !strings.HasPrefix(subscriber, "https://") {
+		subscriber = "mailto:" + subscriber
+	}
 	resp, err := webpush.SendNotification(payload, sub, &webpush.Options{
 		VAPIDPublicKey:  s.vapidPub,
 		VAPIDPrivateKey: s.vapidPriv,
-		Subscriber:      fmt.Sprintf("mailto:%s", s.vapidEmail),
+		Subscriber:      subscriber,
 		TTL:             86400,
 	})
 	if err != nil {
@@ -100,9 +111,34 @@ func (s *Service) send(endpoint, p256dh, auth string, payload []byte) {
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	body, _ := io.ReadAll(resp.Body)
+	s.logger.Info("push: send result",
+		zap.Int("status", resp.StatusCode),
+		zap.String("endpoint", endpoint),
+		zap.String("body", string(body)),
+		zap.String("subscriber", subscriber))
 }
 
 // VAPIDPublicKey возвращает публичный VAPID ключ для фронтенда.
 func (s *Service) VAPIDPublicKey() string {
 	return s.vapidPub
+}
+
+// NotificationForOrderStatus возвращает текст push-уведомления по статусу заказа.
+// Принимает статус как строку, чтобы избежать импорта models в push-пакет.
+func NotificationForOrderStatus(status string) (Notification, bool) {
+	msgs := map[string][2]string{
+		"ASSEMBLING":          {"Заказ собирается", "Сборщик начал формировать ваш заказ"},
+		"ASSEMBLED":           {"Заказ собран", "Ваш заказ готов и ждёт курьера"},
+		"NEEDS_CONFIRMATION":  {"Нужно уточнение", "Свяжитесь с нами — по вашему заказу есть вопрос"},
+		"COURIER_PICKED_UP":   {"Курьер в пути", "Курьер забрал ваш заказ и едет к вам"},
+		"DELIVERING":          {"Курьер едет к вам", "Совсем скоро ваш заказ будет у вас"},
+		"DELIVERED":           {"Заказ доставлен", "Ваш заказ доставлен. Приятного!"},
+		"CANCELLED":           {"Заказ отменён", "Ваш заказ был отменён"},
+	}
+	if m, ok := msgs[status]; ok {
+		return Notification{Title: m[0], Body: m[1], URL: "/orders"}, true
+	}
+	return Notification{}, false
 }

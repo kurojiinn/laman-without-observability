@@ -35,6 +35,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     } else {
       document.documentElement.classList.remove("dark");
     }
+    document.querySelectorAll('meta[name="theme-color"]').forEach((el) => {
+      (el as HTMLMetaElement).content = next === "dark" ? "#08091C" : "#F5F6FC";
+    });
   }, [theme]);
 
   return (

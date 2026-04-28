@@ -29,10 +29,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    // Сессия восстанавливается через httpOnly cookie — браузер отправляет его автоматически.
+    // Сессия восстанавливается через httpOnly cookie.
+    // Бэкенд возвращает и user, и активный JWT — сохраняем оба,
+    // иначе tokenStore будет пуст и Bearer-авторизация сломается.
     authApi
       .me()
-      .then((u) => setUser(u))
+      .then(({ token, ...user }) => {
+        if (token) tokenStore.set(token);
+        setUser(user);
+      })
       .catch(() => {
         // Cookie не валидна или отсутствует — пользователь не авторизован
       })

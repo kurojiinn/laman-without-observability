@@ -9,6 +9,11 @@
   --bg-input: #ffffff;
 }
 
+html, body {
+  background-color: var(--bg-page);
+  overscroll-behavior: none;
+}
+
 /* Предотвращаем выход длинных слов за пределы блоков */
 *, *::before, *::after {
   overflow-wrap: break-word;
@@ -24,18 +29,22 @@
   display: none;
 }
 
-/* Safe-area отступ для iPhone (нижняя навигация) */
+/* Safe-area отступы для iPhone */
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
 
-/* Анимация появления полноэкранных страниц (слайд справа) */
+/* Анимация появления полноэкранных страниц (слайд справа).
+   Без forwards — иначе keyframe transform перебивает inline transform от свайпа. */
 @keyframes slideInRight {
   from { transform: translateX(100%); }
   to   { transform: translateX(0); }
 }
 .animate-slide-in-right {
-  animation: slideInRight 0.25s ease-out forwards;
+  animation: slideInRight 0.25s ease-out;
 }
 
 /* Предотвращаем авто-зум на iOS Safari при фокусе на инпуте (< 16px вызывает зум) */

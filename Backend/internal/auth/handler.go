@@ -300,6 +300,8 @@ func (h *Handler) CheckUser(c *gin.Context) {
 }
 
 // GetMe обрабатывает GET /auth/me
+// Возвращает пользователя + активный JWT токен, чтобы клиент мог восстановить
+// in-memory tokenStore после перезагрузки страницы (сессия через httpOnly cookie).
 func (h *Handler) GetMe(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
@@ -318,5 +320,27 @@ func (h *Handler) GetMe(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "пользователь не найден"})
 		return
 	}
-	c.JSON(http.StatusOK, user)
+
+	// Извлекаем активный токен (из заголовка или куки) и возвращаем его клиенту,
+	// чтобы фронтенд мог сохранить его в памяти без повторного логина.
+	var activeToken string
+	if authHeader := c.GetHeader("Authorization"); authHeader != "" {
+		if parts := strings.SplitN(authHeader, " ", 2); len(parts) == 2 {
+			activeToken = parts[1]
+		}
+	} else if cookie, err := c.Cookie(authCookieName); err == nil {
+		activeToken = cookie
+	}
+
+	// Плоская структура — backward compatible со старым фронтендом.
+	// Новый фронтенд дополнительно читает поле token.
+	c.JSON(http.StatusOK, gin.H{
+		"id":         user.ID,
+		"phone":      user.Phone,
+		"role":       user.Role,
+		"store_id":   user.StoreID,
+		"created_at": user.CreatedAt,
+		"updated_at": user.UpdatedAt,
+		"token":      activeToken,
+	})
 }
