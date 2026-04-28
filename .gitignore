@@ -82,3 +82,18 @@ Backend/.env
 nginx/certs/*.pem
 nginx/certs/*.crt
 nginx/certs/*.key
+
+# Скомпилированные бинарники
+Backend/api
+Backend/bin/
+
+# Чувствительные документы
+SECURITY_AUDIT.md
+audit-report.html
+DEPLOY.md
+DEPLOY.html
+docs/security-audit.html
+docs/security-fixes.md
+docs/DEPLOY_SELECTEL_PLAN.md
+docs/.DS_Store
+**/.DS_Store

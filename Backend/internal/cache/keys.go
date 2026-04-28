@@ -40,3 +40,7 @@ const JWTRevokedKey = "jwt:revoked:%s"
 // LoginAttemptsKey — ключ счётчика попыток входа по телефону (endpoint /auth/login).
 // Формат: login:attempts:{phone}
 const LoginAttemptsKey = "login:attempts:%s"
+
+// CheckUserIPKey — ключ счётчика запросов к /auth/check-user по IP.
+// Формат: checkuser:ip:{ip}
+const CheckUserIPKey = "checkuser:ip:%s"

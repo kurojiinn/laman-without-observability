@@ -17,17 +17,19 @@ const authCookieMaxAge = 24 * 60 * 60 // 24 часа — совпадает с J
 
 // Handler обрабатывает HTTP запросы для аутентификации.
 type Handler struct {
-	authService  *AuthService
-	logger       *zap.Logger
-	cookieSecure bool
+	authService     *AuthService
+	logger          *zap.Logger
+	cookieSecure    bool
+	checkUserLimiter OTPLimiter
 }
 
 // NewHandler создает новый обработчик аутентификации.
-func NewHandler(authService *AuthService, logger *zap.Logger, cookieSecure bool) *Handler {
+func NewHandler(authService *AuthService, logger *zap.Logger, cookieSecure bool, checkUserLimiter OTPLimiter) *Handler {
 	return &Handler{
-		authService:  authService,
-		logger:       logger,
-		cookieSecure: cookieSecure,
+		authService:     authService,
+		logger:          logger,
+		cookieSecure:    cookieSecure,
+		checkUserLimiter: checkUserLimiter,
 	}
 }
 
@@ -286,6 +288,13 @@ func (h *Handler) Logout(c *gin.Context) {
 // CheckUser обрабатывает GET /auth/check-user?phone=...
 // Возвращает {"exists": true/false} без отправки OTP.
 func (h *Handler) CheckUser(c *gin.Context) {
+	ip := c.ClientIP()
+	_, blocked, _ := h.checkUserLimiter.CheckAndIncrement(c.Request.Context(), ip)
+	if blocked {
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "слишком много запросов"})
+		return
+	}
+
 	phone := strings.TrimSpace(c.Query("phone"))
 	if phone == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "phone обязателен"})

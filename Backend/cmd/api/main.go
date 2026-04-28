@@ -108,8 +108,9 @@ func main() {
 
 	otpLimiter := auth.NewRedisOTPLimiter(redisClient.Client(), 5, 15*time.Minute, cache.OTPAttemptsKey)
 	sendCodeLimiter := auth.NewRedisOTPLimiter(redisClient.Client(), 3, 10*time.Minute, cache.OTPSendKey)
-	// loginLimiter: 5 попыток за 30 минут по номеру телефона
 	loginLimiter := auth.NewRedisOTPLimiter(redisClient.Client(), 5, 30*time.Minute, cache.LoginAttemptsKey)
+	// checkUserLimiter: 20 запросов в минуту по IP — защита от перебора номеров
+	checkUserLimiter := auth.NewRedisOTPLimiter(redisClient.Client(), 20, 1*time.Minute, cache.CheckUserIPKey)
 	tokenRevoker := auth.NewRedisTokenRevoker(redisClient.Client())
 	authService := auth.NewAuthService(
 		authRepo,
@@ -147,7 +148,7 @@ func main() {
 	favoritesService := favorites.NewService(favoritesRepo, logger)
 
 	// Инициализация обработчиков
-	authHandler := auth.NewHandler(authService, logger, cfg.Server.CookieSecure)
+	authHandler := auth.NewHandler(authService, logger, cfg.Server.CookieSecure, checkUserLimiter)
 	userHandler := users.NewHandler(userService, authService)
 	catalogHandler := catalog.NewHandler(catalogService, logger).WithAuth(authService).WithUploadsBaseURL(cfg.Server.PublicURL)
 	orderHandler := orders.NewHandler(orderService, authService, hub)
@@ -185,8 +186,8 @@ func main() {
 		Handler:           router,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
 		IdleTimeout:       120 * time.Second,
-		// WriteTimeout не задан — SSE-эндпоинты держат соединение открытым.
 	}
 
 	// Запуск сервера в горутине
