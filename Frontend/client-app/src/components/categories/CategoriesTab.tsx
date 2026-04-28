@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { catalogApi, getUploadUrl, resolveImageUrl, isStoreOpen, type Store } from "@/lib/api";
 import StoreDetailView from "@/components/stores/StoreDetailView";
 import CategoryIcon, { CATEGORY_META, DEFAULT_META } from "@/components/ui/CategoryIcon";
 import StoreAvatar from "@/components/ui/StoreAvatar";
+import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
 
 const STORE_CATEGORY_TYPES = ["FOOD", "GROCERY", "PHARMACY", "SWEETS", "HOME", "BUILDING"];
 
@@ -56,16 +58,13 @@ export default function CategoriesTab({ search, activeCity }: { search: string; 
     return matchesCategory && matchesSearch;
   });
 
-  // ── Просмотр конкретного магазина ──────────────────────────────────────────
+  // ── Просмотр конкретного магазина (fullscreen portal, как ShowcasePage) ─────
   if (view === "store" && selectedStore) {
     return (
-      <StoreDetailView
+      <StoreOverlay
         store={selectedStore}
         search={search}
-        onBack={() => {
-          setSelectedStore(null);
-          setView("stores");
-        }}
+        onBack={() => { setSelectedStore(null); setView("stores"); }}
       />
     );
   }
@@ -260,4 +259,27 @@ function pluralStore(n: number) {
   if (n % 10 === 1 && n % 100 !== 11) return "магазин";
   if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return "магазина";
   return "магазинов";
+}
+
+// ── Fullscreen portal overlay для StoreDetailView (как ShowcasePage) ──────────
+
+function StoreOverlay({ store, search, onBack }: { store: Store; search: string; onBack: () => void }) {
+  const { style: swipeStyle, handlers: swipeHandlers } = useSwipeToDismiss({
+    onDismiss: onBack,
+    threshold: 80,
+    direction: "right",
+  });
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] overflow-hidden">
+      <div
+        className="flex flex-col h-full animate-slide-in-right overflow-y-auto overscroll-contain"
+        style={{ ...swipeStyle, background: "var(--bg-page)" }}
+        {...swipeHandlers}
+      >
+        <StoreDetailView store={store} search={search} onBack={onBack} disableSwipe />
+      </div>
+    </div>,
+    document.body
+  );
 }

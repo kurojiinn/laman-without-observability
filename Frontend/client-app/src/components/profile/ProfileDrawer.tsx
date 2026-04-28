@@ -72,18 +72,24 @@ export default function ProfileDrawer({ open, onClose, onGoToCart }: Props) {
           sm:inset-y-0 sm:right-0 sm:left-auto sm:w-96 sm:rounded-none sm:max-h-svh"
         style={swipeStyle}
       >
-        {/* Drag handle — mobile only */}
-        <div className="sm:hidden flex justify-center py-2.5 flex-shrink-0 touch-none select-none cursor-grab active:cursor-grabbing" {...swipeHandlers}>
-          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+        {/* Мобайл: drag handle + шапка — вся зона для свайпа вниз */}
+        <div className="sm:hidden flex-shrink-0 touch-none select-none cursor-grab active:cursor-grabbing" {...swipeHandlers}>
+          <div className="flex justify-center py-2.5">
+            <div className="w-10 h-1 bg-gray-300 rounded-full" />
+          </div>
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <h2 className="text-base font-semibold text-gray-900">Личный кабинет</h2>
+            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
+              <svg className="w-5 h-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
         </div>
-
-        {/* Шапка */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
+        {/* Десктоп: шапка без свайпа */}
+        <div className="hidden sm:flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <h2 className="text-base font-semibold text-gray-900">Личный кабинет</h2>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
-          >
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
             <svg className="w-5 h-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
             </svg>

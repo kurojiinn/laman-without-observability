@@ -30,6 +30,7 @@ export default function StoreDetailView({
   sort: sortProp,
   onSortChange,
   isAdmin = false,
+  disableSwipe = false,
 }: {
   store: Store;
   onBack: () => void;
@@ -38,6 +39,7 @@ export default function StoreDetailView({
   sort?: string;
   onSortChange?: (v: string) => void;
   isAdmin?: boolean;
+  disableSwipe?: boolean;
 }) {
   const [store, setStore] = useState<Store>(initialStore);
   const meta = CATEGORY_META[store.category_type] ?? DEFAULT_META;
@@ -205,9 +207,11 @@ export default function StoreDetailView({
     threshold: 80,
   });
 
+  const swipeProps = disableSwipe ? {} : { style: swipeStyle, ...swipeHandlers };
+
   return (
     <div className="overflow-x-hidden">
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6" style={swipeStyle} {...swipeHandlers}>
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6" {...swipeProps}>
       <button
         onClick={onBack}
         className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-5"
