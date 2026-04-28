@@ -595,7 +595,7 @@ function ShowcasePage({
       {/* handlers на весь wrapper — gesture detection отличает свайп вправо от вертикального скролла */}
       <div className="flex flex-col h-full bg-white animate-slide-in-right" style={swipeStyle} {...swipeHandlers}>
         {/* Header */}
-        <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-100 flex-shrink-0">
+        <div className="flex items-center gap-3 px-4 pb-4 border-b border-gray-100 flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
           <button onClick={onClose} className="w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors flex-shrink-0">
             <svg className="w-4 h-4 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
@@ -653,7 +653,7 @@ function RecipesModal({
   return createPortal(
     <div className="fixed inset-0 z-[9999] overflow-hidden">
       <div className="flex flex-col h-full bg-white animate-slide-in-right" style={swipeStyle} {...swipeHandlers}>
-      <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-100 flex-shrink-0" style={{ background: "linear-gradient(135deg, #059669 0%, #0d9488 100%)" }}>
+      <div className="flex items-center gap-3 px-4 pb-4 border-b border-gray-100 flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)', background: "linear-gradient(135deg, #059669 0%, #0d9488 100%)" }}>
         <button onClick={onClose} className="w-9 h-9 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors flex-shrink-0">
           <svg className="w-4 h-4 text-white" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
@@ -744,7 +744,7 @@ function RecipeDetailModal({
     <div className="fixed inset-0 z-[10000] overflow-hidden">
       <div className="flex flex-col h-full bg-white animate-slide-in-right" style={swipeStyle} {...swipeHandlers}>
       <div className="relative flex flex-col h-full overflow-hidden">
-        <div className="relative bg-gradient-to-r from-emerald-500 to-teal-600 px-4 pt-4 pb-5">
+        <div className="relative bg-gradient-to-r from-emerald-500 to-teal-600 px-4 pb-5" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
           <button onClick={onClose} className="mb-3 w-9 h-9 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors">
             <svg className="w-4 h-4 text-white" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />

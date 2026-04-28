@@ -274,7 +274,7 @@ function StoreOverlay({ store, search, onBack }: { store: Store; search: string;
     <div className="fixed inset-0 z-[9999] overflow-hidden">
       <div
         className="flex flex-col h-full animate-slide-in-right overflow-y-auto overscroll-contain"
-        style={{ ...swipeStyle, background: "var(--bg-page)" }}
+        style={{ ...swipeStyle, background: "var(--bg-page)", paddingTop: 'env(safe-area-inset-top, 0px)' }}
         {...swipeHandlers}
       >
         <StoreDetailView store={store} search={search} onBack={onBack} disableSwipe />
