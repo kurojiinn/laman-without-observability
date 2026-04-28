@@ -93,9 +93,26 @@ func (m *adminRepoMock) DeleteCategory(ctx context.Context, id uuid.UUID) error 
 	return nil
 }
 
+func (m *adminRepoMock) UpdateCategoryName(ctx context.Context, id uuid.UUID, name string) error {
+	return nil
+}
+
+func (m *adminRepoMock) GetOrderUserID(ctx context.Context, id uuid.UUID) (*uuid.UUID, error) {
+	u := uuid.New()
+	return &u, nil
+}
+
+func (m *adminRepoMock) UpdateStore(ctx context.Context, id uuid.UUID, name, address, city, description string, categoryType models.StoreCategoryType) error {
+	return nil
+}
+
+func (m *adminRepoMock) UpdateStoreImage(ctx context.Context, id uuid.UUID, imageURL string) error {
+	return nil
+}
+
 func TestUpdateOrderStatus_Valid(t *testing.T) {
 	repo := &adminRepoMock{}
-	service := NewService(repo, zap.NewNop())
+	service := NewService(repo, zap.NewNop(), nil)
 	orderID := uuid.New()
 
 	err := service.UpdateOrderStatus(context.Background(), orderID, "delivered")
@@ -112,7 +129,7 @@ func TestUpdateOrderStatus_Valid(t *testing.T) {
 
 func TestUpdateOrderStatus_Invalid(t *testing.T) {
 	repo := &adminRepoMock{}
-	service := NewService(repo, zap.NewNop())
+	service := NewService(repo, zap.NewNop(), nil)
 
 	err := service.UpdateOrderStatus(context.Background(), uuid.New(), "UNKNOWN_STATUS")
 	if err == nil {
