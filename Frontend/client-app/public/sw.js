@@ -1,11 +1,10 @@
-const CACHE = "yuher-v1";
+const CACHE = "yuher-v2";
 const OFFLINE_URL = "/offline";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE).then((cache) => cache.add(OFFLINE_URL))
   );
-  self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
@@ -14,7 +13,6 @@ self.addEventListener("activate", (event) => {
       Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
     )
   );
-  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
