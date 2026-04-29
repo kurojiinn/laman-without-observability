@@ -1,12 +1,14 @@
-// self.addEventListener("install", () => {
-//   self.skipWaiting();
-// });
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
 
-// self.addEventListener("activate", (event) => {
-//   event.waitUntil(
-//     caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
-//   );
-// });
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.map((k) => caches.delete(k)))),
+  );
+});
 
 // No fetch interception — browser handles all requests natively.
 // SW exists only for push notifications.
