@@ -1,4 +1,4 @@
-const CACHE = "yuher-v2";
+const CACHE = "yuher-v3";
 const OFFLINE_URL = "/offline";
 
 self.addEventListener("install", (event) => {
@@ -22,12 +22,8 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(event.request).catch(() => caches.match(OFFLINE_URL))
     );
-    return;
   }
-
-  event.respondWith(
-    caches.match(event.request).then((cached) => cached ?? fetch(event.request))
-  );
+  // All other GET requests pass through — browser's native HTTP cache handles them.
 });
 
 self.addEventListener("push", (event) => {
