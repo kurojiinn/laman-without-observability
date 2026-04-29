@@ -407,21 +407,21 @@ const PROMO_BANNERS = [
   },
   {
     id: "app",
-    tag: "Скоро",
-    headline: "Yuher\nв приложении",
-    sub: "App Store и Google Play — уже скоро",
-    emoji: "📱",
-    bg: "linear-gradient(135deg, #3b0764 0%, #6d28d9 55%, #c026d3 100%)",
-    dotColor: "#a78bfa",
-    chipColor: "bg-purple-400/20 text-purple-200",
-    chips: ["iOS", "Android", "Пуш-уведомления"],
+    tag: "Удобнее",
+    headline: "Yuher на\nглавном экране",
+    sub: "Без App Store — работает как приложение",
+    emoji: "📲",
+    bg: "linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)",
+    dotColor: "#67e8f9",
+    chipColor: "bg-cyan-400/20 text-cyan-200",
+    chips: ["iOS", "Android", "Без скачивания"],
     modal: {
-      title: "Приложение Yuher", emoji: "📱",
-      headerBg: "linear-gradient(135deg, #3b0764, #6d28d9)",
+      title: "Добавить на экран", emoji: "📲",
+      headerBg: "linear-gradient(135deg, #0f2027, #2c5364)",
       body: [
-        { icon: "⚡", title: "Молниеносный заказ", desc: "Сохранённые адреса и корзина за секунду" },
-        { icon: "🔔", title: "Push-уведомления", desc: "Статус заказа в реальном времени" },
-        { icon: "💳", title: "Быстрая оплата", desc: "Apple Pay, Google Pay" },
+        { icon: "🍎", title: "На iPhone", desc: "Нажмите «Поделиться» → «На экран Домой»" },
+        { icon: "🤖", title: "На Android", desc: "Меню браузера (⋮) → «Добавить на главный экран»" },
+        { icon: "⚡", title: "Как приложение", desc: "Открывается без браузера, работает быстро" },
       ],
       cta: "", ctaBg: "", ctaAction: "", hideCta: true,
     },
@@ -556,7 +556,7 @@ function PromoModal({ banner, onClose }: { banner: PromoBannerType; onClose: () 
         </div>
         <div className="px-5 pb-6">
           {banner.modal.hideCta ? (
-            <p className="text-center text-xs text-gray-400 leading-relaxed">🔔 Скоро сообщим, когда приложение будет готово</p>
+            <p className="text-center text-xs text-gray-400 leading-relaxed">Добавьте на главный экран — и Yuher всегда под рукой</p>
           ) : (
             <button onClick={() => window.open(banner.modal.ctaAction, "_blank", "noopener")} className="w-full py-3.5 rounded-2xl text-white font-bold text-sm transition-all active:scale-[0.98]" style={{ background: banner.modal.ctaBg }}>
               {banner.modal.cta}
