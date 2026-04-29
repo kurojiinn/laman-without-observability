@@ -1,12 +1,12 @@
-self.addEventListener("install", () => {
-  self.skipWaiting();
-});
+// self.addEventListener("install", () => {
+//   self.skipWaiting();
+// });
 
-self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
-  );
-});
+// self.addEventListener("activate", (event) => {
+//   event.waitUntil(
+//     caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+//   );
+// });
 
 // No fetch interception — browser handles all requests natively.
 // SW exists only for push notifications.
@@ -19,7 +19,7 @@ self.addEventListener("push", (event) => {
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
       data: { url: data.url ?? "/" },
-    })
+    }),
   );
 });
 
@@ -30,6 +30,6 @@ self.addEventListener("notificationclick", (event) => {
     clients.matchAll({ type: "window" }).then((list) => {
       const existing = list.find((c) => c.url === url && "focus" in c);
       return existing ? existing.focus() : clients.openWindow(url);
-    })
+    }),
   );
 });
