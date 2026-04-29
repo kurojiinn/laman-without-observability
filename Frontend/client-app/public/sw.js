@@ -1,10 +1,11 @@
-const CACHE = "yuher-v3";
+const CACHE = "yuher-v4";
 const OFFLINE_URL = "/offline";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE).then((cache) => cache.add(OFFLINE_URL))
   );
+  self.skipWaiting(); // replace old SW immediately, don't wait for tabs to close
 });
 
 self.addEventListener("activate", (event) => {
@@ -12,6 +13,7 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((keys) =>
       Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
     )
+    // no clients.claim() — avoids mid-load takeover bug on iOS Safari
   );
 });
 
