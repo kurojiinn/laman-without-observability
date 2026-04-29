@@ -380,7 +380,7 @@ const PROMO_BANNERS = [
         { icon: "🔔", title: "Узнайте первыми", desc: "Следите за нами в Instagram" },
       ],
       cta: "Быть в курсе новостей", ctaBg: "linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)",
-      ctaAction: "https://instagram.com/YuherDelivery", hideCta: false,
+      ctaAction: "https://instagram.com/yuherexpress", hideCta: false,
     },
   },
   {
