@@ -72,9 +72,8 @@ type SMSConfig struct {
 
 // TelegramConfig содержит конфигурацию Telegram бота.
 type TelegramConfig struct {
-	BotToken       string
-	ChatID         string
-	CourierGroupID string
+	BotToken string
+	ChatID   string
 }
 
 // AdminConfig содержит параметры доступа в админ-панель.
@@ -121,9 +120,8 @@ func Load() (*Config, error) {
 			TestMode: getEnvBool("SMS_RU_TEST", false),
 		},
 		Telegram: TelegramConfig{
-			BotToken:       getEnv("TG_BOT_TOKEN", ""),
-			ChatID:         getEnv("TG_CHAT_ID", ""),
-			CourierGroupID: getEnv("TG_COURIER_GROUP_ID", ""),
+			BotToken: getEnv("TG_BOT_TOKEN", ""),
+			ChatID:   getEnv("TG_CHAT_ID", ""),
 		},
 		Admin: AdminConfig{
 			User:     getEnv("ADMIN_USER", ""),

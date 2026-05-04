@@ -26,8 +26,6 @@ type OrderService struct {
 	productRepo       ProductRepository
 	deliveryRepo      DeliveryRepository
 	paymentRepo       PaymentRepository
-	storeRepo         StoreRepository
-	courierService    CourierService
 	notifier          *observability.TelegramNotifier
 	pusher            *push.Service
 	logger            *zap.Logger
@@ -63,15 +61,6 @@ type PaymentRepository interface {
 	CreateTx(ctx context.Context, tx *sqlx.Tx, payment *models.Payment) error
 }
 
-// CourierService определяет интерфейс для работы с курьерами.
-type CourierService interface {
-	FindNearestCourier(ctx context.Context, lat, lng float64, radiusKm float64) (*uuid.UUID, error)
-}
-
-type StoreRepository interface {
-	GetByID(ctx context.Context, id uuid.UUID) (*models.Store, error)
-}
-
 // NewOrderService создаёт новый сервис заказов.
 // transactor используется для атомарного создания заказа со всеми зависимостями.
 func NewOrderService(
@@ -81,10 +70,8 @@ func NewOrderService(
 	productRepo ProductRepository,
 	deliveryRepo DeliveryRepository,
 	paymentRepo PaymentRepository,
-	storeRepo StoreRepository,
 	serviceFeePercent float64,
 	deliveryFee float64,
-	courierService CourierService,
 	notifier *observability.TelegramNotifier,
 	pusher *push.Service,
 	logger *zap.Logger,
@@ -97,10 +84,8 @@ func NewOrderService(
 		productRepo:       productRepo,
 		deliveryRepo:      deliveryRepo,
 		paymentRepo:       paymentRepo,
-		storeRepo:         storeRepo,
 		serviceFeePercent: serviceFeePercent,
 		deliveryFee:       deliveryFee,
-		courierService:    courierService,
 		notifier:          notifier,
 		pusher:            pusher,
 		logger:            logger,
@@ -218,8 +203,6 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 		OutOfStockAction: req.OutOfStockAction,
 	}
 
-	order.CourierID = s.assignCourier(ctx, order)
-
 	// Устанавливаем OrderID для товаров до транзакции — он уже известен (uuid.New выше).
 	for i := range orderItems {
 		orderItems[i].OrderID = order.ID
@@ -298,9 +281,6 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 			if err := notifier.NotifyNewOrder(notifyCtx, &orderCopy); err != nil && logger != nil {
 				logger.Warn("Не удалось отправить уведомление в Telegram", zap.Error(err))
 			}
-			if err := notifier.NotifyNewOrderToCouriers(notifyCtx, &orderCopy); err != nil && logger != nil {
-				logger.Warn("Не удалось отправить уведомление в Telegram для курьеров", zap.Error(err))
-			}
 		}()
 	}
 
@@ -308,48 +288,6 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 		Order: *order,
 		Items: orderItems,
 	}, nil
-}
-
-func (s *OrderService) assignCourier(ctx context.Context, order *models.Order) *uuid.UUID {
-	storeID := order.StoreID
-	// Получение айди магазина и его координат
-	store, err := s.storeRepo.GetByID(ctx, storeID)
-	if err != nil {
-		s.logger.Warn("не удалось найти магазин заказа", zap.Error(err))
-		return nil
-	}
-
-	// Поиск ближайшего курьера
-	if store.Lat != nil && store.Lng != nil {
-		courier, err := s.courierService.FindNearestCourier(ctx, *store.Lat, *store.Lng, 5.0)
-		if err != nil {
-			s.logger.Warn("не удалось найти ближайшего курьера", zap.Error(err))
-			return nil
-		}
-		if courier != nil {
-			return courier
-		}
-		courier, err = s.courierService.FindNearestCourier(ctx, *store.Lat, *store.Lng, 10.0)
-		if err != nil {
-			s.logger.Warn("не удалось найти ближайшего курьера", zap.Error(err))
-		}
-		if courier != nil {
-			return courier
-		}
-
-		if s.notifier != nil {
-			notifier := s.notifier
-			orderCopy := *order
-			logger := s.logger
-			go func() {
-				if err := notifier.NotifyNoCourierFound(context.Background(), &orderCopy); err != nil {
-					logger.Warn("не удалось отправить сообщение", zap.Error(err))
-				}
-			}()
-		}
-
-	}
-	return nil
 }
 
 func shortUUID(id uuid.UUID) string {

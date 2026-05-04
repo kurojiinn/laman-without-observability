@@ -3,7 +3,6 @@ package orders
 import (
 	"Laman/internal/events"
 	"Laman/internal/middleware"
-	"Laman/internal/models"
 	"context"
 	"net/http"
 
@@ -41,7 +40,6 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 		orders.GET("/:id", auth, h.GetOrder)
 		orders.GET("", auth, h.GetUserOrders)
 		orders.POST("/:id/cancel", auth, h.CancelOrder)
-		orders.PUT("/:id/status", auth, middleware.RoleRequired(models.UserRoleCourier), h.UpdateOrderStatus)
 		orders.GET("/events", auth, h.Events)
 	}
 }
@@ -164,24 +162,3 @@ func (h *Handler) CancelOrder(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "заказ отменён"})
 }
 
-// UpdateOrderStatus обрабатывает PUT /orders/:id/status
-func (h *Handler) UpdateOrderStatus(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID заказа"})
-		return
-	}
-
-	var req UpdateOrderStatusRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if err := h.orderService.UpdateOrderStatus(c.Request.Context(), id, req.Status); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "статус заказа обновлен"})
-}

@@ -2,7 +2,6 @@ package main
 
 import (
 	"Laman/internal/cache"
-	"Laman/internal/courier"
 	"Laman/internal/events"
 	"Laman/internal/picker"
 	"context"
@@ -68,7 +67,7 @@ func main() {
 	// Инициализация Telegram уведомлений (опционально)
 	var telegramNotifier *observability.TelegramNotifier
 	if cfg.Telegram.BotToken != "" && cfg.Telegram.ChatID != "" {
-		notifier, err := observability.NewTelegramNotifier(cfg.Telegram.BotToken, cfg.Telegram.ChatID, cfg.Telegram.CourierGroupID)
+		notifier, err := observability.NewTelegramNotifier(cfg.Telegram.BotToken, cfg.Telegram.ChatID)
 		if err != nil {
 			logger.Warn("Telegram уведомления отключены", zap.Error(err))
 		} else {
@@ -98,7 +97,6 @@ func main() {
 	orderItemRepo := orders.NewPostgresOrderItemRepository(db)
 	paymentRepo := payments.NewPostgresPaymentRepository(db)
 	deliveryRepo := delivery.NewPostgresDeliveryRepository(db)
-	courierRepo := courier.NewRedisCourierRepository(redisClient.Client())
 	pickerRepo := picker.NewPostgresPikerRepository(db)
 	favoritesRepo := favorites.NewPostgresRepository(db)
 
@@ -126,7 +124,6 @@ func main() {
 	)
 	userService := users.NewUserService(userRepo)
 	catalogService := catalog.NewCatalogService(categoryRepo, subcategoryRepo, productRepo, storeRepo, reviewRepo, featuredRepo, recipeRepo, scenarioRepo, storeCatMetaRepo)
-	courierService := courier.NewCourierService(courierRepo)
 	pushService := push.NewService(db.DB.DB, logger, cfg.VAPID.PublicKey, cfg.VAPID.PrivateKey, cfg.VAPID.Email)
 	orderService := orders.NewOrderService(
 		db,
@@ -135,10 +132,8 @@ func main() {
 		productRepo,
 		deliveryRepo,
 		paymentRepo,
-		storeRepo,
 		5.0,   // 5% сервисный сбор
 		200.0, // 200 руб. стоимость доставки
-		courierService,
 		telegramNotifier,
 		pushService,
 		logger,
@@ -167,13 +162,12 @@ func main() {
 	adminRepo := admin.NewPostgresRepository(db)
 	adminService := admin.NewService(adminRepo, logger, pushService)
 	adminHandler := admin.NewHandler(adminService, logger, minioProvider).WithRecipes(catalogService).WithStoreCategoryUpdater(catalogService).WithScenarios(catalogService)
-	courierHandler := courier.NewHandler(courierService, authService, logger)
 	pickerHandler := picker.NewHandler(pickerService, logger, authService, hub)
 	favoritesHandler := favorites.NewHandler(favoritesService, authService, logger)
 	pushHandler := push.NewHandler(pushService, authService)
 
 	// Настройка роутера
-	router := setupRouter(logger, cfg, authService, authHandler, userHandler, catalogHandler, orderHandler, adminHandler, courierHandler, pickerHandler, favoritesHandler, pushHandler)
+	router := setupRouter(logger, cfg, authService, authHandler, userHandler, catalogHandler, orderHandler, adminHandler, pickerHandler, favoritesHandler, pushHandler)
 
 	// Настройка health check
 	router.GET("/health", func(c *gin.Context) {
@@ -225,7 +219,6 @@ func setupRouter(
 	catalogHandler *catalog.Handler,
 	orderHandler *orders.Handler,
 	adminHandler *admin.Handler,
-	courierHandler *courier.Handler,
 	pickerHandler *picker.Handler,
 	favoritesHandler *favorites.Handler,
 	pushHandler *push.Handler,
@@ -253,7 +246,6 @@ func setupRouter(
 		catalogHandler.RegisterAdminRoutes(v1, middleware.AuthMiddleware(authService), middleware.RoleRequired("ADMIN"))
 		orderHandler.RegisterRoutes(v1)
 		adminHandler.RegisterRoutes(v1, middleware.AdminAuthMiddleware(cfg.Admin))
-		courierHandler.RegisterRoutes(v1)
 		pickerHandler.RegisterRoutes(v1)
 		favoritesHandler.RegisterRoutes(v1)
 		pushHandler.RegisterRoutes(v1)

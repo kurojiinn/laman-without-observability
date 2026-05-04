@@ -22,7 +22,6 @@ Laman-App/
 │   │   ├── users/              — профиль пользователя
 │   │   ├── catalog/            — категории, подкатегории, товары, магазины
 │   │   ├── orders/             — создание и управление заказами
-│   │   ├── courier/            — локация курьеров, смены, GEO поиск в Redis
 │   │   ├── picker/             — панель сборщика (SSE, заказы, статусы)
 │   │   ├── admin/              — административная панель
 │   │   ├── favorites/          — избранные товары
@@ -72,10 +71,6 @@ Laman-App/
 │       ├── src/                — Admin UI
 │       ├── vite.config.ts      — port 5173
 │       └── Dockerfile          — запускает npm run dev
-│
-├── UI/                         ← iOS приложение (SwiftUI, MVVM)
-│   ├── Services/LamanAPI.swift — API вызовы к бэкенду
-│   └── ...                     — ViewModels, Models, Views
 │
 ├── docker-compose.yml          ← Основной способ запуска (7 сервисов + nginx)
 ├── .env                        — HOST_IP=192.168.0.104 (локальный IP машины)
@@ -181,7 +176,6 @@ cd Frontend/picker-panel && npm run build
 ## Технический стек
 
 - **Backend**: Go + Gin framework
-- **iOS**: SwiftUI + MVVM
 - **Client app**: Next.js 16.2 + React 19 + Tailwind 4
 - **Picker panel**: Vite + React 18 + React Router + TanStack Query + Zod
 - **Admin panel**: Vite + React 18 + Axios
@@ -198,10 +192,13 @@ cd Frontend/picker-panel && npm run build
 ---
 
 ## Роли в системе
-- **CLIENT** — клиент, делает заказ через iOS или web
-- **COURIER** — курьер, доставляет заказ
+- **CLIENT** — клиент, делает заказ через web
 - **PICKER** — сборщик в магазине, собирает заказ
-- **ADMIN** — администратор системы
+- **ADMIN** — администратор системы (BasicAuth admin-panel)
+
+> Курьерская доставка делается вручную через Telegram-группу администрации.
+> Роль COURIER и связанная логика удалены — будут добавлены при интеграции
+> с курьерской службой или собственным курьерским приложением.
 
 Все роли хранятся в таблице `users` с полем `role`.
 
@@ -211,12 +208,15 @@ cd Frontend/picker-panel && npm run build
 
 ```go
 User    { ID, Phone, Role, StoreID, PasswordHash, CreatedAt, UpdatedAt }
-Order   { ID, UserID, CourierID, PickerID, StoreID, Status, PaymentMethod,
+Order   { ID, UserID, PickerID, StoreID, Status, PaymentMethod,
           ItemsTotal, ServiceFee, DeliveryFee, FinalTotal, ... }
 Store   { ID, Name, Lat, Lng, ... }
 Product { ID, StoreID, Name, Price, ImageURL, ... }
 OrderItem { ID, OrderID, ProductID, Quantity, Price }
 ```
+
+> Поле `Order.CourierID` сохранено в БД, но не используется кодом до появления
+> курьерской интеграции.
 
 ---
 
@@ -245,7 +245,8 @@ GET  /api/v1/auth/me
 POST /api/v1/orders
 GET  /api/v1/orders/:id
 GET  /api/v1/orders
-PUT  /api/v1/orders/:id/status
+POST /api/v1/orders/:id/cancel
+GET  /api/v1/orders/events       — SSE поток уведомлений клиенту
 ```
 
 ### Picker
@@ -255,14 +256,6 @@ GET  /api/v1/picker                     — список заказов мага
 GET  /api/v1/picker/orders/:id          — конкретный заказ (с items + image_url)
 PUT  /api/v1/picker/orders/:id/status   — обновить статус
 GET  /api/v1/picker/events              — SSE поток уведомлений
-```
-
-### Courier
-```
-POST /api/v1/courier/location
-GET  /api/v1/courier/location/:courierId
-POST /api/v1/courier/shift/start
-POST /api/v1/courier/shift/end
 ```
 
 ### Admin
@@ -290,14 +283,11 @@ lint → build → deploy_staging (auto) → deploy_prod (manual)
 - JWT токены
 - Каталог товаров и магазинов
 - Создание заказов (гостевые + авторизованные)
-- Трекинг локации курьеров через Redis GEO
-- Смены курьеров
-- Поиск ближайшего курьера (5км → 10км → уведомление админу)
-- Telegram уведомления
+- Telegram уведомления админу о новых/отменённых заказах
 - Observability: трейсинг, метрики, логирование
 - CI/CD GitLab pipeline
 - Панель сборщика — бэкенд + фронт (picker-panel)
-- SSE уведомления для сборщика
+- SSE уведомления для сборщика и клиента
 - Swipe-to-dismiss на всех модалках: hook `useSwipeToDismiss` (`src/hooks/useSwipeToDismiss.ts`)
   - Bottom sheets (ProductModal, PromoModal, CharityModal, ProfileDrawer, AuthModal): drag handle + свайп вниз
   - Fullscreen (ShowcasePage, RecipesModal, RecipeDetailModal): свайп вниз по хедеру
@@ -309,7 +299,7 @@ lint → build → deploy_staging (auto) → deploy_prod (manual)
 - TASK-011: Промокоды и скидки
 - TASK-012: Рейтинг магазинов
 - TASK-013: Регистрация магазинов
-- TASK-014: Интеграция курьерской службы
+- TASK-014: Интеграция курьерской службы (или собственное курьерское приложение)
 
 ---
 

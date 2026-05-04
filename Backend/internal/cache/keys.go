@@ -1,8 +1,5 @@
 package cache
 
-const CourierLocationKey = "courier:%s:location"
-const ActiveCouriersGeoKey = "active_couriers"
-
 // OTPAttemptsKey — ключ счётчика неудачных попыток ввода OTP-кода.
 // Используется для ограничения числа попыток верификации кода (verify-code).
 //
