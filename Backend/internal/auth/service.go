@@ -45,7 +45,6 @@ type AuthService struct {
 	smsProvider     SMSProvider
 	otpLimiter      OTPLimiter   // лимит попыток ввода кода (verify-code)
 	sendCodeLimiter OTPLimiter   // лимит запросов на отправку SMS (request-code)
-	loginLimiter    OTPLimiter   // лимит попыток входа (login)
 	revoker         TokenRevoker // блэклист отозванных JWT (logout)
 	logger          *zap.Logger
 	devMode         bool // если true — OTP выводится в логи (только для dev/test окружения)
@@ -71,15 +70,12 @@ type UserRepository interface {
 //
 // Оба лимитера могут быть nil — тогда используются NoopOTPLimiter (без ограничений).
 // Это удобно в тестах и dev-окружении без Redis.
-func NewAuthService(authRepo AuthRepository, userRepo UserRepository, jwtSecret string, smsProvider SMSProvider, logger *zap.Logger, otpLimiter OTPLimiter, sendCodeLimiter OTPLimiter, loginLimiter OTPLimiter, revoker TokenRevoker, devMode bool) *AuthService {
+func NewAuthService(authRepo AuthRepository, userRepo UserRepository, jwtSecret string, smsProvider SMSProvider, logger *zap.Logger, otpLimiter OTPLimiter, sendCodeLimiter OTPLimiter, revoker TokenRevoker, devMode bool) *AuthService {
 	if smsProvider == nil {
 		smsProvider = NewNoopSMSProvider()
 	}
 	if otpLimiter == nil {
 		otpLimiter = NewNoopOTPLimiter()
-	}
-	if loginLimiter == nil {
-		loginLimiter = NewNoopOTPLimiter()
 	}
 	if sendCodeLimiter == nil {
 		sendCodeLimiter = NewNoopOTPLimiter()
@@ -94,16 +90,10 @@ func NewAuthService(authRepo AuthRepository, userRepo UserRepository, jwtSecret 
 		smsProvider:     smsProvider,
 		otpLimiter:      otpLimiter,
 		sendCodeLimiter: sendCodeLimiter,
-		loginLimiter:    loginLimiter,
 		revoker:         revoker,
 		logger:          logger,
 		devMode:         devMode,
 	}
-}
-
-// SendCodeRequest представляет запрос на отправку кода верификации.
-type SendCodeRequest struct {
-	Phone string `json:"phone" binding:"required"`
 }
 
 // RequestCodeRequest представляет запрос на генерацию OTP кода.
@@ -124,16 +114,10 @@ type VerifyRequest struct {
 	Role  string `json:"role,omitempty"`
 }
 
-// RegisterRequest представляет запрос на регистрацию с выбором роли.
+// RegisterRequest представляет запрос на регистрацию нового пользователя.
 type RegisterRequest struct {
 	Phone string `json:"phone" binding:"required"`
 	Code  string `json:"code,omitempty"`
-	Role  string `json:"role" binding:"required"`
-}
-
-// LoginRequest представляет запрос на вход по номеру телефона.
-type LoginRequest struct {
-	Phone string `json:"phone" binding:"required"`
 }
 
 // AuthResponse представляет ответ аутентификации.
@@ -157,50 +141,6 @@ func (s *AuthService) CheckUserExists(ctx context.Context, phone string) (bool, 
 		return false, fmt.Errorf("ошибка поиска пользователя: %w", err)
 	}
 	return true, nil
-}
-
-// SendCode отправляет код верификации на номер телефона.
-// В продакшене здесь будет интеграция с SMS-шлюзом.
-func (s *AuthService) SendCode(ctx context.Context, req SendCodeRequest) error {
-	ctx, span := observability.StartSpan(ctx, "auth.SendCode")
-	defer span.End()
-	start := time.Now()
-
-	// Генерация 6-значного кода
-	code, err := generateCode(6)
-	if err != nil {
-		authOperationTotal.WithLabelValues("send_code", "error").Inc()
-		authOperationDuration.WithLabelValues("send_code").Observe(time.Since(start).Seconds())
-		return fmt.Errorf("не удалось сгенерировать код: %w", err)
-	}
-
-	// Создание записи кода аутентификации
-	authCode := &models.AuthCode{
-		ID:        uuid.New(),
-		Phone:     req.Phone,
-		Code:      code,
-		ExpiresAt: time.Now().Add(5 * time.Minute), // Код истекает через 5 минут
-		Used:      false,
-		CreatedAt: time.Now(),
-	}
-
-	if err := s.authRepo.CreateAuthCode(ctx, authCode); err != nil {
-		authOperationTotal.WithLabelValues("send_code", "error").Inc()
-		authOperationDuration.WithLabelValues("send_code").Observe(time.Since(start).Seconds())
-		return fmt.Errorf("не удалось создать код аутентификации: %w", err)
-	}
-
-	// В продакшене здесь отправка SMS
-	// Для MVP просто выводим в лог (в продакшене использовать правильный логгер)
-	fmt.Printf("Код верификации для %s: %s\n", req.Phone, code)
-	span.SetAttributes(attribute.String("auth.phone_masked", maskPhone(req.Phone)))
-	authOperationTotal.WithLabelValues("send_code", "success").Inc()
-	authOperationDuration.WithLabelValues("send_code").Observe(time.Since(start).Seconds())
-	if s.logger != nil {
-		s.logger.Info("Код верификации успешно создан", zap.String("phone", maskPhone(req.Phone)))
-	}
-
-	return nil
 }
 
 // RequestCode генерирует OTP-код, сохраняет его в БД и отправляет через SMS.RU.
@@ -280,18 +220,13 @@ func (s *AuthService) Register(ctx context.Context, req RegisterRequest) (*AuthR
 		return nil, fmt.Errorf("номер телефона пустой после очистки")
 	}
 
-	role, err := normalizeRole(req.Role)
-	if err != nil {
-		authOperationTotal.WithLabelValues("register", "error").Inc()
-		authOperationDuration.WithLabelValues("register").Observe(time.Since(start).Seconds())
-		return nil, err
-	}
+	role := models.UserRoleClient
 	span.SetAttributes(
 		attribute.String("auth.role", role),
 		attribute.String("auth.phone_masked", maskPhone(phone)),
 	)
 
-	_, err = s.userRepo.GetByPhone(ctx, phone)
+	_, err := s.userRepo.GetByPhone(ctx, phone)
 	if err == nil {
 		authOperationTotal.WithLabelValues("register", "conflict").Inc()
 		authOperationDuration.WithLabelValues("register").Observe(time.Since(start).Seconds())
@@ -341,55 +276,6 @@ func (s *AuthService) Register(ctx context.Context, req RegisterRequest) (*AuthR
 			zap.String("user_id", user.ID.String()),
 			zap.String("role", user.Role),
 			zap.String("phone", maskPhone(user.Phone)),
-		)
-	}
-
-	return &AuthResponse{Token: token, User: user}, nil
-}
-
-// Login выполняет вход зарегистрированного пользователя и возвращает JWT токен.
-func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*AuthResponse, error) {
-	ctx, span := observability.StartSpan(ctx, "auth.Login")
-	defer span.End()
-	start := time.Now()
-	span.SetAttributes(attribute.String("auth.phone_masked", maskPhone(req.Phone)))
-
-	phone := normalizePhone(req.Phone)
-	_, blocked, limiterErr := s.loginLimiter.CheckAndIncrement(ctx, phone)
-	if limiterErr != nil && s.logger != nil {
-		s.logger.Warn("loginLimiter недоступен, пропускаем проверку", zap.Error(limiterErr))
-	}
-	if blocked {
-		authOperationTotal.WithLabelValues("login", "blocked").Inc()
-		authOperationDuration.WithLabelValues("login").Observe(time.Since(start).Seconds())
-		return nil, ErrOTPBlocked
-	}
-
-	user, err := s.userRepo.GetByPhone(ctx, phone)
-	if err != nil {
-		if errors.Is(err, users.ErrUserNotFound) {
-			authOperationTotal.WithLabelValues("login", "registration_required").Inc()
-			authOperationDuration.WithLabelValues("login").Observe(time.Since(start).Seconds())
-			return nil, ErrRegistrationRequired
-		}
-		authOperationTotal.WithLabelValues("login", "error").Inc()
-		authOperationDuration.WithLabelValues("login").Observe(time.Since(start).Seconds())
-		return nil, fmt.Errorf("не удалось получить пользователя: %w", err)
-	}
-
-	token, err := s.generateToken(user.ID, user.Role)
-	if err != nil {
-		authOperationTotal.WithLabelValues("login", "error").Inc()
-		authOperationDuration.WithLabelValues("login").Observe(time.Since(start).Seconds())
-		return nil, fmt.Errorf("не удалось сгенерировать токен: %w", err)
-	}
-
-	authOperationTotal.WithLabelValues("login", "success").Inc()
-	authOperationDuration.WithLabelValues("login").Observe(time.Since(start).Seconds())
-	if s.logger != nil {
-		s.logger.Info("Пользователь успешно вошел",
-			zap.String("user_id", user.ID.String()),
-			zap.String("role", user.Role),
 		)
 	}
 

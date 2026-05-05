@@ -64,10 +64,8 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	{
 		auth.POST("/request-code", h.RequestCode)
 		auth.POST("/verify", h.Verify)
-		auth.POST("/send-code", h.SendCode)
 		auth.POST("/verify-code", h.VerifyCode)
 		auth.POST("/register", h.Register)
-		auth.POST("/login", h.Login)
 		auth.GET("/check-user", h.CheckUser)
 		auth.GET("/me", middleware.AuthMiddleware(h.authService), h.GetMe)
 		auth.POST("/logout", middleware.AuthMiddleware(h.authService), h.Logout)
@@ -121,32 +119,6 @@ func (h *Handler) Verify(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-// SendCode обрабатывает POST /auth/send-code
-func (h *Handler) SendCode(c *gin.Context) {
-	start := c.Request.Context()
-	var req SendCodeRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		if h.logger != nil {
-			h.logger.Warn("Некорректный запрос send-code", zap.Error(err))
-		}
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if err := h.authService.SendCode(start, req); err != nil {
-		if h.logger != nil {
-			h.logger.Error("Ошибка отправки кода верификации", zap.Error(err), zap.String("phone", maskPhone(req.Phone)))
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	if h.logger != nil {
-		h.logger.Info("Запрос send-code успешно обработан", zap.String("phone", maskPhone(req.Phone)))
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "код верификации отправлен"})
-}
-
 // VerifyCode обрабатывает POST /auth/verify-code
 func (h *Handler) VerifyCode(c *gin.Context) {
 	var req VerifyCodeRequest
@@ -198,11 +170,6 @@ func (h *Handler) Register(c *gin.Context) {
 	response, err := h.authService.Register(c.Request.Context(), req)
 	if err != nil {
 		switch {
-		case errors.Is(err, ErrInvalidRole):
-			if h.logger != nil {
-				h.logger.Warn("Регистрация отклонена: недопустимая роль", zap.String("role", req.Role), zap.String("phone", maskPhone(req.Phone)))
-			}
-			c.JSON(http.StatusBadRequest, gin.H{"error": "недопустимая роль, используйте CLIENT или PICKER"})
 		case errors.Is(err, ErrCodeRequired):
 			if h.logger != nil {
 				h.logger.Warn("Регистрация отклонена: отсутствует код подтверждения", zap.String("phone", maskPhone(req.Phone)))
@@ -228,34 +195,6 @@ func (h *Handler) Register(c *gin.Context) {
 		)
 	}
 
-	h.setAuthCookie(c, response.Token)
-	c.JSON(http.StatusOK, response)
-}
-
-// Login обрабатывает POST /auth/login.
-func (h *Handler) Login(c *gin.Context) {
-	var req LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		if h.logger != nil {
-			h.logger.Warn("Некорректный запрос login", zap.Error(err))
-		}
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	response, err := h.authService.Login(c.Request.Context(), req)
-	if err != nil {
-		if errors.Is(err, ErrRegistrationRequired) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "пользователь не зарегистрирован, используйте /auth/register"})
-			return
-		}
-		if errors.Is(err, ErrOTPBlocked) {
-			c.JSON(http.StatusTooManyRequests, gin.H{"error": "Слишком много попыток. Попробуйте позже"})
-			return
-		}
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
-		return
-	}
 	h.setAuthCookie(c, response.Token)
 	c.JSON(http.StatusOK, response)
 }
@@ -330,19 +269,6 @@ func (h *Handler) GetMe(c *gin.Context) {
 		return
 	}
 
-	// Извлекаем активный токен (из заголовка или куки) и возвращаем его клиенту,
-	// чтобы фронтенд мог сохранить его в памяти без повторного логина.
-	var activeToken string
-	if authHeader := c.GetHeader("Authorization"); authHeader != "" {
-		if parts := strings.SplitN(authHeader, " ", 2); len(parts) == 2 {
-			activeToken = parts[1]
-		}
-	} else if cookie, err := c.Cookie(authCookieName); err == nil {
-		activeToken = cookie
-	}
-
-	// Плоская структура — backward compatible со старым фронтендом.
-	// Новый фронтенд дополнительно читает поле token.
 	c.JSON(http.StatusOK, gin.H{
 		"id":         user.ID,
 		"phone":      user.Phone,
@@ -350,6 +276,5 @@ func (h *Handler) GetMe(c *gin.Context) {
 		"store_id":   user.StoreID,
 		"created_at": user.CreatedAt,
 		"updated_at": user.UpdatedAt,
-		"token":      activeToken,
 	})
 }

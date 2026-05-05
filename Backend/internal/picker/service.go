@@ -189,6 +189,7 @@ func (p *Service) generateToken(userID uuid.UUID, role string) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id": userID.String(),
 		"role":    role,
+		"jti":     uuid.New().String(),
 		"exp":     time.Now().Add(24 * time.Hour).Unix(),
 		"iat":     time.Now().Unix(),
 	}

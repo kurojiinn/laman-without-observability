@@ -19,23 +19,30 @@ func formatRubles(amount float64) string {
 	return fmt.Sprintf("%.0f₽", amount)
 }
 
+// LoginLimiter ограничивает количество попыток входа сборщика по IP.
+type LoginLimiter interface {
+	CheckAndIncrement(ctx context.Context, key string) (attemptsLeft int, blocked bool, err error)
+}
+
 type Handler struct {
-	service     PickerService
-	authService AuthService
-	logger      *zap.Logger
-	hub         *events.Hub
+	service      PickerService
+	authService  AuthService
+	logger       *zap.Logger
+	hub          *events.Hub
+	loginLimiter LoginLimiter
 }
 
 // RegisterRoutes регистрирует маршруты заказов.
 func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	pikers := router.Group("/picker")
 	auth := middleware.AuthMiddleware(h.authService)
+	sseAuth := middleware.SSEAuthMiddleware(h.authService)
 	pickerOnly := middleware.RoleRequired(models.UserRolePicker)
 	{
 		pikers.POST("/auth/login", h.Login)
 		pikers.GET("/orders/:id", auth, pickerOnly, h.GetOrder)
 		pikers.GET("", auth, pickerOnly, h.GetOrders)
-		pikers.GET("/events", auth, pickerOnly, h.Events)
+		pikers.GET("/events", sseAuth, pickerOnly, h.Events)
 		pikers.PUT("/orders/:id/status", auth, pickerOnly, h.UpdateStatus)
 		pikers.POST("/orders/:id/items", auth, pickerOnly, h.AddItem)
 		pikers.DELETE("/orders/:id/items/:itemId", auth, pickerOnly, h.RemoveItem)
@@ -85,18 +92,26 @@ func notifyOrderUpdated(hub *events.Hub, userID uuid.UUID, orderID uuid.UUID, me
 	hub.Notify(userID, string(data))
 }
 
-func NewHandler(service PickerService, logger *zap.Logger, authService AuthService, hub *events.Hub) *Handler {
+func NewHandler(service PickerService, logger *zap.Logger, authService AuthService, hub *events.Hub, loginLimiter LoginLimiter) *Handler {
 	return &Handler{
-		service:     service,
-		logger:      logger,
-		authService: authService,
-		hub:         hub,
+		service:      service,
+		logger:       logger,
+		authService:  authService,
+		hub:          hub,
+		loginLimiter: loginLimiter,
 	}
 }
 
 func (h *Handler) Login(c *gin.Context) {
-	var login LoginRequest
+	if h.loginLimiter != nil {
+		_, blocked, _ := h.loginLimiter.CheckAndIncrement(c.Request.Context(), c.ClientIP())
+		if blocked {
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "слишком много попыток, попробуйте позже"})
+			return
+		}
+	}
 
+	var login LoginRequest
 	if err := c.ShouldBindJSON(&login); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

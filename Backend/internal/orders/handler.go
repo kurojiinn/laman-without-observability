@@ -35,12 +35,13 @@ func NewHandler(orderService *OrderService, authService AuthService, hub *events
 func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	orders := router.Group("/orders")
 	auth := middleware.AuthMiddleware(h.authService)
+	sseAuth := middleware.SSEAuthMiddleware(h.authService)
 	{
 		orders.POST("", auth, h.CreateOrder)
 		orders.GET("/:id", auth, h.GetOrder)
 		orders.GET("", auth, h.GetUserOrders)
 		orders.POST("/:id/cancel", auth, h.CancelOrder)
-		orders.GET("/events", auth, h.Events)
+		orders.GET("/events", sseAuth, h.Events)
 	}
 }
 

@@ -106,9 +106,9 @@ func main() {
 
 	otpLimiter := auth.NewRedisOTPLimiter(redisClient.Client(), 5, 15*time.Minute, cache.OTPAttemptsKey)
 	sendCodeLimiter := auth.NewRedisOTPLimiter(redisClient.Client(), 3, 10*time.Minute, cache.OTPSendKey)
-	loginLimiter := auth.NewRedisOTPLimiter(redisClient.Client(), 5, 30*time.Minute, cache.LoginAttemptsKey)
 	// checkUserLimiter: 20 запросов в минуту по IP — защита от перебора номеров
 	checkUserLimiter := auth.NewRedisOTPLimiter(redisClient.Client(), 20, 1*time.Minute, cache.CheckUserIPKey)
+	pickerLoginLimiter := auth.NewRedisOTPLimiter(redisClient.Client(), 10, 30*time.Minute, "picker:login:%s")
 	tokenRevoker := auth.NewRedisTokenRevoker(redisClient.Client())
 	authService := auth.NewAuthService(
 		authRepo,
@@ -118,7 +118,6 @@ func main() {
 		logger,
 		otpLimiter,
 		sendCodeLimiter,
-		loginLimiter,
 		tokenRevoker,
 		cfg.SMS.TestMode,
 	)
@@ -162,7 +161,7 @@ func main() {
 	adminRepo := admin.NewPostgresRepository(db)
 	adminService := admin.NewService(adminRepo, logger, pushService)
 	adminHandler := admin.NewHandler(adminService, logger, minioProvider).WithRecipes(catalogService).WithStoreCategoryUpdater(catalogService).WithScenarios(catalogService)
-	pickerHandler := picker.NewHandler(pickerService, logger, authService, hub)
+	pickerHandler := picker.NewHandler(pickerService, logger, authService, hub, pickerLoginLimiter)
 	favoritesHandler := favorites.NewHandler(favoritesService, authService, logger)
 	pushHandler := push.NewHandler(pushService, authService)
 
@@ -224,6 +223,8 @@ func setupRouter(
 	pushHandler *push.Handler,
 ) *gin.Engine {
 	router := gin.New()
+	// nginx проксирует с 127.0.0.1 — доверяем только ему для корректного X-Forwarded-For
+	_ = router.SetTrustedProxies([]string{"127.0.0.1"})
 
 	// Глобальные middleware
 	router.Use(middleware.SecurityHeadersMiddleware())
