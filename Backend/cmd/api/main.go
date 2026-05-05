@@ -170,6 +170,15 @@ func main() {
 
 	// Настройка health check
 	router.GET("/health", func(c *gin.Context) {
+		ctx := c.Request.Context()
+		if err := db.PingContext(ctx); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unhealthy", "db": err.Error()})
+			return
+		}
+		if err := redisClient.Client().Ping(ctx).Err(); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unhealthy", "redis": err.Error()})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
@@ -234,7 +243,7 @@ func setupRouter(
 	router.Use(middleware.MetricsMiddleware())
 	router.Use(middleware.CORSMiddleware(cfg.CORS.Origins))
 	router.Use(func(c *gin.Context) {
-		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20) // 1MB
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20) // 10MB (покрывает загрузку изображений)
 		c.Next()
 	})
 

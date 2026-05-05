@@ -276,8 +276,8 @@ func (h *Handler) Events(c *gin.Context) {
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("Connection", "keep-alive")
 
-	ch := h.hub.Subscribe(storeID)
-	defer h.hub.Unsubscribe(storeID)
+	ch := h.hub.Subscribe(storeID, userID)
+	defer h.hub.Unsubscribe(storeID, userID)
 
 	for {
 		select {

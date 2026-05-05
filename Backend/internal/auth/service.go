@@ -111,7 +111,6 @@ type VerifyCodeRequest struct {
 type VerifyRequest struct {
 	Phone string `json:"phone" binding:"required"`
 	Code  string `json:"code" binding:"required"`
-	Role  string `json:"role,omitempty"`
 }
 
 // RegisterRequest представляет запрос на регистрацию нового пользователя.
@@ -552,16 +551,19 @@ func (s *AuthService) ValidateToken(ctx context.Context, tokenString string) (uu
 // Когда токен сам по себе истечёт — запись в Redis удалится автоматически.
 // Это предотвращает неограниченный рост блэклиста.
 func (s *AuthService) Logout(ctx context.Context, tokenString string) error {
-	// Парсим токен чтобы достать JTI и exp.
-	// Используем тот же ключ что и при валидации.
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	// Парсим без проверки expiry — просроченный токен тоже нужно занести в блэклист
+	// (или убедиться что он уже истёк и добавлять не нужно).
+	// Невалидная подпись — токен не наш, молча игнорируем.
+	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+	token, err := parser.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("неожиданный метод подписи")
 		}
 		return []byte(s.jwtSecret), nil
 	})
 	if err != nil {
-		return fmt.Errorf("неверный токен: %w", err)
+		// Подпись не прошла — токен чужой или мусор, считаем разлогиненным
+		return nil
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
