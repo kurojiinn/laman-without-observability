@@ -279,19 +279,20 @@ lint → build → deploy_staging (auto) → deploy_prod (manual)
 ---
 
 ## Что реализовано
-- OTP авторизация через SMS.RU
-- JWT токены
+- OTP авторизация через SMS.RU (только `/auth/request-code` + `/auth/verify`)
+- JWT токены с jti + Redis-блэклист (logout работает для клиентов и пикеров)
 - Каталог товаров и магазинов
 - Создание заказов (гостевые + авторизованные)
 - Telegram уведомления админу о новых/отменённых заказах
 - Observability: трейсинг, метрики, логирование
 - CI/CD GitLab pipeline
 - Панель сборщика — бэкенд + фронт (picker-panel)
-- SSE уведомления для сборщика и клиента
+- SSE уведомления для сборщика и клиента (Hub поддерживает несколько пикеров на магазин)
 - Swipe-to-dismiss на всех модалках: hook `useSwipeToDismiss` (`src/hooks/useSwipeToDismiss.ts`)
   - Bottom sheets (ProductModal, PromoModal, CharityModal, ProfileDrawer, AuthModal): drag handle + свайп вниз
   - Fullscreen (ShowcasePage, RecipesModal, RecipeDetailModal): свайп вниз по хедеру
   - PromoModal и CharityModal переведены на createPortal (fix backdrop не доходил до верха)
+- Безопасность: аудит и исправление критических уязвимостей (см. ниже)
 
 ## Что в разработке
 - TASK-009: Push уведомления клиенту
@@ -300,6 +301,65 @@ lint → build → deploy_staging (auto) → deploy_prod (manual)
 - TASK-012: Рейтинг магазинов
 - TASK-013: Регистрация магазинов
 - TASK-014: Интеграция курьерской службы (или собственное курьерское приложение)
+
+## Технический долг
+
+### Пагинация (MEDIUM приоритет)
+Все list-эндпоинты возвращают все записи без ограничения.
+При росте данных это вызовет проблемы с производительностью.
+
+**Затронутые эндпоинты:**
+- `GET /orders` — заказы пользователя
+- `GET /admin/orders` — все заказы в системе
+- `GET /picker` — заказы магазина
+- `GET /products` и другие каталожные эндпоинты
+
+**Формат который нужно реализовать:**
+```
+GET /orders?page=1&limit=20
+→ { data: [...], total: 150, page: 1, limit: 20 }
+```
+
+### Postgres SSL (LOW приоритет)
+В продакшене `DB_SSLMODE=disable`. Для внешнего Postgres нужно `require`.
+Текущий Postgres внутри Docker-сети — приемлемо пока не выносится наружу.
+
+### Регрессионные тесты auth (LOW приоритет)
+Нет unit/integration тестов для пакета `internal/auth`.
+Особенно важно покрыть: OTP flow, JWT валидацию, rate limiting.
+
+---
+
+## Безопасность — что сделано
+
+Полный аудит проведён, все критические и большинство medium уязвимостей закрыты.
+
+### Аутентификация
+- `/auth/login` удалён — был критический bypass (JWT по одному лишь phone)
+- `/auth/send-code` удалён — не было rate limit, OTP в stdout
+- `Register` всегда создаёт CLIENT — PICKER самостоятельно зарегистрироваться не может
+- `?token=` query param принимается ТОЛЬКО на SSE-эндпоинтах (`SSEAuthMiddleware`)
+- Picker JWT теперь содержит `jti` → logout работает через Redis-блэклист
+- Logout на просроченном токене возвращает 200 (раньше был 500)
+
+### Rate limiting
+- `/auth/request-code`: 3 запроса / 10 мин по номеру телефона
+- `/auth/verify` / `/auth/verify-code`: 5 попыток / 15 мин
+- `/auth/check-user`: 20 запросов / 1 мин по IP
+- `/picker/auth/login`: 10 попыток / 30 мин по IP
+- `router.SetTrustedProxies(["127.0.0.1"])` → IP не спуфится через заголовки
+
+### Загрузка файлов
+- Изображения: проверка magic bytes (JPEG, PNG, GIF, WebP)
+- Импорт (xlsx/xls/csv): проверка расширения + magic bytes, лимит 5MB
+- Глобальный лимит тела запроса: 10MB
+
+### Прочее
+- CORS: только продакшен-домены, без localhost
+- SMS API ключ не попадает в логи (URL логируется без `api_id`)
+- MinIO: ротированы дефолтные слабые ключи
+- `/health` проверяет БД и Redis (возвращает 503 если недоступны)
+- SSE Hub: несколько пикеров на магазин — каждый получает отдельный канал
 
 ---
 
