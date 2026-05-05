@@ -434,6 +434,15 @@ func (h *Handler) UpdateOrderStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
+// importAllowedExts — разрешённые расширения и их магические байты.
+// CSV не имеет магических байтов — принимаем по расширению.
+var importAllowedExts = map[string][]byte{
+	".xlsx": {0x50, 0x4B, 0x03, 0x04}, // ZIP/PK — формат Open XML
+	".xlsm": {0x50, 0x4B, 0x03, 0x04},
+	".xls":  {0xD0, 0xCF, 0x11, 0xE0}, // OLE2 compound document
+	".csv":  nil,                        // plain text, без магических байтов
+}
+
 // ImportProducts принимает Excel/CSV файл и выполняет массовый импорт.
 func (h *Handler) ImportProducts(c *gin.Context) {
 	ctx, span := observability.StartSpan(c.Request.Context(), "admin.import_products")
@@ -444,6 +453,35 @@ func (h *Handler) ImportProducts(c *gin.Context) {
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, "файл не найден", err.Error())
 		return
+	}
+
+	// Ограничение размера импорт-файла.
+	const maxImportSize = 5 << 20 // 5 MB
+	if fileHeader.Size > maxImportSize {
+		h.respondError(c, http.StatusBadRequest, "файл слишком большой", "максимальный размер 5 МБ")
+		return
+	}
+
+	// Проверяем расширение и магические байты — не доверяем имени файла.
+	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+	magic, allowed := importAllowedExts[ext]
+	if !allowed {
+		h.respondError(c, http.StatusBadRequest, "недопустимый тип файла", "разрешены только .xlsx, .xls, .csv")
+		return
+	}
+	if magic != nil {
+		f, openErr := fileHeader.Open()
+		if openErr != nil {
+			h.respondError(c, http.StatusBadRequest, "не удалось открыть файл", openErr.Error())
+			return
+		}
+		hdr := make([]byte, len(magic))
+		_, _ = io.ReadFull(f, hdr)
+		_ = f.Close()
+		if !bytes.Equal(hdr, magic) {
+			h.respondError(c, http.StatusBadRequest, "недопустимый тип файла", "содержимое не соответствует расширению "+ext)
+			return
+		}
 	}
 
 	h.logger.Info("Импорт товаров: старт загрузки файла",

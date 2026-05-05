@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"go.uber.org/zap"
 )
 
 const smsRUSendEndpoint = "https://sms.ru/sms/send"
@@ -28,21 +30,25 @@ type SMSRUProvider struct {
 	apiKey   string
 	testMode bool
 	client   *http.Client
+	logger   *zap.Logger
 }
 
 // NewSMSRUProvider создает отправитель SMS.RU.
 // testMode=true — добавляет test=1, SMS не списываются с баланса.
-func NewSMSRUProvider(apiKey string, testMode bool) SMSProvider {
+func NewSMSRUProvider(apiKey string, testMode bool, logger *zap.Logger) SMSProvider {
 	resolvedKey := strings.TrimSpace(apiKey)
 	if resolvedKey == "" || resolvedKey == "ТВОЙ_КЛЮЧ_ИЗ_SMS_RU" {
-		fmt.Printf("[SMS.RU] API key не задан, используется NoopSMSProvider\n")
-		return NewNoopSMSProvider()
+		if logger != nil {
+			logger.Warn("[SMS.RU] API key не задан, используется NoopSMSProvider")
+		}
+		return NewNoopSMSProvider(logger)
 	}
 
 	return &SMSRUProvider{
 		apiKey:   resolvedKey,
 		testMode: testMode,
 		client:   &http.Client{Timeout: 10 * time.Second},
+		logger:   logger,
 	}
 }
 
@@ -67,11 +73,22 @@ func (s *SMSRUProvider) RequestCode(ctx context.Context, phone string) (string, 
 	query.Set("json", "1")
 	if s.testMode {
 		query.Set("test", "1")
-		fmt.Printf("[SMS.RU] TEST MODE — SMS не отправляется. phone=%s code=%s\n", cleanedPhone, code)
+		// DEV: код виден в логах для тестирования без реального SMS
+		if s.logger != nil {
+			s.logger.Info("[SMS.RU] TEST MODE — SMS не отправляется",
+				zap.String("phone", maskPhone(cleanedPhone)),
+				zap.String("code", code),
+			)
+		}
 	}
 
 	requestURL := fmt.Sprintf("%s?%s", smsRUSendEndpoint, query.Encode())
-	fmt.Printf("[SMS.RU] request: GET %s\n", requestURL)
+	// Логируем URL без api_id — ключ не должен попадать в логи
+	if s.logger != nil {
+		s.logger.Debug("[SMS.RU] отправка запроса",
+			zap.String("phone", maskPhone(cleanedPhone)),
+		)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
@@ -80,46 +97,75 @@ func (s *SMSRUProvider) RequestCode(ctx context.Context, phone string) (string, 
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		fmt.Printf("[SMS.RU] WARN: ошибка запроса, SMS не отправлено. phone=%s code=%s err=%v\n", cleanedPhone, code, err)
+		if s.logger != nil {
+			s.logger.Warn("[SMS.RU] ошибка запроса, SMS не отправлено",
+				zap.Error(err),
+				zap.String("phone", maskPhone(cleanedPhone)),
+			)
+		}
 		return code, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, _ := io.ReadAll(resp.Body)
-	fmt.Printf("[SMS.RU] response status=%d body=%s\n", resp.StatusCode, string(body))
+	if s.logger != nil {
+		s.logger.Debug("[SMS.RU] ответ", zap.Int("status", resp.StatusCode))
+	}
 
 	if resp.StatusCode == http.StatusTooManyRequests {
-		fmt.Printf("[SMS.RU] WARN: rate limited, SMS не отправлено. phone=%s code=%s\n", cleanedPhone, code)
-		return code, nil
+		if s.logger != nil {
+			s.logger.Warn("[SMS.RU] rate limited", zap.String("phone", maskPhone(cleanedPhone)))
+		}
+		return code, ErrSMSRateLimited
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		fmt.Printf("[SMS.RU] WARN: статус %d, SMS не отправлено. phone=%s code=%s\n", resp.StatusCode, cleanedPhone, code)
+		if s.logger != nil {
+			s.logger.Warn("[SMS.RU] неожиданный статус",
+				zap.Int("status", resp.StatusCode),
+				zap.String("phone", maskPhone(cleanedPhone)),
+			)
+		}
 		return code, nil
 	}
 
 	var smsResp smsRUSendResponse
 	if err := json.Unmarshal(body, &smsResp); err != nil {
-		fmt.Printf("[SMS.RU] WARN: не удалось распарсить ответ, SMS статус неизвестен. phone=%s code=%s\n", cleanedPhone, code)
+		if s.logger != nil {
+			s.logger.Warn("[SMS.RU] не удалось распарсить ответ",
+				zap.String("phone", maskPhone(cleanedPhone)),
+			)
+		}
 		return code, nil
 	}
 
 	if strings.EqualFold(strings.TrimSpace(smsResp.Status), "ERROR") {
-		fmt.Printf("[SMS.RU] WARN: ошибка API (%s), SMS не отправлено. phone=%s code=%s\n", smsResp.StatusText, cleanedPhone, code)
+		if s.logger != nil {
+			s.logger.Warn("[SMS.RU] ошибка API",
+				zap.String("status_text", smsResp.StatusText),
+				zap.String("phone", maskPhone(cleanedPhone)),
+			)
+		}
 		return code, nil
 	}
 
 	return code, nil
 }
 
+// NoopSMSProvider выводит код в логи — для локальной разработки без API ключа.
+type NoopSMSProvider struct {
+	logger *zap.Logger
+}
 
-// NoopSMSProvider выводит код в stdout — для локальной разработки без API ключа.
-type NoopSMSProvider struct{}
-
-func NewNoopSMSProvider() SMSProvider { return &NoopSMSProvider{} }
+func NewNoopSMSProvider(logger *zap.Logger) SMSProvider { return &NoopSMSProvider{logger: logger} }
 
 func (n *NoopSMSProvider) RequestCode(_ context.Context, phone string) (string, error) {
 	code := "0000"
-	fmt.Printf("[NOOP SMS] phone=%s code=%s\n", phone, code)
+	if n.logger != nil {
+		n.logger.Info("[NOOP SMS] тестовый код",
+			zap.String("phone", maskPhone(phone)),
+			zap.String("code", code),
+		)
+	}
 	return code, nil
 }
 

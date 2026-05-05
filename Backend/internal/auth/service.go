@@ -72,7 +72,7 @@ type UserRepository interface {
 // Это удобно в тестах и dev-окружении без Redis.
 func NewAuthService(authRepo AuthRepository, userRepo UserRepository, jwtSecret string, smsProvider SMSProvider, logger *zap.Logger, otpLimiter OTPLimiter, sendCodeLimiter OTPLimiter, revoker TokenRevoker, devMode bool) *AuthService {
 	if smsProvider == nil {
-		smsProvider = NewNoopSMSProvider()
+		smsProvider = NewNoopSMSProvider(logger)
 	}
 	if otpLimiter == nil {
 		otpLimiter = NewNoopOTPLimiter()

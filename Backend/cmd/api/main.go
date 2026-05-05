@@ -102,7 +102,7 @@ func main() {
 
 	hub := events.NewHub()
 	// Инициализация сервисов
-	smsProvider := auth.NewSMSRUProvider(cfg.SMS.RuAPIKey, cfg.SMS.TestMode)
+	smsProvider := auth.NewSMSRUProvider(cfg.SMS.RuAPIKey, cfg.SMS.TestMode, logger)
 
 	otpLimiter := auth.NewRedisOTPLimiter(redisClient.Client(), 5, 15*time.Minute, cache.OTPAttemptsKey)
 	sendCodeLimiter := auth.NewRedisOTPLimiter(redisClient.Client(), 3, 10*time.Minute, cache.OTPSendKey)
