@@ -47,7 +47,13 @@ type AuthService struct {
 	sendCodeLimiter OTPLimiter   // лимит запросов на отправку SMS (request-code)
 	revoker         TokenRevoker // блэклист отозванных JWT (logout)
 	logger          *zap.Logger
-	devMode         bool // если true — OTP выводится в логи (только для dev/test окружения)
+	devMode         bool        // если true — OTP выводится в логи и Telegram
+	otpNotifier     OTPNotifier // опционально: отправляет OTP в Telegram в dev-режиме
+}
+
+// OTPNotifier отправляет OTP-код во внешний канал (например, Telegram).
+type OTPNotifier interface {
+	NotifyOTP(ctx context.Context, phone, code string) error
 }
 
 // UserRepository определяет интерфейс, необходимый из модуля users.
@@ -70,7 +76,7 @@ type UserRepository interface {
 //
 // Оба лимитера могут быть nil — тогда используются NoopOTPLimiter (без ограничений).
 // Это удобно в тестах и dev-окружении без Redis.
-func NewAuthService(authRepo AuthRepository, userRepo UserRepository, jwtSecret string, smsProvider SMSProvider, logger *zap.Logger, otpLimiter OTPLimiter, sendCodeLimiter OTPLimiter, revoker TokenRevoker, devMode bool) *AuthService {
+func NewAuthService(authRepo AuthRepository, userRepo UserRepository, jwtSecret string, smsProvider SMSProvider, logger *zap.Logger, otpLimiter OTPLimiter, sendCodeLimiter OTPLimiter, revoker TokenRevoker, devMode bool, otpNotifier OTPNotifier) *AuthService {
 	if smsProvider == nil {
 		smsProvider = NewNoopSMSProvider(logger)
 	}
@@ -93,6 +99,7 @@ func NewAuthService(authRepo AuthRepository, userRepo UserRepository, jwtSecret 
 		revoker:         revoker,
 		logger:          logger,
 		devMode:         devMode,
+		otpNotifier:     otpNotifier,
 	}
 }
 
@@ -199,11 +206,15 @@ func (s *AuthService) RequestCode(ctx context.Context, req RequestCodeRequest) e
 	authOperationDuration.WithLabelValues("request_code").Observe(time.Since(start).Seconds())
 	if s.logger != nil {
 		fields := []zap.Field{zap.String("phone", maskPhone(phone))}
-		// DEV: выводим OTP только в dev-режиме для тестирования без SMS
 		if s.devMode {
 			fields = append(fields, zap.String("dev_otp", code))
 		}
 		s.logger.Info("OTP код отправлен пользователю", fields...)
+	}
+	if s.devMode && s.otpNotifier != nil {
+		if err := s.otpNotifier.NotifyOTP(ctx, phone, code); err != nil && s.logger != nil {
+			s.logger.Warn("Не удалось отправить OTP в Telegram", zap.Error(err))
+		}
 	}
 	return nil
 }

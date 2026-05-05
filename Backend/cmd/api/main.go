@@ -120,6 +120,7 @@ func main() {
 		sendCodeLimiter,
 		tokenRevoker,
 		cfg.SMS.TestMode,
+		telegramNotifier,
 	)
 	userService := users.NewUserService(userRepo)
 	catalogService := catalog.NewCatalogService(categoryRepo, subcategoryRepo, productRepo, storeRepo, reviewRepo, featuredRepo, recipeRepo, scenarioRepo, storeCatMetaRepo)

@@ -153,6 +153,45 @@ func (n *TelegramNotifier) NotifyOrderCancelled(ctx context.Context, order *mode
 	return nil
 }
 
+// NotifyOTP отправляет OTP-код в Telegram (только для dev/test режима).
+func (n *TelegramNotifier) NotifyOTP(ctx context.Context, phone, code string) error {
+	if n == nil {
+		return nil
+	}
+	message := fmt.Sprintf("🔑 <b>OTP код</b>\n<b>Телефон:</b> <code>%s</code>\n<b>Код:</b> <code>%s</code>",
+		html.EscapeString(phone), html.EscapeString(code))
+
+	payload := sendMessageRequest{
+		ChatID:    n.chatID,
+		Text:      message,
+		ParseMode: "HTML",
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	url := fmt.Sprintf("%s/bot%s/sendMessage", n.apiBase, n.botToken)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := n.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("telegram api returned %s: %s", resp.Status, string(respBody))
+	}
+	return nil
+}
+
 type sendMessageRequest struct {
 	ChatID                string `json:"chat_id"`
 	Text                  string `json:"text"`
