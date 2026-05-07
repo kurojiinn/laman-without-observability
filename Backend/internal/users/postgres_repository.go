@@ -22,8 +22,8 @@ func NewPostgresUserRepository(db *database.DB) UserRepository {
 
 func (r *postgresUserRepository) Create(ctx context.Context, user *models.User) error {
 	query := `
-		INSERT INTO users (id, phone, role, created_at, updated_at)
-		VALUES (:id, :phone, :role, :created_at, :updated_at)
+		INSERT INTO users (id, phone, email, email_verified, role, password_hash, created_at, updated_at)
+		VALUES (:id, :phone, :email, :email_verified, :role, :password_hash, :created_at, :updated_at)
 	`
 	_, err := r.db.NamedExecContext(ctx, query, user)
 	return err
@@ -31,7 +31,7 @@ func (r *postgresUserRepository) Create(ctx context.Context, user *models.User) 
 
 func (r *postgresUserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	var user models.User
-	query := `SELECT id, phone, role, store_id, password_hash, created_at, updated_at FROM users WHERE id = $1`
+	query := `SELECT id, phone, email, email_verified, role, store_id, password_hash, created_at, updated_at FROM users WHERE id = $1`
 	err := r.db.GetContext(ctx, &user, query, id)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("%w", ErrUserNotFound)
@@ -44,7 +44,7 @@ func (r *postgresUserRepository) GetByID(ctx context.Context, id uuid.UUID) (*mo
 
 func (r *postgresUserRepository) GetByPhone(ctx context.Context, phone string) (*models.User, error) {
 	var user models.User
-	query := `SELECT id, phone, role, store_id, password_hash, created_at, updated_at FROM users WHERE phone = $1`
+	query := `SELECT id, phone, email, email_verified, role, store_id, password_hash, created_at, updated_at FROM users WHERE phone = $1`
 	err := r.db.GetContext(ctx, &user, query, phone)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("%w", ErrUserNotFound)
@@ -53,6 +53,25 @@ func (r *postgresUserRepository) GetByPhone(ctx context.Context, phone string) (
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (r *postgresUserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
+	var user models.User
+	query := `SELECT id, phone, email, email_verified, role, store_id, password_hash, created_at, updated_at FROM users WHERE email = $1`
+	err := r.db.GetContext(ctx, &user, query, email)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("%w", ErrUserNotFound)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *postgresUserRepository) UpdateEmailVerified(ctx context.Context, userID uuid.UUID) error {
+	query := `UPDATE users SET email_verified = TRUE, updated_at = NOW() WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, userID)
+	return err
 }
 
 func (r *postgresUserRepository) CreateProfile(ctx context.Context, profile *models.UserProfile) error {

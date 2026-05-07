@@ -337,7 +337,8 @@ export const adminApi = {
 
 export interface AuthUser {
   id: string;
-  phone: string;
+  phone: string;       // пустая строка для email-пользователей
+  email?: string;      // заполнен для email-пользователей
   role: string;
   store_id: string | null;
   created_at: string;
@@ -352,33 +353,23 @@ export interface AuthResponse {
 // ─── Auth API ────────────────────────────────────────────────────────────────
 
 export const authApi = {
-  /** Запрос OTP-кода (SMS.RU). POST /api/v1/auth/request-code */
-  requestCode: (phone: string) =>
-    api.post<{ message: string }>("/v1/auth/request-code", { phone }),
+  /** Регистрация по email + пароль. POST /api/v1/auth/register */
+  registerWithEmail: (email: string, password: string) =>
+    api.post<{ message: string }>("/v1/auth/register", { email, password }),
 
-  /**
-   * Регистрация нового клиента. POST /api/v1/auth/register
-   * Требует: phone, code (из SMS), role всегда "CLIENT".
-   */
-  register: (phone: string, code: string) =>
-    api.post<AuthResponse>("/v1/auth/register", {
-      phone,
-      code,
-      role: "CLIENT",
-    }),
+  /** Подтверждение email OTP. POST /api/v1/auth/verify-email */
+  verifyEmail: (email: string, code: string) =>
+    api.post<AuthResponse>("/v1/auth/verify-email", { email, code }),
 
-  /**
-   * Верификация OTP для уже зарегистрированного пользователя. POST /api/v1/auth/verify-code
-   * Если пользователь не найден → бэкенд вернёт ошибку "пользователь не зарегистрирован".
-   */
-  verifyCode: (phone: string, code: string) =>
-    api.post<AuthResponse>("/v1/auth/verify-code", { phone, code }),
+  /** Вход по email + пароль. POST /api/v1/auth/login */
+  loginWithEmail: (email: string, password: string) =>
+    api.post<AuthResponse>("/v1/auth/login", { email, password }),
 
-  /** Проверить, зарегистрирован ли номер (без OTP). GET /api/v1/auth/check-user?phone= */
-  checkUser: (phone: string) =>
-    api.get<{ exists: boolean }>(`/v1/auth/check-user?phone=${encodeURIComponent(phone)}`),
+  /** Проверить, зарегистрирован ли email. GET /api/v1/auth/check-user?email= */
+  checkUser: (email: string) =>
+    api.get<{ exists: boolean }>(`/v1/auth/check-user?email=${encodeURIComponent(email)}`),
 
-  /** Выход из аккаунта — бэкенд отзывает токен и очищает httpOnly cookie. POST /api/v1/auth/logout */
+  /** Выход из аккаунта. POST /api/v1/auth/logout */
   logout: () => api.post<void>("/v1/auth/logout", {}),
 
   /** Получить текущего пользователя по токену. GET /api/v1/auth/me */

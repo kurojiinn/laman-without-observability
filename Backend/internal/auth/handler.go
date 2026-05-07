@@ -62,13 +62,19 @@ func (h *Handler) clearAuthCookie(c *gin.Context) {
 func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	auth := router.Group("/auth")
 	{
-		auth.POST("/request-code", h.RequestCode)
-		auth.POST("/verify", h.Verify)
-		auth.POST("/verify-code", h.VerifyCode)
-		auth.POST("/register", h.Register)
+		// Email-авторизация (основной поток для клиентов)
+		auth.POST("/register", h.RegisterWithEmail)
+		auth.POST("/verify-email", h.VerifyEmail)
+		auth.POST("/login", h.LoginWithEmail)
 		auth.GET("/check-user", h.CheckUser)
+
+		// Общие эндпоинты
 		auth.GET("/me", middleware.AuthMiddleware(h.authService), h.GetMe)
 		auth.POST("/logout", middleware.AuthMiddleware(h.authService), h.Logout)
+
+		// Телефонные OTP эндпоинты (legacy, используются только для тестирования)
+		auth.POST("/request-code", h.RequestCode)
+		auth.POST("/verify-code", h.VerifyCode)
 	}
 }
 
@@ -224,8 +230,8 @@ func (h *Handler) Logout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "успешный выход"})
 }
 
-// CheckUser обрабатывает GET /auth/check-user?phone=...
-// Возвращает {"exists": true/false} без отправки OTP.
+// CheckUser обрабатывает GET /auth/check-user?email=...
+// Возвращает {"exists": true/false}.
 func (h *Handler) CheckUser(c *gin.Context) {
 	ip := c.ClientIP()
 	_, blocked, _ := h.checkUserLimiter.CheckAndIncrement(c.Request.Context(), ip)
@@ -234,17 +240,87 @@ func (h *Handler) CheckUser(c *gin.Context) {
 		return
 	}
 
-	phone := strings.TrimSpace(c.Query("phone"))
-	if phone == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "phone обязателен"})
+	email := strings.TrimSpace(c.Query("email"))
+	if email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email обязателен"})
 		return
 	}
-	exists, err := h.authService.CheckUserExists(c.Request.Context(), phone)
+	exists, err := h.authService.CheckEmailExists(c.Request.Context(), email)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"exists": exists})
+}
+
+// RegisterWithEmail обрабатывает POST /auth/register: email + password.
+func (h *Handler) RegisterWithEmail(c *gin.Context) {
+	var req RegisterWithEmailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.authService.RegisterWithEmail(c.Request.Context(), req); err != nil {
+		switch {
+		case errors.Is(err, ErrUserAlreadyExists):
+			c.JSON(http.StatusConflict, gin.H{"error": "пользователь с таким email уже зарегистрирован"})
+		default:
+			if h.logger != nil {
+				h.logger.Warn("Ошибка регистрации по email", zap.Error(err))
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "код подтверждения отправлен на email"})
+}
+
+// VerifyEmail обрабатывает POST /auth/verify-email: email + OTP код.
+func (h *Handler) VerifyEmail(c *gin.Context) {
+	var req VerifyEmailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	resp, err := h.authService.VerifyEmail(c.Request.Context(), req)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrOTPBlocked):
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "Слишком много попыток. Попробуйте через 15 минут"})
+		default:
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	h.setAuthCookie(c, resp.Token)
+	c.JSON(http.StatusOK, resp)
+}
+
+// LoginWithEmail обрабатывает POST /auth/login: email + password.
+func (h *Handler) LoginWithEmail(c *gin.Context) {
+	var req LoginWithEmailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	resp, err := h.authService.LoginWithEmail(c.Request.Context(), req)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrEmailNotVerified):
+			c.JSON(http.StatusForbidden, gin.H{"error": "email не подтверждён, проверьте почту"})
+		default:
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	h.setAuthCookie(c, resp.Token)
+	c.JSON(http.StatusOK, resp)
 }
 
 // GetMe обрабатывает GET /auth/me
@@ -272,6 +348,7 @@ func (h *Handler) GetMe(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"id":         user.ID,
 		"phone":      user.Phone,
+		"email":      user.Email,
 		"role":       user.Role,
 		"store_id":   user.StoreID,
 		"created_at": user.CreatedAt,

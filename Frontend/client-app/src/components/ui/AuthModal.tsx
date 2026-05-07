@@ -49,15 +49,6 @@ export default function AuthModal() {
                 </svg>
               </button>
 
-              <div className="mb-7">
-                <p className="text-xs font-semibold uppercase tracking-widest text-indigo-500 mb-2">
-                  Вход
-                </p>
-                <h2 className="text-2xl font-bold text-gray-900 leading-tight">
-                  Войдите или зарегистрируйтесь
-                </h2>
-              </div>
-
               <div className="flex-1">
                 <AuthForm />
               </div>
@@ -136,6 +127,11 @@ function LeftPanel() {
 /* ─── Общие стили ─── */
 const LABEL_CLASS = "block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5";
 
+const INPUT_CLASS =
+  "w-full h-11 bg-gray-50 border border-gray-200 rounded-xl px-4 text-sm text-gray-900 " +
+  "placeholder-gray-400 focus:outline-none focus:bg-white focus:border-indigo-400 " +
+  "focus:ring-2 focus:ring-indigo-100 transition-all duration-150 disabled:opacity-50";
+
 const SUBMIT_CLASS =
   "w-full h-11 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-sm " +
   "font-semibold rounded-xl transition-all duration-150 mt-1 shadow-sm shadow-indigo-200 " +
@@ -153,38 +149,6 @@ function ErrorBanner({ message }: { message: string }) {
         />
       </svg>
       <span>{message}</span>
-    </div>
-  );
-}
-
-/* ─── Поле ввода телефона ─── */
-function PhoneInput({
-  digits,
-  onChange,
-  disabled,
-}: {
-  digits: string;
-  onChange: (v: string) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div
-      className={
-        "flex items-center h-11 bg-gray-50 border border-gray-200 rounded-xl overflow-hidden " +
-        "focus-within:bg-white focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100 transition-all duration-150"
-      }
-    >
-      <span className="pl-4 pr-1 text-sm text-gray-500 font-medium select-none flex-shrink-0">+7</span>
-      <input
-        type="tel"
-        inputMode="numeric"
-        maxLength={10}
-        value={digits}
-        onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 10))}
-        placeholder="9000000000"
-        disabled={disabled}
-        className="flex-1 h-full bg-transparent text-sm text-gray-900 placeholder-gray-400 focus:outline-none pr-4"
-      />
     </div>
   );
 }
@@ -273,67 +237,60 @@ function OtpInput({
   );
 }
 
-/* ─── Единая форма авторизации ─────────────────────────────────────────────── */
-/*
- * Шаг 1: GET /auth/check-user → запоминаем exists
- *         POST /auth/request-code → OTP отправлен
- * Шаг 2: если exists → POST /auth/verify-code → { token, user }
- *         если нет   → POST /auth/register    → { token, user }
+/* ─── Форма авторизации по email ────────────────────────────────────────────
+ * Режим "login": email + пароль → POST /auth/login → JWT
+ * Режим "register": email + пароль → POST /auth/register → OTP шаг →
+ *                   POST /auth/verify-email → JWT
  */
 function AuthForm() {
   const { login } = useAuth();
-  const [digits, setDigits] = useState("");
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [step, setStep] = useState<"credentials" | "otp">("credentials");
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(""));
-  const [step, setStep] = useState<"phone" | "code">("phone");
-  const [userExists, setUserExists] = useState<boolean | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const phone = "+7" + digits;
   const otpCode = otp.join("");
 
-  const handleRequestCode = async (e: FormEvent) => {
+  const switchMode = (next: "login" | "register") => {
+    setMode(next);
+    setStep("credentials");
+    setError(null);
+    setOtp(Array(OTP_LENGTH).fill(""));
+  };
+
+  const handleCredentialsSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (digits.length < 10) {
-      setError("Введите 10 цифр номера");
-      return;
-    }
+    if (!email.trim() || !password) return;
     setError(null);
     setLoading(true);
     try {
-      let exists: boolean | null = null;
-      try {
-        const res = await authApi.checkUser(phone);
-        exists = res.exists;
-        setUserExists(res.exists);
-      } catch {
-        // check-user недоступен — продолжаем без информации
-        setUserExists(null);
+      if (mode === "login") {
+        const res = await authApi.loginWithEmail(email.trim(), password);
+        login(res.token, res.user);
+      } else {
+        await authApi.registerWithEmail(email.trim(), password);
+        setStep("otp");
+        setOtp(Array(OTP_LENGTH).fill(""));
       }
-      await authApi.requestCode(phone);
-      setStep("code");
-      setOtp(Array(OTP_LENGTH).fill(""));
-      // Если exists === false (новый пользователь) — ничего особенного не делаем,
-      // флоу одинаковый, просто вызовем register вместо verifyCode.
-      void exists;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось отправить код");
+      setError(err instanceof Error ? err.message : "Ошибка");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerify = async () => {
+  const handleVerifyOtp = async () => {
     if (otpCode.length < OTP_LENGTH) return;
     setError(null);
     setLoading(true);
     try {
-      let res;
-      if (userExists === false) {
-        res = await authApi.register(phone, otpCode);
-      } else {
-        res = await authApi.verifyCode(phone, otpCode);
-      }
+      const res = await authApi.verifyEmail(email.trim(), otpCode);
       login(res.token, res.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Неверный код");
@@ -345,60 +302,158 @@ function AuthForm() {
 
   const handleOtpSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    await handleVerify();
+    await handleVerifyOtp();
   };
 
-  if (step === "phone") {
+  /* ── OTP шаг (только для регистрации) ── */
+  if (step === "otp") {
     return (
-      <form onSubmit={handleRequestCode} className="space-y-4">
-        {error && <ErrorBanner message={error} />}
-        <div>
-          <label className={LABEL_CLASS}>Номер телефона</label>
-          <PhoneInput digits={digits} onChange={setDigits} disabled={loading} />
+      <form onSubmit={handleOtpSubmit} className="space-y-5">
+        <div className="mb-5">
+          <p className="text-xs font-semibold uppercase tracking-widest text-indigo-500 mb-2">
+            Подтверждение
+          </p>
+          <h2 className="text-2xl font-bold text-gray-900 leading-tight">
+            Введите код
+          </h2>
         </div>
-        <p className="text-xs text-gray-400">Отправим SMS с кодом подтверждения</p>
-        <button type="submit" className={SUBMIT_CLASS} disabled={loading || digits.length < 10}>
-          {loading ? "Проверяем..." : "Получить код"}
+
+        {error && <ErrorBanner message={error} />}
+
+        <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-2.5">
+          <svg className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+            <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+          </svg>
+          <span className="text-xs text-indigo-600 font-medium">Код отправлен на {email}</span>
+        </div>
+
+        <div>
+          <label className={LABEL_CLASS + " text-center block"}>Код из письма</label>
+          <OtpInput
+            value={otp}
+            onChange={setOtp}
+            onComplete={handleVerifyOtp}
+            disabled={loading}
+          />
+        </div>
+
+        <button
+          type="submit"
+          className={SUBMIT_CLASS}
+          disabled={loading || otpCode.length < OTP_LENGTH}
+        >
+          {loading ? "Проверяем..." : "Подтвердить"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => { setStep("credentials"); setOtp(Array(OTP_LENGTH).fill("")); setError(null); }}
+          className="w-full text-xs text-gray-400 hover:text-gray-600 transition-colors text-center"
+        >
+          ← Изменить email
         </button>
       </form>
     );
   }
 
+  /* ── Шаг с email + паролем ── */
   return (
-    <form onSubmit={handleOtpSubmit} className="space-y-5">
+    <form onSubmit={handleCredentialsSubmit} className="space-y-4">
+      {/* Заголовок */}
+      <div className="mb-5">
+        <p className="text-xs font-semibold uppercase tracking-widest text-indigo-500 mb-2">
+          {mode === "login" ? "Вход" : "Регистрация"}
+        </p>
+        <h2 className="text-2xl font-bold text-gray-900 leading-tight">
+          {mode === "login" ? "Войдите в аккаунт" : "Создайте аккаунт"}
+        </h2>
+      </div>
+
+      {/* Переключатель режимов */}
+      <div className="flex bg-gray-100 rounded-xl p-1 mb-2">
+        {(["login", "register"] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => switchMode(m)}
+            className={
+              "flex-1 py-1.5 text-sm font-semibold rounded-lg transition-all duration-150 " +
+              (mode === m
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700")
+            }
+          >
+            {m === "login" ? "Вход" : "Регистрация"}
+          </button>
+        ))}
+      </div>
+
       {error && <ErrorBanner message={error} />}
 
-      <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-2.5">
-        <svg className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-          <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
-        </svg>
-        <span className="text-xs text-indigo-600 font-medium">Код отправлен на {phone}</span>
+      <div>
+        <label className={LABEL_CLASS}>Email</label>
+        <input
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          disabled={loading}
+          className={INPUT_CLASS}
+          autoFocus
+        />
       </div>
 
       <div>
-        <label className={LABEL_CLASS + " text-center block"}>Код из SMS</label>
-        <OtpInput
-          value={otp}
-          onChange={setOtp}
-          onComplete={handleVerify}
-          disabled={loading}
-        />
+        <label className={LABEL_CLASS}>Пароль</label>
+        <div className="relative">
+          <input
+            type={showPassword ? "text" : "password"}
+            autoComplete={mode === "login" ? "current-password" : "new-password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={mode === "register" ? "Минимум 8 символов" : "Введите пароль"}
+            disabled={loading}
+            className={INPUT_CLASS + " pr-10"}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+            tabIndex={-1}
+          >
+            {showPassword ? (
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
+                <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
+
+      {mode === "register" && (
+        <p className="text-xs text-gray-400">
+          После регистрации отправим код подтверждения на ваш email
+        </p>
+      )}
 
       <button
         type="submit"
         className={SUBMIT_CLASS}
-        disabled={loading || otpCode.length < OTP_LENGTH}
+        disabled={loading || !email.trim() || !password}
       >
-        {loading ? "Проверяем..." : userExists === false ? "Зарегистрироваться" : "Войти"}
-      </button>
-
-      <button
-        type="button"
-        onClick={() => { setStep("phone"); setOtp(Array(OTP_LENGTH).fill("")); setError(null); }}
-        className="w-full text-xs text-gray-400 hover:text-gray-600 transition-colors text-center"
-      >
-        ← Изменить номер
+        {loading
+          ? "Подождите..."
+          : mode === "login"
+          ? "Войти"
+          : "Зарегистрироваться"}
       </button>
     </form>
   );

@@ -21,8 +21,8 @@ func NewPostgresAuthRepository(db *database.DB) AuthRepository {
 
 func (r *postgresAuthRepository) CreateAuthCode(ctx context.Context, code *models.AuthCode) error {
 	query := `
-		INSERT INTO auth_codes (id, phone, code, expires_at, used, created_at)
-		VALUES (:id, :phone, :code, :expires_at, :used, :created_at)
+		INSERT INTO auth_codes (id, phone, email, code, expires_at, used, created_at)
+		VALUES (:id, :phone, :email, :code, :expires_at, :used, :created_at)
 	`
 	_, err := r.db.NamedExecContext(ctx, query, code)
 	return err
@@ -31,7 +31,7 @@ func (r *postgresAuthRepository) CreateAuthCode(ctx context.Context, code *model
 func (r *postgresAuthRepository) GetAuthCodeByPhoneAndCode(ctx context.Context, phone, code string) (*models.AuthCode, error) {
 	var authCode models.AuthCode
 	query := `
-		SELECT id, phone, code, expires_at, used, created_at
+		SELECT id, phone, email, code, expires_at, used, created_at
 		FROM auth_codes
 		WHERE phone = $1 AND code = $2 AND used = FALSE AND expires_at > NOW()
 		ORDER BY created_at DESC
@@ -56,5 +56,30 @@ func (r *postgresAuthRepository) MarkAuthCodeAsUsed(ctx context.Context, id uuid
 func (r *postgresAuthRepository) InvalidateAuthCodesByPhone(ctx context.Context, phone string) error {
 	query := `UPDATE auth_codes SET used = TRUE WHERE phone = $1 AND used = FALSE`
 	_, err := r.db.ExecContext(ctx, query, phone)
+	return err
+}
+
+func (r *postgresAuthRepository) GetAuthCodeByEmailAndCode(ctx context.Context, email, code string) (*models.AuthCode, error) {
+	var authCode models.AuthCode
+	query := `
+		SELECT id, phone, email, code, expires_at, used, created_at
+		FROM auth_codes
+		WHERE email = $1 AND code = $2 AND used = FALSE AND expires_at > NOW()
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+	err := r.db.GetContext(ctx, &authCode, query, email, code)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("код аутентификации не найден или истёк")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &authCode, nil
+}
+
+func (r *postgresAuthRepository) InvalidateAuthCodesByEmail(ctx context.Context, email string) error {
+	query := `UPDATE auth_codes SET used = TRUE WHERE email = $1 AND used = FALSE`
+	_, err := r.db.ExecContext(ctx, query, email)
 	return err
 }

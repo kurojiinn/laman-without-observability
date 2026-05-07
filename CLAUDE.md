@@ -385,6 +385,38 @@ GET /orders?page=1&limit=20
 - picker-panel и admin-panel Docker образы делают `npm run build` → nginx (prod сборка)
   → при изменении кода нужно пересобирать образ: `docker-compose build <service>`
   → для активной разработки лучше запускать `npm run dev` локально
+- После изменения `.env` на сервере: `docker compose up -d api` (пересборка не нужна)
+
+## OTP / SMS — текущее состояние
+
+- На сервере `SMS_RU_TEST=true` — реальные SMS не отправляются, баланс не тратится
+- В dev режиме OTP код виден в логах: `docker compose logs -f api | grep dev_otp`
+- OTP также отправляется в Telegram (бот `TG_BOT_TOKEN`), но **нестабильно** —
+  московский хостинг блокирует `api.telegram.org`, сообщения иногда доходят иногда нет
+- OTP истекает через **5 минут** (`service.go`: `ExpiresAt: time.Now().Add(5 * time.Minute)`)
+- Когда SMS.RU будет подключён: поставить `SMS_RU_TEST=false` и перезапустить api
+
+## Создание сборщика (PICKER) через SQL
+
+Сборщики создаются вручную — публичной регистрации нет.
+Обязательно указывать `store_id` (к какому магазину привязан).
+
+```bash
+# 1. Установить расширение для хэширования паролей (один раз)
+docker compose exec postgres psql -U postgres -d laman -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+
+# 2. Создать сборщика
+docker compose exec postgres psql -U postgres -d laman -c "
+INSERT INTO users (id, phone, role, password_hash, store_id, created_at, updated_at)
+VALUES (gen_random_uuid(), '7XXXXXXXXXX', 'PICKER', crypt('пароль', gen_salt('bf')), 'store-uuid', NOW(), NOW());
+"
+
+# Посмотреть список магазинов (для store-uuid)
+docker compose exec postgres psql -U postgres -d laman -c "SELECT id, name FROM stores;"
+
+# Посмотреть всех сборщиков
+docker compose exec postgres psql -U postgres -d laman -c "SELECT id, phone, store_id FROM users WHERE role = 'PICKER';"
+```
 
 ---
 

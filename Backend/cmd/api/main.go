@@ -103,6 +103,7 @@ func main() {
 	hub := events.NewHub()
 	// Инициализация сервисов
 	smsProvider := auth.NewSMSRUProvider(cfg.SMS.RuAPIKey, cfg.SMS.TestMode, logger)
+	emailSender := auth.NewSMTPEmailSender(cfg.Email.Host, cfg.Email.Port, cfg.Email.Login, cfg.Email.Password, cfg.Email.From, logger)
 
 	otpLimiter := auth.NewRedisOTPLimiter(redisClient.Client(), 5, 15*time.Minute, cache.OTPAttemptsKey)
 	sendCodeLimiter := auth.NewRedisOTPLimiter(redisClient.Client(), 3, 10*time.Minute, cache.OTPSendKey)
@@ -115,6 +116,7 @@ func main() {
 		userRepo,
 		cfg.JWT.Secret,
 		smsProvider,
+		emailSender,
 		logger,
 		otpLimiter,
 		sendCodeLimiter,

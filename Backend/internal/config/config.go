@@ -13,12 +13,22 @@ type Config struct {
 	Database DatabaseConfig
 	JWT      JWTConfig
 	SMS      SMSConfig
+	Email    EmailConfig
 	Telegram TelegramConfig
 	Admin    AdminConfig
 	CORS     CORSConfig
 	Redis    RedisConfig
 	VAPID    VAPIDConfig
 	MinIO    MinIOConfig
+}
+
+// EmailConfig содержит конфигурацию SMTP для отправки писем.
+type EmailConfig struct {
+	Host     string
+	Port     string
+	Login    string
+	Password string
+	From     string
 }
 
 // MinIOConfig содержит конфигурацию MinIO / S3-совместимого хранилища.
@@ -140,6 +150,13 @@ func Load() (*Config, error) {
 			PublicKey:  getEnv("VAPID_PUBLIC_KEY", ""),
 			PrivateKey: getEnv("VAPID_PRIVATE_KEY", ""),
 			Email:      getEnv("VAPID_EMAIL", ""),
+		},
+		Email: EmailConfig{
+			Host:     getEnv("SMTP_HOST", "smtp.yandex.ru"),
+			Port:     getEnv("SMTP_PORT", "465"),
+			Login:    getEnv("SMTP_LOGIN", ""),
+			Password: getEnv("SMTP_PASSWORD", ""),
+			From:     getEnv("SMTP_FROM", getEnv("SMTP_LOGIN", "")),
 		},
 		MinIO: MinIOConfig{
 			Endpoint:  getEnv("MINIO_ENDPOINT", "localhost:9000"),

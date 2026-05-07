@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var (
@@ -26,6 +27,7 @@ var (
 	ErrRoleRequired         = errors.New("role is required for new user")
 	ErrCodeRequired         = errors.New("verification code is required")
 	ErrOTPBlocked           = errors.New("too many otp attempts")
+	ErrEmailNotVerified     = errors.New("email not verified")
 
 	// ErrTokenRevoked возвращается ValidateToken когда токен был явно отозван через Logout.
 	//
@@ -43,6 +45,7 @@ type AuthService struct {
 	userRepo        UserRepository
 	jwtSecret       string
 	smsProvider     SMSProvider
+	emailSender     EmailSender
 	otpLimiter      OTPLimiter   // лимит попыток ввода кода (verify-code)
 	sendCodeLimiter OTPLimiter   // лимит запросов на отправку SMS (request-code)
 	revoker         TokenRevoker // блэклист отозванных JWT (logout)
@@ -60,6 +63,8 @@ type OTPNotifier interface {
 type UserRepository interface {
 	GetByPhone(ctx context.Context, phone string) (*models.User, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*models.User, error)
+	GetByEmail(ctx context.Context, email string) (*models.User, error)
+	UpdateEmailVerified(ctx context.Context, userID uuid.UUID) error
 	Create(ctx context.Context, user *models.User) error
 }
 
@@ -76,9 +81,12 @@ type UserRepository interface {
 //
 // Оба лимитера могут быть nil — тогда используются NoopOTPLimiter (без ограничений).
 // Это удобно в тестах и dev-окружении без Redis.
-func NewAuthService(authRepo AuthRepository, userRepo UserRepository, jwtSecret string, smsProvider SMSProvider, logger *zap.Logger, otpLimiter OTPLimiter, sendCodeLimiter OTPLimiter, revoker TokenRevoker, devMode bool, otpNotifier OTPNotifier) *AuthService {
+func NewAuthService(authRepo AuthRepository, userRepo UserRepository, jwtSecret string, smsProvider SMSProvider, emailSender EmailSender, logger *zap.Logger, otpLimiter OTPLimiter, sendCodeLimiter OTPLimiter, revoker TokenRevoker, devMode bool, otpNotifier OTPNotifier) *AuthService {
 	if smsProvider == nil {
 		smsProvider = NewNoopSMSProvider(logger)
+	}
+	if emailSender == nil {
+		emailSender = &NoopEmailSender{logger: logger}
 	}
 	if otpLimiter == nil {
 		otpLimiter = NewNoopOTPLimiter()
@@ -94,6 +102,7 @@ func NewAuthService(authRepo AuthRepository, userRepo UserRepository, jwtSecret 
 		userRepo:        userRepo,
 		jwtSecret:       jwtSecret,
 		smsProvider:     smsProvider,
+		emailSender:     emailSender,
 		otpLimiter:      otpLimiter,
 		sendCodeLimiter: sendCodeLimiter,
 		revoker:         revoker,
@@ -456,15 +465,6 @@ func (s *AuthService) verifyAndConsumeCode(ctx context.Context, phone, code stri
 	return nil
 }
 
-// normalizeRole нормализует роль к верхнему регистру и валидирует допустимые значения.
-func normalizeRole(role string) (string, error) {
-	normalized := strings.ToUpper(strings.TrimSpace(role))
-	if !models.IsValidUserRole(normalized) {
-		return "", ErrInvalidRole
-	}
-	return normalized, nil
-}
-
 // maskPhone скрывает часть номера телефона для безопасного логирования и трейсинга.
 func maskPhone(phone string) string {
 	phone = strings.TrimSpace(phone)
@@ -598,6 +598,193 @@ func (s *AuthService) Logout(ctx context.Context, tokenString string) error {
 	}
 
 	return s.revoker.Revoke(ctx, jti, ttl)
+}
+
+// ── Email-авторизация ─────────────────────────────────────────────────────────
+
+// RegisterWithEmailRequest представляет запрос на регистрацию по email.
+type RegisterWithEmailRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=6"`
+}
+
+// VerifyEmailRequest представляет запрос на подтверждение email-кода.
+type VerifyEmailRequest struct {
+	Email string `json:"email" binding:"required,email"`
+	Code  string `json:"code" binding:"required"`
+}
+
+// LoginWithEmailRequest представляет запрос на вход по email + пароль.
+type LoginWithEmailRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
+}
+
+// RegisterWithEmail создаёт пользователя с email и паролем и отправляет OTP для подтверждения.
+// Если пользователь существует, но ещё не подтвердил email — повторно отправляет код.
+func (s *AuthService) RegisterWithEmail(ctx context.Context, req RegisterWithEmailRequest) error {
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+
+	existingUser, err := s.userRepo.GetByEmail(ctx, email)
+	if err == nil {
+		if existingUser.EmailVerified {
+			return ErrUserAlreadyExists
+		}
+		// Не подтверждён — повторно отправляем OTP
+		return s.sendEmailOTP(ctx, email)
+	}
+	if !errors.Is(err, users.ErrUserNotFound) {
+		return fmt.Errorf("ошибка проверки email: %w", err)
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("ошибка хеширования пароля: %w", err)
+	}
+	hashStr := string(hash)
+
+	user := &models.User{
+		ID:           uuid.New(),
+		Phone:        "",
+		Email:        &email,
+		Role:         models.UserRoleClient,
+		PasswordHash: &hashStr,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		return fmt.Errorf("не удалось создать пользователя: %w", err)
+	}
+
+	return s.sendEmailOTP(ctx, email)
+}
+
+// sendEmailOTP генерирует и отправляет OTP-код на email.
+func (s *AuthService) sendEmailOTP(ctx context.Context, email string) error {
+	_ = s.authRepo.InvalidateAuthCodesByEmail(ctx, email)
+
+	code, err := generateCode(4)
+	if err != nil {
+		return fmt.Errorf("ошибка генерации кода: %w", err)
+	}
+
+	authCode := &models.AuthCode{
+		ID:        uuid.New(),
+		Phone:     "",
+		Email:     &email,
+		Code:      code,
+		ExpiresAt: time.Now().Add(5 * time.Minute),
+		Used:      false,
+		CreatedAt: time.Now(),
+	}
+	if err := s.authRepo.CreateAuthCode(ctx, authCode); err != nil {
+		return fmt.Errorf("не удалось сохранить OTP: %w", err)
+	}
+
+	if s.logger != nil {
+		if s.devMode {
+			s.logger.Info("[EMAIL] OTP отправлен", zap.String("email", maskEmail(email)), zap.String("dev_otp", code))
+		} else {
+			s.logger.Info("[EMAIL] OTP отправлен", zap.String("email", maskEmail(email)))
+		}
+	}
+
+	if err := s.emailSender.SendOTP(ctx, email, code); err != nil {
+		if s.logger != nil {
+			s.logger.Warn("не удалось отправить OTP на email", zap.Error(err))
+		}
+		if !s.devMode {
+			return fmt.Errorf("не удалось отправить письмо: %w", err)
+		}
+	}
+	return nil
+}
+
+// VerifyEmail подтверждает email-код и возвращает JWT.
+func (s *AuthService) VerifyEmail(ctx context.Context, req VerifyEmailRequest) (*AuthResponse, error) {
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+
+	_, blocked, _ := s.otpLimiter.CheckAndIncrement(ctx, "email:"+email)
+	if blocked {
+		return nil, ErrOTPBlocked
+	}
+
+	user, err := s.userRepo.GetByEmail(ctx, email)
+	if err != nil {
+		return nil, fmt.Errorf("пользователь не найден")
+	}
+
+	authCode, err := s.authRepo.GetAuthCodeByEmailAndCode(ctx, email, req.Code)
+	if err != nil {
+		return nil, fmt.Errorf("неверный или истёкший код")
+	}
+	if err := s.authRepo.MarkAuthCodeAsUsed(ctx, authCode.ID); err != nil {
+		return nil, fmt.Errorf("ошибка подтверждения: %w", err)
+	}
+
+	if err := s.userRepo.UpdateEmailVerified(ctx, user.ID); err != nil {
+		return nil, fmt.Errorf("ошибка обновления статуса: %w", err)
+	}
+	user.EmailVerified = true
+
+	_ = s.otpLimiter.Reset(ctx, "email:"+email)
+
+	token, err := s.generateToken(user.ID, user.Role)
+	if err != nil {
+		return nil, fmt.Errorf("не удалось сгенерировать токен: %w", err)
+	}
+
+	if s.logger != nil {
+		s.logger.Info("Email подтверждён, пользователь авторизован",
+			zap.String("user_id", user.ID.String()),
+		)
+	}
+	return &AuthResponse{Token: token, User: user}, nil
+}
+
+// LoginWithEmail авторизует пользователя по email и паролю.
+func (s *AuthService) LoginWithEmail(ctx context.Context, req LoginWithEmailRequest) (*AuthResponse, error) {
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+
+	user, err := s.userRepo.GetByEmail(ctx, email)
+	if err != nil {
+		return nil, fmt.Errorf("неверный email или пароль")
+	}
+
+	if !user.EmailVerified {
+		return nil, ErrEmailNotVerified
+	}
+
+	if user.PasswordHash == nil {
+		return nil, fmt.Errorf("неверный email или пароль")
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(req.Password)); err != nil {
+		return nil, fmt.Errorf("неверный email или пароль")
+	}
+
+	token, err := s.generateToken(user.ID, user.Role)
+	if err != nil {
+		return nil, fmt.Errorf("не удалось сгенерировать токен: %w", err)
+	}
+
+	if s.logger != nil {
+		s.logger.Info("Пользователь авторизован по email", zap.String("user_id", user.ID.String()))
+	}
+	return &AuthResponse{Token: token, User: user}, nil
+}
+
+// CheckEmailExists проверяет, зарегистрирован ли пользователь с данным email.
+func (s *AuthService) CheckEmailExists(ctx context.Context, email string) (bool, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	_, err := s.userRepo.GetByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, users.ErrUserNotFound) {
+			return false, nil
+		}
+		return false, fmt.Errorf("ошибка поиска пользователя: %w", err)
+	}
+	return true, nil
 }
 
 // generateCode генерирует случайный числовой код указанной длины.
