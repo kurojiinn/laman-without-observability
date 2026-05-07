@@ -5,6 +5,7 @@ import { resolveImageUrl, type Category, type Product } from "@/lib/api";
 import { useCategories, useSubcategories, useProducts } from "@/lib/queries";
 import { useCart } from "@/context/CartContext";
 import ProductModal from "@/components/ui/ProductModal";
+import { ProductGridSkeleton } from "@/components/ui/Skeleton";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
 
@@ -95,7 +96,7 @@ export default function CatalogTab({ search }: Props) {
 
       {/* ── Товары ── */}
       {loading ? (
-        <ProductSkeleton />
+        <ProductGridSkeleton />
       ) : products.length === 0 ? (
         <Empty />
       ) : (
@@ -179,16 +180,6 @@ function ProductCard({ product, onOpen }: { product: Product; onOpen: () => void
           <p className="text-xs text-indigo-500 mt-1">В корзине: {cartItem.quantity} шт.</p>
         )}
       </div>
-    </div>
-  );
-}
-
-function ProductSkeleton() {
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="bg-gray-100 rounded-2xl aspect-[3/4] animate-pulse" />
-      ))}
     </div>
   );
 }

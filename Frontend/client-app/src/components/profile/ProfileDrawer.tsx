@@ -6,6 +6,7 @@ import { useBodyScrollLockWhen } from "@/hooks/useBodyScrollLock";
 import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
 import { ordersApi, catalogApi, usersApi, type Order, type OrderItem, type UserProfile } from "@/lib/api";
 import { useOrders, useProfile, queryKeys } from "@/lib/queries";
+import { OrderCardSkeleton } from "@/components/ui/Skeleton";
 import PushNotificationButton from "@/components/ui/PushNotificationButton";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -412,9 +413,7 @@ function OrderHistory({
 
       {loading ? (
         <div className="space-y-2">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-20 bg-gray-100 rounded-xl animate-pulse" />
-          ))}
+          {[1, 2, 3].map((i) => <OrderCardSkeleton key={i} />)}
         </div>
       ) : orders.length === 0 ? (
         <div className="flex flex-col items-center py-8 text-gray-400">

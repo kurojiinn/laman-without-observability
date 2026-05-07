@@ -6,6 +6,7 @@ import { useStores } from "@/lib/queries";
 import StoreDetailView from "./StoreDetailView";
 import { CATEGORY_META, DEFAULT_META } from "@/components/ui/CategoryIcon";
 import StoreAvatar from "@/components/ui/StoreAvatar";
+import { StoreGridSkeleton } from "@/components/ui/Skeleton";
 
 interface Props {
   search: string;
@@ -32,11 +33,7 @@ export default function StoresTab({ search }: Props) {
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="bg-gray-100 rounded-2xl h-40 animate-pulse" />
-          ))}
-        </div>
+        <StoreGridSkeleton />
       </div>
     );
   }

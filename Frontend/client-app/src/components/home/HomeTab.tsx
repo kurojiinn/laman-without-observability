@@ -8,6 +8,7 @@ import { catalogApi, resolveImageUrl, type Product, type Store, type RecipeWithP
 import { useStores, useScenarios, useFeatured, useRecipes } from "@/lib/queries";
 import { useCart } from "@/context/CartContext";
 import ProductModal from "@/components/ui/ProductModal";
+import { FeaturedRowSkeleton, ScenariosSkeleton, SectionHeaderSkeleton } from "@/components/ui/Skeleton";
 
 type ShowcaseKey = "new_items" | "hits" | "movie_night" | "quick_snack" | "lazy_cook";
 
@@ -45,10 +46,10 @@ export default function HomeTab({ onOpenStore, onGoToCart, search, activeCity }:
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   const { data: stores = [] } = useStores();
-  const { data: scenariosData = [] } = useScenarios();
-  const { data: newItemsData = [] } = useFeatured("new_items");
-  const { data: hitsData = [] } = useFeatured("hits");
-  const { data: recipesData = [] } = useRecipes();
+  const { data: scenariosData = [], isLoading: scenariosLoading } = useScenarios();
+  const { data: newItemsData = [], isLoading: newItemsLoading } = useFeatured("new_items");
+  const { data: hitsData = [], isLoading: hitsLoading } = useFeatured("hits");
+  const { data: recipesData = [], isLoading: recipesLoading } = useRecipes();
 
   // Кешируем построение storeMap чтобы не пересоздавать на каждый ререндер
   const storeMap = useMemo(() => {
@@ -92,7 +93,12 @@ export default function HomeTab({ onOpenStore, onGoToCart, search, activeCity }:
           <PromoBannerCarousel />
 
           {/* ── Быстрые сценарии ── */}
-          {scenarios.length > 0 && (
+          {scenariosLoading ? (
+            <section>
+              <SectionHeaderSkeleton />
+              <ScenariosSkeleton />
+            </section>
+          ) : scenarios.length > 0 && (
             <section>
                               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-base font-bold text-gray-900">Быстрые сценарии</h2>
@@ -111,7 +117,12 @@ export default function HomeTab({ onOpenStore, onGoToCart, search, activeCity }:
           )}
 
           {/* ── Новинки ── */}
-          {newItems.length > 0 && (
+          {newItemsLoading ? (
+            <section>
+              <SectionHeaderSkeleton />
+              <FeaturedRowSkeleton />
+            </section>
+          ) : newItems.length > 0 && (
             <FeaturedSection
               title="Новинки"
               emoji="✨"
@@ -126,7 +137,12 @@ export default function HomeTab({ onOpenStore, onGoToCart, search, activeCity }:
           )}
 
           {/* ── Популярное ── */}
-          {hits.length > 0 && (
+          {hitsLoading ? (
+            <section>
+              <SectionHeaderSkeleton />
+              <FeaturedRowSkeleton />
+            </section>
+          ) : hits.length > 0 && (
             <FeaturedSection
               title="Популярное"
               emoji="🔥"
@@ -141,7 +157,9 @@ export default function HomeTab({ onOpenStore, onGoToCart, search, activeCity }:
           )}
 
           {/* ── Рецепты ── */}
-          {recipes.length > 0 && (
+          {recipesLoading ? (
+            <div className="bg-gray-200 rounded-2xl h-32 animate-pulse" />
+          ) : recipes.length > 0 && (
             <RecipesBanner
               recipes={recipes}
               onOpen={() => setOpenRecipesModal(true)}
