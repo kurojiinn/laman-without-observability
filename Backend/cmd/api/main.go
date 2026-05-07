@@ -125,7 +125,8 @@ func main() {
 		telegramNotifier,
 	)
 	userService := users.NewUserService(userRepo)
-	catalogService := catalog.NewCatalogService(categoryRepo, subcategoryRepo, productRepo, storeRepo, reviewRepo, featuredRepo, recipeRepo, scenarioRepo, storeCatMetaRepo)
+	catalogService := catalog.NewCatalogService(categoryRepo, subcategoryRepo, productRepo, storeRepo, reviewRepo, featuredRepo, recipeRepo, scenarioRepo, storeCatMetaRepo).
+		WithCache(redisClient.Client())
 	pushService := push.NewService(db.DB.DB, logger, cfg.VAPID.PublicKey, cfg.VAPID.PrivateKey, cfg.VAPID.Email)
 	orderService := orders.NewOrderService(
 		db,

@@ -1,10 +1,14 @@
 package catalog
 
 import (
+	"Laman/internal/cache"
 	"Laman/internal/models"
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 // CatalogService обрабатывает бизнес-логику, связанную с каталогом,
@@ -19,7 +23,19 @@ type CatalogService struct {
 	recipeRepo          RecipeRepository
 	scenarioRepo        ScenarioRepository
 	storeCatMetaRepo    StoreCategoryMetaRepository
+	rdb                 *redis.Client // optional: nil = без кеширования
 }
+
+// TTL для кеша справочников. Подобраны исходя из частоты изменения данных:
+//   - Категории/scenarios: меняет admin раз в несколько часов → 10 мин TTL
+//   - Магазины: меняются админом раз в день → 5 мин (учитывает opens_at сезонность)
+//   - Featured/Recipes: ручные подборки, меняются раз в день → 10 мин
+//   - StoreCategoryMeta: фоны категорий, меняются крайне редко → 30 мин
+const (
+	cacheTTLLong   = 30 * time.Minute
+	cacheTTLMedium = 10 * time.Minute
+	cacheTTLShort  = 5 * time.Minute
+)
 
 // NewCatalogService создает новый сервис каталога.
 func NewCatalogService(
@@ -46,28 +62,47 @@ func NewCatalogService(
 	}
 }
 
+// WithCache подключает Redis-кеш к сервису. Если rdb=nil — кеш отключён,
+// все методы работают напрямую с репозиториями (полезно для тестов).
+func (s *CatalogService) WithCache(rdb *redis.Client) *CatalogService {
+	s.rdb = rdb
+	return s
+}
+
 // GetStoreCategoryMeta возвращает настройки фонов типов магазинов.
 func (s *CatalogService) GetStoreCategoryMeta(ctx context.Context) ([]models.StoreCategoryMeta, error) {
-	return s.storeCatMetaRepo.GetAll(ctx)
+	return cache.GetOrSet(ctx, s.rdb, cache.KeyStoreCategoryMeta, cacheTTLLong, func() ([]models.StoreCategoryMeta, error) {
+		return s.storeCatMetaRepo.GetAll(ctx)
+	})
 }
 
 // UpdateStoreCategoryImage обновляет фоновое изображение типа магазина.
 func (s *CatalogService) UpdateStoreCategoryImage(ctx context.Context, categoryType string, imageURL string) error {
-	return s.storeCatMetaRepo.UpdateImage(ctx, categoryType, imageURL)
+	if err := s.storeCatMetaRepo.UpdateImage(ctx, categoryType, imageURL); err != nil {
+		return err
+	}
+	cache.Invalidate(ctx, s.rdb, cache.KeyStoreCategoryMeta)
+	return nil
 }
 
 // UpdateStoreCategoryMeta обновляет название и описание типа магазина.
 func (s *CatalogService) UpdateStoreCategoryMeta(ctx context.Context, categoryType string, name, description string) error {
-	return s.storeCatMetaRepo.UpdateMeta(ctx, categoryType, name, description)
+	if err := s.storeCatMetaRepo.UpdateMeta(ctx, categoryType, name, description); err != nil {
+		return err
+	}
+	cache.Invalidate(ctx, s.rdb, cache.KeyStoreCategoryMeta)
+	return nil
 }
 
 // GetCategories получает все категории.
 func (s *CatalogService) GetCategories(ctx context.Context) ([]models.Category, error) {
-	categories, err := s.categoryRepo.GetAll(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("не удалось получить категории: %w", err)
-	}
-	return categories, nil
+	return cache.GetOrSet(ctx, s.rdb, cache.KeyCategories, cacheTTLMedium, func() ([]models.Category, error) {
+		categories, err := s.categoryRepo.GetAll(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("не удалось получить категории: %w", err)
+		}
+		return categories, nil
+	})
 }
 
 // GetProducts получает товары с опциональными фильтрами.
@@ -130,7 +165,13 @@ func (s *CatalogService) GetStoreSubcategories(ctx context.Context, storeID uuid
 }
 
 // GetStores получает магазины с фильтрацией по типу и поиску.
+// Кеширует только версию без поиска — search-варианты слишком разные.
 func (s *CatalogService) GetStores(ctx context.Context, categoryType *models.StoreCategoryType, search *string) ([]models.Store, error) {
+	if search == nil && categoryType == nil {
+		return cache.GetOrSet(ctx, s.rdb, cache.KeyStores+":all", cacheTTLShort, func() ([]models.Store, error) {
+			return s.storeRepo.GetAll(ctx, nil, nil)
+		})
+	}
 	stores, err := s.storeRepo.GetAll(ctx, categoryType, search)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось получить магазины: %w", err)
@@ -181,6 +222,8 @@ func (s *CatalogService) UpdateProduct(ctx context.Context, id uuid.UUID, name s
 	if err != nil {
 		return nil, fmt.Errorf("не удалось обновить товар: %w", err)
 	}
+	// Товар может быть в featured, рецептах — сбрасываем все каталожные кеши
+	s.invalidateCatalogCache(ctx)
 	return product, nil
 }
 
@@ -190,7 +233,15 @@ func (s *CatalogService) UpdateStore(ctx context.Context, id uuid.UUID, name str
 	if err != nil {
 		return nil, fmt.Errorf("не удалось обновить магазин: %w", err)
 	}
+	cache.InvalidatePattern(ctx, s.rdb, cache.KeyStores+":*")
 	return store, nil
+}
+
+// invalidateCatalogCache сбрасывает кеш блоков, зависящих от изменения товаров:
+// featured (хранит products), recipes (хранит products), scenarios (нет, но недорого).
+func (s *CatalogService) invalidateCatalogCache(ctx context.Context) {
+	cache.InvalidatePattern(ctx, s.rdb, "cache:featured:*")
+	cache.Invalidate(ctx, s.rdb, cache.KeyRecipes)
 }
 
 // DeleteReview удаляет отзыв (только для ADMIN).
@@ -229,12 +280,17 @@ func (s *CatalogService) CreateReview(ctx context.Context, storeID uuid.UUID, us
 
 // GetFeaturedProducts возвращает товары блока витрины.
 func (s *CatalogService) GetFeaturedProducts(ctx context.Context, blockType models.FeaturedBlockType) ([]models.Product, error) {
-	return s.featuredRepo.GetByBlock(ctx, blockType)
+	key := cache.FormatKey(cache.KeyFeatured, blockType)
+	return cache.GetOrSet(ctx, s.rdb, key, cacheTTLShort, func() ([]models.Product, error) {
+		return s.featuredRepo.GetByBlock(ctx, blockType)
+	})
 }
 
 // GetRecipes возвращает все рецепты вместе с ингредиентами.
 func (s *CatalogService) GetRecipes(ctx context.Context) ([]models.RecipeWithProducts, error) {
-	return s.recipeRepo.GetAll(ctx)
+	return cache.GetOrSet(ctx, s.rdb, cache.KeyRecipes, cacheTTLMedium, func() ([]models.RecipeWithProducts, error) {
+		return s.recipeRepo.GetAll(ctx)
+	})
 }
 
 // GetRecipe возвращает рецепт с ингредиентами по ID.
@@ -247,32 +303,54 @@ func (s *CatalogService) CreateRecipe(ctx context.Context, recipe *models.Recipe
 	if recipe.Name == "" {
 		return fmt.Errorf("название обязательно")
 	}
-	return s.recipeRepo.Create(ctx, recipe)
+	if err := s.recipeRepo.Create(ctx, recipe); err != nil {
+		return err
+	}
+	cache.Invalidate(ctx, s.rdb, cache.KeyRecipes)
+	return nil
 }
 
 // UpdateRecipe обновляет рецепт.
 func (s *CatalogService) UpdateRecipe(ctx context.Context, id uuid.UUID, name string, description *string, imageURL *string, position int) (*models.Recipe, error) {
-	return s.recipeRepo.Update(ctx, id, name, description, imageURL, position)
+	r, err := s.recipeRepo.Update(ctx, id, name, description, imageURL, position)
+	if err == nil {
+		cache.Invalidate(ctx, s.rdb, cache.KeyRecipes)
+	}
+	return r, err
 }
 
 // DeleteRecipe удаляет рецепт.
 func (s *CatalogService) DeleteRecipe(ctx context.Context, id uuid.UUID) error {
-	return s.recipeRepo.Delete(ctx, id)
+	if err := s.recipeRepo.Delete(ctx, id); err != nil {
+		return err
+	}
+	cache.Invalidate(ctx, s.rdb, cache.KeyRecipes)
+	return nil
 }
 
 // AddRecipeProduct добавляет ингредиент к рецепту.
 func (s *CatalogService) AddRecipeProduct(ctx context.Context, recipeID uuid.UUID, productID uuid.UUID, quantity int) error {
-	return s.recipeRepo.AddProduct(ctx, recipeID, productID, quantity)
+	if err := s.recipeRepo.AddProduct(ctx, recipeID, productID, quantity); err != nil {
+		return err
+	}
+	cache.Invalidate(ctx, s.rdb, cache.KeyRecipes)
+	return nil
 }
 
 // RemoveRecipeProduct убирает ингредиент из рецепта.
 func (s *CatalogService) RemoveRecipeProduct(ctx context.Context, recipeID uuid.UUID, productID uuid.UUID) error {
-	return s.recipeRepo.RemoveProduct(ctx, recipeID, productID)
+	if err := s.recipeRepo.RemoveProduct(ctx, recipeID, productID); err != nil {
+		return err
+	}
+	cache.Invalidate(ctx, s.rdb, cache.KeyRecipes)
+	return nil
 }
 
 // GetActiveScenarios возвращает активные сценарии для главного экрана.
 func (s *CatalogService) GetActiveScenarios(ctx context.Context) ([]models.Scenario, error) {
-	return s.scenarioRepo.GetActive(ctx)
+	return cache.GetOrSet(ctx, s.rdb, cache.KeyScenarios, cacheTTLMedium, func() ([]models.Scenario, error) {
+		return s.scenarioRepo.GetActive(ctx)
+	})
 }
 
 // GetAllScenarios возвращает все сценарии (для admin).
@@ -285,15 +363,27 @@ func (s *CatalogService) CreateScenario(ctx context.Context, sc models.Scenario)
 	if sc.Label == "" {
 		return nil, fmt.Errorf("название обязательно")
 	}
-	return s.scenarioRepo.Create(ctx, sc)
+	created, err := s.scenarioRepo.Create(ctx, sc)
+	if err == nil {
+		cache.Invalidate(ctx, s.rdb, cache.KeyScenarios)
+	}
+	return created, err
 }
 
 // UpdateScenario обновляет сценарий.
 func (s *CatalogService) UpdateScenario(ctx context.Context, id uuid.UUID, sc models.Scenario) (*models.Scenario, error) {
-	return s.scenarioRepo.Update(ctx, id, sc)
+	updated, err := s.scenarioRepo.Update(ctx, id, sc)
+	if err == nil {
+		cache.Invalidate(ctx, s.rdb, cache.KeyScenarios)
+	}
+	return updated, err
 }
 
 // DeleteScenario удаляет сценарий.
 func (s *CatalogService) DeleteScenario(ctx context.Context, id uuid.UUID) error {
-	return s.scenarioRepo.Delete(ctx, id)
+	if err := s.scenarioRepo.Delete(ctx, id); err != nil {
+		return err
+	}
+	cache.Invalidate(ctx, s.rdb, cache.KeyScenarios)
+	return nil
 }
