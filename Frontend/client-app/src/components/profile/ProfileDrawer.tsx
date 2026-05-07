@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useBodyScrollLockWhen } from "@/hooks/useBodyScrollLock";
 import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
 import { ordersApi, catalogApi, usersApi, type Order, type OrderItem, type UserProfile } from "@/lib/api";
+import { useOrders, useProfile, queryKeys } from "@/lib/queries";
 import PushNotificationButton from "@/components/ui/PushNotificationButton";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -31,22 +33,23 @@ interface Props {
 export default function ProfileDrawer({ open, onClose, onGoToCart }: Props) {
   const { isAuthenticated, user, logout, openAuthModal } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [supportOpen, setSupportOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const qc = useQueryClient();
 
-  useEffect(() => {
-    if (!open || !isAuthenticated) return;
-    setLoading(true);
-    ordersApi
-      .getOrders()
-      .then((data) => setOrders(data ?? []))
-      .catch(() => setOrders([]))
-      .finally(() => setLoading(false));
-    usersApi.getProfile().then(setProfile).catch(() => null);
-  }, [open, isAuthenticated]);
+  // Подгружаем заказы и профиль только пока открыт drawer и юзер залогинен.
+  // Кеш сохраняется между открытиями — повторное открытие показывает данные мгновенно.
+  const enabled = open && isAuthenticated;
+  const { data: ordersData = [], isFetching: loading } = useOrders(enabled);
+  const { data: profileData = null } = useProfile(enabled);
+  const orders = ordersData ?? [];
+  const profile = profileData ?? null;
+
+  // Локальный setter профиля после save — пишем в react-query cache,
+  // чтобы UI обновился без повторного запроса.
+  const setProfile = (next: UserProfile | null) => {
+    qc.setQueryData(queryKeys.profile, next);
+  };
 
   useBodyScrollLockWhen(open);
   const { style: swipeStyle, backdropStyle, handlers: swipeHandlers } = useSwipeToDismiss({ onDismiss: onClose, isOpen: open });
@@ -161,7 +164,10 @@ export default function ProfileDrawer({ open, onClose, onGoToCart }: Props) {
           onGoToCart={onGoToCart}
           onCancelled={(updated) => {
             setSelectedOrder(updated);
-            setOrders((prev) => prev.map((o) => o.id === updated.id ? updated : o));
+            // Локально обновляем кеш заказов чтобы UI отразил отмену сразу
+            qc.setQueryData<Order[]>(queryKeys.orders, (prev) =>
+              (prev ?? []).map((o) => o.id === updated.id ? updated : o),
+            );
           }}
         />
       )}

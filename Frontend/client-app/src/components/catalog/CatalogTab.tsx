@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { catalogApi, resolveImageUrl, type Category, type Subcategory, type Product } from "@/lib/api";
+import { useState } from "react";
+import { resolveImageUrl, type Category, type Product } from "@/lib/api";
+import { useCategories, useSubcategories, useProducts } from "@/lib/queries";
 import { useCart } from "@/context/CartContext";
 import ProductModal from "@/components/ui/ProductModal";
 import { useFavorites } from "@/context/FavoritesContext";
@@ -22,48 +23,17 @@ interface Props {
 }
 
 export default function CatalogTab({ search }: Props) {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-
   const [activeCat, setActiveCat] = useState<Category | null>(null);
   const [activeSubcat, setActiveSubcat] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-  // Загружаем корневые категории один раз
-  useEffect(() => {
-    catalogApi.getCategories()
-      .then((data) => setCategories(data ?? []))
-      .catch(() => {});
-  }, []);
-
-  // Когда выбрана категория — загружаем её подкатегории
-  useEffect(() => {
-    if (!activeCat) {
-      setSubcategories([]);
-      setActiveSubcat(null);
-      return;
-    }
-    catalogApi.getSubcategories(activeCat.id)
-      .then((data) => setSubcategories(data ?? []))
-      .catch(() => setSubcategories([]));
-    setActiveSubcat(null);
-  }, [activeCat]);
-
-  // Загружаем товары при изменении фильтров
-  useEffect(() => {
-    setLoading(true);
-    catalogApi
-      .getProducts({
-        category_id: activeCat?.id,
-        subcategory_id: activeSubcat ?? undefined,
-        search: search || undefined,
-      })
-      .then((data) => setProducts(data ?? []))
-      .catch(() => setProducts([]))
-      .finally(() => setLoading(false));
-  }, [activeCat, activeSubcat, search]);
+  const { data: categories = [] } = useCategories();
+  const { data: subcategories = [] } = useSubcategories(activeCat?.id ?? null);
+  const { data: products = [], isLoading: loading } = useProducts({
+    category_id: activeCat?.id,
+    subcategory_id: activeSubcat ?? undefined,
+    search: search || undefined,
+  });
 
   function handleCategoryClick(cat: Category) {
     // Повторный клик по активной категории — сбрасываем выбор
@@ -71,6 +41,7 @@ export default function CatalogTab({ search }: Props) {
       setActiveCat(null);
     } else {
       setActiveCat(cat);
+      setActiveSubcat(null);
     }
   }
 

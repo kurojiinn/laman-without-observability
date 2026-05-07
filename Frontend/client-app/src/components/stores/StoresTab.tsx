@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { catalogApi, isStoreOpen, type Store } from "@/lib/api";
+import { isStoreOpen, type Store } from "@/lib/api";
+import { useStores } from "@/lib/queries";
 import StoreDetailView from "./StoreDetailView";
 import { CATEGORY_META, DEFAULT_META } from "@/components/ui/CategoryIcon";
 import StoreAvatar from "@/components/ui/StoreAvatar";
@@ -11,18 +12,12 @@ interface Props {
 }
 
 export default function StoresTab({ search }: Props) {
-  const [stores, setStores] = useState<Store[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedStore, setSelectedStore] = useState<Store | null>(null);
+  const { data: stores = [], isLoading: loading } = useStores(search || undefined);
 
+  // Сбрасываем выбранный магазин при смене поиска
   useEffect(() => {
     setSelectedStore(null);
-    setLoading(true);
-    catalogApi
-      .getStores({ search: search || undefined })
-      .then(setStores)
-      .catch(() => setStores([]))
-      .finally(() => setLoading(false));
   }, [search]);
 
   if (selectedStore) {

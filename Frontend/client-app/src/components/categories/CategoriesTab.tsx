@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { catalogApi, getUploadUrl, resolveImageUrl, isStoreOpen, type Store } from "@/lib/api";
+import { useMemo, useState } from "react";
+import { getUploadUrl, resolveImageUrl, isStoreOpen, type Store } from "@/lib/api";
+import { useStores, useStoreCategoryMeta } from "@/lib/queries";
 import CategoryIcon, { CATEGORY_META, DEFAULT_META } from "@/components/ui/CategoryIcon";
 import StoreAvatar from "@/components/ui/StoreAvatar";
 
@@ -11,26 +12,17 @@ type View = "categories" | "stores";
 
 export default function CategoriesTab({ search, activeCity, onOpenStore }: { search: string; activeCity: string; onOpenStore: (store: Store) => void }) {
   const [view, setView] = useState<View>("categories");
-  const [allStores, setAllStores] = useState<Store[]>([]);
-  const [loadingStores, setLoadingStores] = useState(true);
   const [activeCategoryType, setActiveCategoryType] = useState<string | null>(null);
-  const [storeCatMeta, setStoreCatMeta] = useState<Record<string, string | null>>({});
 
-  useEffect(() => {
-    catalogApi
-      .getStores()
-      .then((data) => setAllStores(data ?? []))
-      .catch(() => setAllStores([]))
-      .finally(() => setLoadingStores(false));
-  }, []);
+  const { data: allStoresData = [], isLoading: loadingStores } = useStores();
+  const { data: storeCatMetaItems = [] } = useStoreCategoryMeta();
 
-  useEffect(() => {
-    catalogApi.getStoreCategoryMeta().then((items) => {
-      const map: Record<string, string | null> = {};
-      for (const item of items) map[item.category_type] = item.image_url ?? null;
-      setStoreCatMeta(map);
-    }).catch(() => {});
-  }, []);
+  const allStores = allStoresData ?? [];
+  const storeCatMeta = useMemo(() => {
+    const map: Record<string, string | null> = {};
+    for (const item of storeCatMetaItems) map[item.category_type] = item.image_url ?? null;
+    return map;
+  }, [storeCatMetaItems]);
 
   // Магазины выбранного города
   const cityStores = allStores.filter((s) => s.city === activeCity);

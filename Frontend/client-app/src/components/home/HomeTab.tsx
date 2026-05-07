@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
 import { catalogApi, resolveImageUrl, type Product, type Store, type RecipeWithProducts, type Scenario } from "@/lib/api";
+import { useStores, useScenarios, useFeatured, useRecipes } from "@/lib/queries";
 import { useCart } from "@/context/CartContext";
 import ProductModal from "@/components/ui/ProductModal";
 
@@ -34,11 +35,6 @@ interface Props {
 }
 
 export default function HomeTab({ onOpenStore, onGoToCart, search, activeCity }: Props) {
-  const [storeMap, setStoreMap] = useState<Record<string, Store>>({});
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [newItems, setNewItems] = useState<Product[]>([]);
-  const [hits, setHits] = useState<Product[]>([]);
-  const [recipes, setRecipes] = useState<RecipeWithProducts[]>([]);
   const [charityOpen, setCharityOpen] = useState(false);
   const [openShowcase, setOpenShowcase] = useState<ShowcaseKey | null>(null);
   const [showcaseProducts, setShowcaseProducts] = useState<Product[]>([]);
@@ -48,18 +44,23 @@ export default function HomeTab({ onOpenStore, onGoToCart, search, activeCity }:
   const [recipeLoading, setRecipeLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-  useEffect(() => {
-    catalogApi.getStores().then((stores) => {
-      const map: Record<string, Store> = {};
-      (stores ?? []).forEach((s) => { map[s.id] = s; });
-      setStoreMap(map);
-    }).catch(() => {});
+  const { data: stores = [] } = useStores();
+  const { data: scenariosData = [] } = useScenarios();
+  const { data: newItemsData = [] } = useFeatured("new_items");
+  const { data: hitsData = [] } = useFeatured("hits");
+  const { data: recipesData = [] } = useRecipes();
 
-    catalogApi.getScenarios().then((data) => setScenarios(Array.isArray(data) ? data : [])).catch(() => {});
-    catalogApi.getFeatured("new_items").then((data) => setNewItems(Array.isArray(data) ? data : [])).catch(() => {});
-    catalogApi.getFeatured("hits").then((data) => setHits(Array.isArray(data) ? data : [])).catch(() => {});
-    catalogApi.getRecipes().then((data) => setRecipes(Array.isArray(data) ? data : [])).catch(() => {});
-  }, []);
+  // Кешируем построение storeMap чтобы не пересоздавать на каждый ререндер
+  const storeMap = useMemo(() => {
+    const map: Record<string, Store> = {};
+    stores.forEach((s) => { map[s.id] = s; });
+    return map;
+  }, [stores]);
+
+  const scenarios = scenariosData ?? [];
+  const newItems = newItemsData ?? [];
+  const hits = hitsData ?? [];
+  const recipes = recipesData ?? [];
 
   function handleOpenShowcase(key: ShowcaseKey) {
     setOpenShowcase(key);

@@ -4,6 +4,7 @@ import { CartProvider } from "@/context/CartContext";
 import { FavoritesProvider } from "@/context/FavoritesContext";
 import { OrderNotificationProvider } from "@/context/OrderNotificationContext";
 import { ThemeProvider } from "@/context/ThemeContext";
+import QueryProvider from "@/lib/QueryProvider";
 import AuthModal from "@/components/ui/AuthModal";
 import OrderUpdateModal from "@/components/ui/OrderUpdateModal";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
@@ -60,19 +61,21 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col">
         <ServiceWorkerRegistrar />
-        <ThemeProvider>
-          <AuthProvider>
-            <CartProvider>
-              <FavoritesProvider>
-                <OrderNotificationProvider>
-                  {children}
-                  <AuthModal />
-                  <OrderUpdateModal />
-                </OrderNotificationProvider>
-              </FavoritesProvider>
-            </CartProvider>
-          </AuthProvider>
-        </ThemeProvider>
+        <QueryProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <CartProvider>
+                <FavoritesProvider>
+                  <OrderNotificationProvider>
+                    {children}
+                    <AuthModal />
+                    <OrderUpdateModal />
+                  </OrderNotificationProvider>
+                </FavoritesProvider>
+              </CartProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </QueryProvider>
       </body>
     </html>
   );
