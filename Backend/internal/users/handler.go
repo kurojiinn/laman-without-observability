@@ -2,6 +2,7 @@ package users
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"Laman/internal/middleware"
@@ -78,7 +79,13 @@ func (h *Handler) GetProfile(c *gin.Context) {
 
 	profile, err := h.userService.GetProfile(c.Request.Context(), userIDUUID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		// Профиль не создан — нормальное состояние для нового пользователя.
+		// Возвращаем 200 с null, чтобы не засорять браузерную консоль 404'ами.
+		if errors.Is(err, ErrProfileNotFound) {
+			c.JSON(http.StatusOK, nil)
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
