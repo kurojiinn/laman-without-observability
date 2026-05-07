@@ -238,7 +238,7 @@ function ScenarioCard({ scenario, onClick }: { scenario: Scenario; onClick: () =
       className="relative flex-shrink-0 w-28 h-28 rounded-2xl overflow-hidden active:scale-[0.96] transition-all"
     >
       {imgSrc ? (
-        <img src={imgSrc} alt={scenario.label} className="absolute inset-0 w-full h-full object-cover" />
+        <img src={imgSrc} alt={scenario.label} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
       ) : (
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 to-violet-600" />
       )}
@@ -340,7 +340,7 @@ function RecipesBanner({ recipes, onOpen, onOpenRecipe, recipeLoading }: {
               className="flex items-center gap-2 bg-white/15 rounded-xl px-2 py-1.5 cursor-pointer active:bg-white/25 transition-colors"
             >
               {r.image_url ? (
-                <img src={resolveImageUrl(r.image_url)} alt={r.name} className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+                <img src={resolveImageUrl(r.image_url)} alt={r.name} className="w-8 h-8 rounded-lg object-cover flex-shrink-0" loading="lazy" />
               ) : (
                 <span className="w-8 h-8 flex items-center justify-center text-lg flex-shrink-0">🍽️</span>
               )}
@@ -670,7 +670,7 @@ function RecipesModal({
             <button key={recipe.id} onClick={() => onOpenRecipe(recipe.id)} disabled={recipeLoading} className="text-left bg-white border border-gray-100 rounded-2xl overflow-hidden hover:shadow-md active:scale-[0.98] transition-all disabled:opacity-50 flex flex-col">
               <div className="aspect-square w-full bg-gray-50 overflow-hidden flex items-center justify-center">
                 {recipe.image_url ? (
-                  <img src={resolveImageUrl(recipe.image_url)} alt={recipe.name} className="w-full h-full object-cover" />
+                  <img src={resolveImageUrl(recipe.image_url)} alt={recipe.name} className="w-full h-full object-cover" loading="lazy" />
                 ) : (
                   <span className="text-5xl">🍽️</span>
                 )}
@@ -753,7 +753,7 @@ function RecipeDetailModal({
           <div className="flex items-start gap-4">
             {recipe.image_url && (
               <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0 border-2 border-white/30">
-                <img src={resolveImageUrl(recipe.image_url)} alt={recipe.name} className="w-full h-full object-cover" />
+                <img src={resolveImageUrl(recipe.image_url)} alt={recipe.name} className="w-full h-full object-cover" loading="lazy" />
               </div>
             )}
             <div className="flex-1 min-w-0 pt-1">
@@ -778,7 +778,7 @@ function RecipeDetailModal({
                   <div key={ingredient.id} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2.5 hover:bg-emerald-50/50 transition-colors">
                     <button onClick={() => onOpenProduct(ingredient)} className="w-11 h-11 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center active:scale-95 transition-transform">
                       {ingredient.image_url ? (
-                        <img src={resolveImageUrl(ingredient.image_url)} alt={ingredient.name} className="w-full h-full object-cover" />
+                        <img src={resolveImageUrl(ingredient.image_url)} alt={ingredient.name} className="w-full h-full object-cover" loading="lazy" />
                       ) : (
                         <span className="text-xl">🛍️</span>
                       )}
@@ -907,7 +907,7 @@ function HomeProductCard({
 
       <div className="aspect-square bg-gray-50 overflow-hidden">
         {product.image_url ? (
-          <img src={resolveImageUrl(product.image_url)} alt={product.name} className="w-full h-full object-cover" />
+          <img src={resolveImageUrl(product.image_url)} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-3xl">🛍️</div>
         )}

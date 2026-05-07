@@ -185,7 +185,7 @@ function ProductCard({ product, onOpen }: { product: Product; onOpen: () => void
       </button>
       <div className="aspect-square bg-gray-50 overflow-hidden">
         {product.image_url ? (
-          <img src={resolveImageUrl(product.image_url)} alt={product.name} className="w-full h-full object-cover" />
+          <img src={resolveImageUrl(product.image_url)} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-4xl">🛍️</div>
         )}

@@ -5,6 +5,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"Laman/internal/config"
 
@@ -29,6 +30,14 @@ func New(cfg *config.DatabaseConfig) (*DB, error) {
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("не удалось выполнить ping базы данных: %w", err)
 	}
+
+	// Пул соединений. Значения по умолчанию у sqlx: MaxOpenConns=0 (unlimited),
+	// MaxIdleConns=2 — приводят либо к перегрузке Postgres, либо к постоянному
+	// открытию/закрытию соединений под нагрузкой.
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(10)
+	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxIdleTime(2 * time.Minute)
 
 	return &DB{DB: db}, nil
 }

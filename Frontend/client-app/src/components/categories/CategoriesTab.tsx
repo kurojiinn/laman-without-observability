@@ -156,7 +156,7 @@ export default function CategoriesTab({ search, activeCity, onOpenStore }: { sea
                   >
                     {bgImg && (
                       <>
-                        <img src={bgImg} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                        <img src={bgImg} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
                         <div className="absolute inset-0 bg-black/45" />
                       </>
                     )}

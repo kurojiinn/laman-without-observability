@@ -120,6 +120,7 @@ export default function ProductModal({ product, storeName, onClose, onGoToStore,
               alt={product.name}
               className="w-full h-full object-cover pointer-events-none"
               draggable={false}
+              loading="lazy"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-7xl">🛍️</div>

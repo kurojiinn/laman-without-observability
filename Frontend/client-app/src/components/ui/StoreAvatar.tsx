@@ -27,6 +27,7 @@ export default function StoreAvatar({ store, className = "w-12 h-12 rounded-xl",
           src={resolveImageUrl(store.image_url)}
           alt={store.name}
           className="w-full h-full object-cover"
+          loading="lazy"
         />
       </div>
     );
