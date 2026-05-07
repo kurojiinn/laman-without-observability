@@ -35,8 +35,8 @@ export default function ProfileTab({ onLogin }: Props) {
     if (!isAuthenticated) return;
     setLoading(true);
     ordersApi
-      .getOrders()
-      .then(setOrders)
+      .getOrders({ limit: 50 })
+      .then((res) => setOrders(res.data))
       .catch(() => setOrders([]))
       .finally(() => setLoading(false));
   }, [isAuthenticated]);

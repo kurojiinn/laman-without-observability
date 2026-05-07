@@ -5,7 +5,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useBodyScrollLockWhen } from "@/hooks/useBodyScrollLock";
 import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
 import { ordersApi, catalogApi, usersApi, type Order, type OrderItem, type UserProfile } from "@/lib/api";
-import { useOrders, useProfile, queryKeys } from "@/lib/queries";
+import { useOrdersInfinite, useProfile, queryKeys } from "@/lib/queries";
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { OrderCardSkeleton } from "@/components/ui/Skeleton";
 import PushNotificationButton from "@/components/ui/PushNotificationButton";
 import { useAuth } from "@/context/AuthContext";
@@ -41,10 +42,15 @@ export default function ProfileDrawer({ open, onClose, onGoToCart }: Props) {
   // Подгружаем заказы и профиль только пока открыт drawer и юзер залогинен.
   // Кеш сохраняется между открытиями — повторное открытие показывает данные мгновенно.
   const enabled = open && isAuthenticated;
-  const { data: ordersData = [], isFetching: loading } = useOrders(enabled);
+  const ordersQuery = useOrdersInfinite(enabled);
   const { data: profileData = null } = useProfile(enabled);
-  const orders = ordersData ?? [];
+  const orders = ordersQuery.data?.pages.flatMap((p) => p.data) ?? [];
+  const loading = ordersQuery.isLoading;
   const profile = profileData ?? null;
+  const ordersSentinelRef = useInfiniteScroll(
+    () => ordersQuery.fetchNextPage(),
+    !!ordersQuery.hasNextPage && !ordersQuery.isFetchingNextPage,
+  );
 
   // Локальный setter профиля после save — пишем в react-query cache,
   // чтобы UI обновился без повторного запроса.
@@ -117,7 +123,13 @@ export default function ProfileDrawer({ open, onClose, onGoToCart }: Props) {
                 onProfileUpdate={setProfile}
                 fallbackName={user?.email?.split("@")[0] || user?.phone || "Пользователь"}
               />
-              <OrderHistory orders={orders} loading={loading} onSelect={setSelectedOrder} />
+              <OrderHistory
+                orders={orders}
+                loading={loading}
+                onSelect={setSelectedOrder}
+                sentinelRef={ordersSentinelRef}
+                fetchingMore={ordersQuery.isFetchingNextPage}
+              />
 
               {/* Переключатель темы */}
               <ThemeToggle isDark={theme === "dark"} onToggle={toggleTheme} />
@@ -165,9 +177,19 @@ export default function ProfileDrawer({ open, onClose, onGoToCart }: Props) {
           onGoToCart={onGoToCart}
           onCancelled={(updated) => {
             setSelectedOrder(updated);
-            // Локально обновляем кеш заказов чтобы UI отразил отмену сразу
-            qc.setQueryData<Order[]>(queryKeys.orders, (prev) =>
-              (prev ?? []).map((o) => o.id === updated.id ? updated : o),
+            // Локально обновляем кеш заказов (infinite query — массив страниц)
+            qc.setQueryData<{ pages: Array<{ data: Order[]; total: number; page: number; limit: number; has_more: boolean }>; pageParams: number[] }>(
+              queryKeys.orders,
+              (prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  pages: prev.pages.map((p) => ({
+                    ...p,
+                    data: p.data.map((o) => o.id === updated.id ? updated : o),
+                  })),
+                };
+              },
             );
           }}
         />
@@ -380,14 +402,16 @@ function OrderHistory({
   orders,
   loading,
   onSelect,
+  sentinelRef,
+  fetchingMore,
 }: {
   orders: Order[];
   loading: boolean;
   onSelect: (order: Order) => void;
+  sentinelRef?: React.RefObject<HTMLDivElement | null>;
+  fetchingMore?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
-
-  // Показываем только последний заказ когда свёрнуто
   const visibleOrders = expanded ? orders : orders.slice(0, 1);
 
   return (
@@ -432,6 +456,15 @@ function OrderHistory({
             >
               Ещё {orders.length - 1} {orders.length - 1 === 1 ? "заказ" : orders.length - 1 < 5 ? "заказа" : "заказов"}
             </button>
+          )}
+          {/* Подгружаем следующую страницу когда expanded и список доскроллили */}
+          {expanded && (
+            <>
+              <div ref={sentinelRef} />
+              {fetchingMore && (
+                <div className="py-3 text-center text-xs text-gray-400">Загружаем ещё...</div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -540,8 +573,9 @@ function OrderDetailModal({
 
     setRepeating(true);
     try {
-      const storeProducts = await catalogApi.getStoreProducts(full.store_id);
-      const productMap = new Map(storeProducts.map((p) => [p.id, p]));
+      // Берём первую сотню товаров магазина (для повтора заказа этого хватит)
+      const storeProducts = await catalogApi.getStoreProducts(full.store_id, { limit: 100 });
+      const productMap = new Map(storeProducts.data.map((p) => [p.id, p]));
 
       const newCart: CartItem[] = [];
       for (const item of withProduct) {

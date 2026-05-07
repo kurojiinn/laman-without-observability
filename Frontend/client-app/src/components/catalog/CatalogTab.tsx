@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { resolveImageUrl, type Category, type Product } from "@/lib/api";
-import { useCategories, useSubcategories, useProducts } from "@/lib/queries";
+import { useCategories, useSubcategories, useProductsInfinite } from "@/lib/queries";
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { useCart } from "@/context/CartContext";
 import ProductModal from "@/components/ui/ProductModal";
 import { ProductGridSkeleton } from "@/components/ui/Skeleton";
@@ -30,11 +31,21 @@ export default function CatalogTab({ search }: Props) {
 
   const { data: categories = [] } = useCategories();
   const { data: subcategories = [] } = useSubcategories(activeCat?.id ?? null);
-  const { data: products = [], isLoading: loading } = useProducts({
+
+  const productsQuery = useProductsInfinite({
     category_id: activeCat?.id,
     subcategory_id: activeSubcat ?? undefined,
     search: search || undefined,
   });
+  const products = useMemo<Product[]>(
+    () => productsQuery.data?.pages.flatMap((p) => p.data) ?? [],
+    [productsQuery.data],
+  );
+  const loading = productsQuery.isLoading;
+  const sentinelRef = useInfiniteScroll(
+    () => productsQuery.fetchNextPage(),
+    !!productsQuery.hasNextPage && !productsQuery.isFetchingNextPage,
+  );
 
   function handleCategoryClick(cat: Category) {
     // Повторный клик по активной категории — сбрасываем выбор
@@ -100,11 +111,20 @@ export default function CatalogTab({ search }: Props) {
       ) : products.length === 0 ? (
         <Empty />
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-          {products.map((p) => (
-            <ProductCard key={p.id} product={p} onOpen={() => setSelectedProduct(p)} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+            {products.map((p) => (
+              <ProductCard key={p.id} product={p} onOpen={() => setSelectedProduct(p)} />
+            ))}
+          </div>
+          {/* Sentinel триггерит подгрузку когда виден на 300px ниже viewport */}
+          <div ref={sentinelRef} />
+          {productsQuery.isFetchingNextPage && (
+            <div className="py-6 text-center text-sm text-gray-400">
+              Загружаем ещё...
+            </div>
+          )}
+        </>
       )}
 
       {selectedProduct && (

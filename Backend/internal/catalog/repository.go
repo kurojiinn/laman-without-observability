@@ -26,11 +26,12 @@ type SubcategoryRepository interface {
 
 // ProductRepository определяет интерфейс для доступа к данным товаров.
 type ProductRepository interface {
-	// GetAll получает все товары с опциональными фильтрами.
-	GetAll(ctx context.Context, categoryID *uuid.UUID, subcategoryID *uuid.UUID, search *string, availableOnly bool) ([]models.Product, error)
+	// GetAll возвращает товары + total с учётом фильтров.
+	// page == nil — без LIMIT/OFFSET (вернутся все).
+	GetAll(ctx context.Context, categoryID *uuid.UUID, subcategoryID *uuid.UUID, search *string, availableOnly bool, page *models.Page) ([]models.Product, int, error)
 
-	// GetByStoreID получает товары конкретного магазина с фильтрами и пагинацией.
-	GetByStoreID(ctx context.Context, storeID uuid.UUID, subcategoryID *uuid.UUID, search *string, availableOnly bool, sort string, limit, offset int) ([]models.Product, error)
+	// GetByStoreID возвращает товары магазина + total с учётом фильтров и сортировки.
+	GetByStoreID(ctx context.Context, storeID uuid.UUID, subcategoryID *uuid.UUID, search *string, availableOnly bool, sort string, page *models.Page) ([]models.Product, int, error)
 
 	// GetByID получает товар по ID.
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Product, error)

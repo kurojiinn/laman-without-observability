@@ -3,8 +3,10 @@ package orders
 import (
 	"Laman/internal/events"
 	"Laman/internal/middleware"
+	"Laman/internal/models"
 	"context"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -93,7 +95,7 @@ func (h *Handler) GetOrder(c *gin.Context) {
 	c.JSON(http.StatusOK, order)
 }
 
-// GetUserOrders обрабатывает GET /orders
+// GetUserOrders обрабатывает GET /orders с пагинацией: ?limit=&offset=.
 func (h *Handler) GetUserOrders(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
@@ -107,13 +109,17 @@ func (h *Handler) GetUserOrders(c *gin.Context) {
 		return
 	}
 
-	orders, err := h.orderService.GetUserOrders(c.Request.Context(), userIDUUID)
+	limit, _ := strconv.Atoi(c.Query("limit"))
+	offset, _ := strconv.Atoi(c.Query("offset"))
+	page := models.NormalizePage(limit, offset)
+
+	orders, total, err := h.orderService.GetUserOrders(c.Request.Context(), userIDUUID, &page)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, orders)
+	c.JSON(http.StatusOK, models.NewPaginatedResponse(orders, total, page))
 }
 
 // Events обрабатывает GET /orders/events — SSE поток уведомлений для клиента.

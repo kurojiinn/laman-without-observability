@@ -116,11 +116,10 @@ export default function StoreDetailView({
         limit: PAGE_SIZE,
         offset: 0,
       })
-      .then((data) => {
-        const list = Array.isArray(data) ? data : [];
-        setProducts(list);
-        offsetRef.current = list.length;
-        setHasMore(list.length === PAGE_SIZE);
+      .then((res) => {
+        setProducts(res.data);
+        offsetRef.current = res.data.length;
+        setHasMore(res.has_more);
       })
       .catch(() => setProducts([]))
       .finally(() => setProductsLoading(false));
@@ -137,11 +136,10 @@ export default function StoreDetailView({
         limit: PAGE_SIZE,
         offset: offsetRef.current,
       })
-      .then((data) => {
-        const list = Array.isArray(data) ? data : [];
-        setProducts((prev) => [...prev, ...list]);
-        offsetRef.current += list.length;
-        setHasMore(list.length === PAGE_SIZE);
+      .then((res) => {
+        setProducts((prev) => [...prev, ...res.data]);
+        offsetRef.current += res.data.length;
+        setHasMore(res.has_more);
       })
       .catch(() => {})
       .finally(() => setLoadingMore(false));

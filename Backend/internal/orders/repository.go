@@ -21,8 +21,9 @@ type OrderRepository interface {
 	// GetByID возвращает заказ по ID.
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Order, error)
 
-	// GetByUserID возвращает все заказы пользователя.
-	GetByUserID(ctx context.Context, userID uuid.UUID) ([]models.Order, error)
+	// GetByUserID возвращает заказы пользователя + общее количество.
+	// page == nil — без LIMIT/OFFSET.
+	GetByUserID(ctx context.Context, userID uuid.UUID, page *models.Page) ([]models.Order, int, error)
 
 	// UpdateStatus обновляет статус заказа.
 	UpdateStatus(ctx context.Context, id uuid.UUID, status models.OrderStatus) error

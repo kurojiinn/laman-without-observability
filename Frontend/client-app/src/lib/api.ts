@@ -208,19 +208,32 @@ export interface Scenario {
   is_active: boolean;
 }
 
+// Стандартный формат ответа списочных эндпоинтов.
+// Frontend компоненты могут принимать как пагинированный, так и обычный массив
+// — useInfiniteQuery собирает все страницы в один список.
+export interface Paginated<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  has_more: boolean;
+}
+
 export const catalogApi = {
   getCategories: () => api.get<Category[]>("/v1/catalog/categories"),
 
   getSubcategories: (categoryId: string) =>
     api.get<Subcategory[]>(`/v1/catalog/subcategories?category_id=${categoryId}`),
 
-  getProducts: (params?: { category_id?: string; subcategory_id?: string; search?: string }) => {
+  getProducts: (params?: { category_id?: string; subcategory_id?: string; search?: string; limit?: number; offset?: number }) => {
     const q = new URLSearchParams();
     if (params?.category_id) q.set("category_id", params.category_id);
     if (params?.subcategory_id) q.set("subcategory_id", params.subcategory_id);
     if (params?.search) q.set("search", params.search);
+    if (params?.limit !== undefined) q.set("limit", String(params.limit));
+    if (params?.offset !== undefined) q.set("offset", String(params.offset));
     q.set("available_only", "true");
-    return api.get<Product[]>(`/v1/catalog/products?${q}`);
+    return api.get<Paginated<Product>>(`/v1/catalog/products?${q}`);
   },
 
   getStores: (params?: { search?: string }) => {
@@ -242,7 +255,7 @@ export const catalogApi = {
     if (params?.sort) q.set("sort", params.sort);
     if (params?.limit !== undefined) q.set("limit", String(params.limit));
     if (params?.offset !== undefined) q.set("offset", String(params.offset));
-    return api.get<Product[]>(`/v1/stores/${storeId}/products?${q}`);
+    return api.get<Paginated<Product>>(`/v1/stores/${storeId}/products?${q}`);
   },
 
   getFeatured: (block: "new_items" | "hits" | "movie_night" | "quick_snack" | "lazy_cook") =>
@@ -324,7 +337,13 @@ export interface CreateOrderPayload {
 }
 
 export const ordersApi = {
-  getOrders: () => api.get<Order[]>("/v1/orders"),
+  getOrders: (params?: { limit?: number; offset?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.limit !== undefined) q.set("limit", String(params.limit));
+    if (params?.offset !== undefined) q.set("offset", String(params.offset));
+    const qs = q.toString();
+    return api.get<Paginated<Order>>(`/v1/orders${qs ? `?${qs}` : ""}`);
+  },
   getOrder: (id: string) => api.get<Order>(`/v1/orders/${id}`),
   createOrder: (payload: CreateOrderPayload) =>
     api.post<Order>("/v1/orders", payload),

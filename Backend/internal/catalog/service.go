@@ -105,28 +105,31 @@ func (s *CatalogService) GetCategories(ctx context.Context) ([]models.Category, 
 	})
 }
 
-// GetProducts получает товары с опциональными фильтрами.
+// GetProducts получает товары с опциональными фильтрами (без пагинации).
+// Используется в admin/импортах. Для публичных эндпоинтов есть GetProductsWithFilters.
 func (s *CatalogService) GetProducts(ctx context.Context, categoryID *uuid.UUID, availableOnly bool) ([]models.Product, error) {
-	products, err := s.productRepo.GetAll(ctx, categoryID, nil, nil, availableOnly)
+	products, _, err := s.productRepo.GetAll(ctx, categoryID, nil, nil, availableOnly, nil)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось получить товары: %w", err)
 	}
 	return products, nil
 }
 
-// GetProductsWithFilters получает товары с расширенными фильтрами.
+// GetProductsWithFilters получает товары с расширенными фильтрами и пагинацией.
+// page == nil → возвращаются все (для совместимости со старыми вызовами).
 func (s *CatalogService) GetProductsWithFilters(
 	ctx context.Context,
 	categoryID *uuid.UUID,
 	subcategoryID *uuid.UUID,
 	search *string,
 	availableOnly bool,
-) ([]models.Product, error) {
-	products, err := s.productRepo.GetAll(ctx, categoryID, subcategoryID, search, availableOnly)
+	page *models.Page,
+) ([]models.Product, int, error) {
+	products, total, err := s.productRepo.GetAll(ctx, categoryID, subcategoryID, search, availableOnly, page)
 	if err != nil {
-		return nil, fmt.Errorf("не удалось получить товары: %w", err)
+		return nil, 0, fmt.Errorf("не удалось получить товары: %w", err)
 	}
-	return products, nil
+	return products, total, nil
 }
 
 // GetStoreProducts получает товары конкретного магазина с пагинацией.
@@ -137,13 +140,13 @@ func (s *CatalogService) GetStoreProducts(
 	search *string,
 	availableOnly bool,
 	sort string,
-	limit, offset int,
-) ([]models.Product, error) {
-	products, err := s.productRepo.GetByStoreID(ctx, storeID, subcategoryID, search, availableOnly, sort, limit, offset)
+	page *models.Page,
+) ([]models.Product, int, error) {
+	products, total, err := s.productRepo.GetByStoreID(ctx, storeID, subcategoryID, search, availableOnly, sort, page)
 	if err != nil {
-		return nil, fmt.Errorf("не удалось получить товары магазина: %w", err)
+		return nil, 0, fmt.Errorf("не удалось получить товары магазина: %w", err)
 	}
-	return products, nil
+	return products, total, nil
 }
 
 // GetSubcategories получает подкатегории по ID категории.

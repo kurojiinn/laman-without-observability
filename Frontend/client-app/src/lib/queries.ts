@@ -1,9 +1,11 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { catalogApi, ordersApi, usersApi, favoritesApi, reviewsApi } from "./api";
 import type {
   Category, Subcategory, Product, Store, Scenario, RecipeWithProducts,
   UserProfile, Order, Review,
 } from "./api";
+
+const PAGE_SIZE = 20;
 
 // Централизованная фабрика ключей кеша.
 // Ключи иерархичны — invalidate({queryKey: ['products']}) инвалидирует
@@ -51,10 +53,18 @@ export function useSubcategories(categoryId: string | null) {
   });
 }
 
-export function useProducts(params?: { category_id?: string; subcategory_id?: string; search?: string }) {
-  return useQuery({
+/**
+ * Infinite-query вариант: useInfiniteQuery загружает страницы по мере скролла.
+ * Возвращает все страницы как один список через flatMap. UI использует
+ * fetchNextPage когда пользователь приближается к концу списка.
+ */
+export function useProductsInfinite(params?: { category_id?: string; subcategory_id?: string; search?: string }) {
+  return useInfiniteQuery({
     queryKey: queryKeys.products(params),
-    queryFn: () => catalogApi.getProducts(params),
+    queryFn: ({ pageParam = 0 }) =>
+      catalogApi.getProducts({ ...params, limit: PAGE_SIZE, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (last, all) => last.has_more ? all.length * PAGE_SIZE : undefined,
   });
 }
 
@@ -75,14 +85,17 @@ export function useStore(id: string | undefined) {
   });
 }
 
-export function useStoreProducts(
+export function useStoreProductsInfinite(
   storeId: string | undefined,
   params?: { search?: string; subcategory_id?: string; sort?: string }
 ) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: queryKeys.storeProducts(storeId ?? "", params),
-    queryFn: () => catalogApi.getStoreProducts(storeId!, params),
+    queryFn: ({ pageParam = 0 }) =>
+      catalogApi.getStoreProducts(storeId!, { ...params, limit: PAGE_SIZE, offset: pageParam }),
+    initialPageParam: 0,
     enabled: !!storeId,
+    getNextPageParam: (last, all) => last.has_more ? all.length * PAGE_SIZE : undefined,
   });
 }
 
@@ -146,11 +159,14 @@ export function useProfile(enabled: boolean) {
   });
 }
 
-export function useOrders(enabled: boolean) {
-  return useQuery({
+export function useOrdersInfinite(enabled: boolean) {
+  return useInfiniteQuery({
     queryKey: queryKeys.orders,
-    queryFn: () => ordersApi.getOrders(),
+    queryFn: ({ pageParam = 0 }) =>
+      ordersApi.getOrders({ limit: PAGE_SIZE, offset: pageParam }),
+    initialPageParam: 0,
     enabled,
+    getNextPageParam: (last, all) => last.has_more ? all.length * PAGE_SIZE : undefined,
   });
 }
 

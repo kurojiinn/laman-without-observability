@@ -344,13 +344,14 @@ func (s *OrderService) GetOrder(ctx context.Context, id uuid.UUID) (*models.Orde
 	}, nil
 }
 
-// GetUserOrders получает все заказы пользователя.
-func (s *OrderService) GetUserOrders(ctx context.Context, userID uuid.UUID) ([]models.Order, error) {
-	orders, err := s.orderRepo.GetByUserID(ctx, userID)
+// GetUserOrders получает заказы пользователя с пагинацией.
+// Возвращает (data, total, err). page == nil — без пагинации.
+func (s *OrderService) GetUserOrders(ctx context.Context, userID uuid.UUID, page *models.Page) ([]models.Order, int, error) {
+	orders, total, err := s.orderRepo.GetByUserID(ctx, userID, page)
 	if err != nil {
-		return nil, fmt.Errorf("не удалось получить заказы пользователя: %w", err)
+		return nil, 0, fmt.Errorf("не удалось получить заказы пользователя: %w", err)
 	}
-	return orders, nil
+	return orders, total, nil
 }
 
 // CancelOrderByUser отменяет заказ от имени клиента.

@@ -158,7 +158,9 @@ func (h *Handler) GetProducts(c *gin.Context) {
 
 	availableOnly := c.Query("available_only") == "true"
 
-	products, err := h.catalogService.GetProductsWithFilters(ctx, categoryID, subcategoryID, search, availableOnly)
+	// Пагинация: ?limit=20&offset=0. Если не задано — limit=20 по умолчанию.
+	page := parsePage(c)
+	products, total, err := h.catalogService.GetProductsWithFilters(ctx, categoryID, subcategoryID, search, availableOnly, &page)
 	if err != nil {
 		h.logger.Error("Не удалось получить товары", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -167,10 +169,18 @@ func (h *Handler) GetProducts(c *gin.Context) {
 
 	h.logger.Info("Товары отданы",
 		zap.Int("count", len(products)),
+		zap.Int("total", total),
 		zap.Bool("available_only", availableOnly),
 		zap.Duration("duration", time.Since(start)),
 	)
-	c.JSON(http.StatusOK, products)
+	c.JSON(http.StatusOK, models.NewPaginatedResponse(products, total, page))
+}
+
+// parsePage читает limit/offset из query string с дефолтами.
+func parsePage(c *gin.Context) models.Page {
+	limit, _ := strconv.Atoi(c.Query("limit"))
+	offset, _ := strconv.Atoi(c.Query("offset"))
+	return models.NormalizePage(limit, offset)
 }
 
 // GetSubcategories обрабатывает GET /catalog/subcategories
@@ -350,22 +360,10 @@ func (h *Handler) GetStoreProducts(c *gin.Context) {
 	}
 
 	availableOnly := c.Query("available_only") == "true"
-
-	limit := 20
-	offset := 0
-	if l := c.Query("limit"); l != "" {
-		if v, err := strconv.Atoi(l); err == nil && v > 0 {
-			limit = v
-		}
-	}
-	if o := c.Query("offset"); o != "" {
-		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
-			offset = v
-		}
-	}
-
+	page := parsePage(c)
 	sort := c.Query("sort")
-	products, err := h.catalogService.GetStoreProducts(ctx, storeID, subcategoryID, search, availableOnly, sort, limit, offset)
+
+	products, total, err := h.catalogService.GetStoreProducts(ctx, storeID, subcategoryID, search, availableOnly, sort, &page)
 	if err != nil {
 		h.logger.Error("Не удалось получить товары магазина",
 			zap.String("store_id", storeID.String()),
@@ -378,10 +376,11 @@ func (h *Handler) GetStoreProducts(c *gin.Context) {
 	h.logger.Info("Товары магазина отданы",
 		zap.String("store_id", storeID.String()),
 		zap.Int("count", len(products)),
+		zap.Int("total", total),
 		zap.Bool("available_only", availableOnly),
 		zap.Duration("duration", time.Since(start)),
 	)
-	c.JSON(http.StatusOK, products)
+	c.JSON(http.StatusOK, models.NewPaginatedResponse(products, total, page))
 }
 
 // GetStoreReviews обрабатывает GET /stores/:id/reviews

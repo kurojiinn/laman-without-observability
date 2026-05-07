@@ -232,10 +232,11 @@ export const searchStoreProducts = async (
   storeId: string,
   query: string
 ): Promise<Product[]> => {
-  const { data } = await publicClient.get<Product[]>(
-    `/stores/${storeId}/products?search=${encodeURIComponent(query)}`
+  // Бэкенд теперь возвращает {data, total, page, limit, has_more}
+  const { data } = await publicClient.get<{ data: Product[] }>(
+    `/stores/${storeId}/products?search=${encodeURIComponent(query)}&limit=50`
   );
-  return data ?? [];
+  return data?.data ?? [];
 };
 
 // ─── Featured / Витрина ───────────────────────────────────────────────────────

@@ -63,15 +63,25 @@ func (r *postgresOrderRepository) GetByID(ctx context.Context, id uuid.UUID) (*m
 	return &order, nil
 }
 
-func (r *postgresOrderRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]models.Order, error) {
+func (r *postgresOrderRepository) GetByUserID(ctx context.Context, userID uuid.UUID, page *models.Page) ([]models.Order, int, error) {
+	var total int
+	if err := r.db.GetContext(ctx, &total, `SELECT COUNT(*) FROM orders WHERE user_id = $1`, userID); err != nil {
+		return nil, 0, err
+	}
+
 	var orders []models.Order
 	query := `
 		SELECT id, user_id, courier_id, guest_name, customer_phone, comment, status, store_id, payment_method,
 		       items_total, service_fee, delivery_fee, final_total, out_of_stock_action, created_at, updated_at
 		FROM orders WHERE user_id = $1 ORDER BY created_at DESC
 	`
-	err := r.db.SelectContext(ctx, &orders, query, userID)
-	return orders, err
+	args := []interface{}{userID}
+	if page != nil {
+		query += ` LIMIT $2 OFFSET $3`
+		args = append(args, page.Limit, page.Offset)
+	}
+	err := r.db.SelectContext(ctx, &orders, query, args...)
+	return orders, total, err
 }
 
 func (r *postgresOrderRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status models.OrderStatus) error {

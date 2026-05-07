@@ -82,57 +82,68 @@ func NewPostgresProductRepository(db *database.DB) ProductRepository {
 	return &postgresProductRepository{db: db}
 }
 
-func (r *postgresProductRepository) GetAll(ctx context.Context, categoryID *uuid.UUID, subcategoryID *uuid.UUID, search *string, availableOnly bool) ([]models.Product, error) {
+func (r *postgresProductRepository) GetAll(ctx context.Context, categoryID *uuid.UUID, subcategoryID *uuid.UUID, search *string, availableOnly bool, page *models.Page) ([]models.Product, int, error) {
 	var products []models.Product
-	query := `SELECT id, category_id, subcategory_id, store_id, name, description, image_url, price, weight, is_available, created_at, updated_at FROM products WHERE 1=1`
+	whereClauses := "WHERE 1=1"
 	args := []interface{}{}
 
 	if categoryID != nil {
-		query += fmt.Sprintf(" AND category_id = $%d", len(args)+1)
+		whereClauses += fmt.Sprintf(" AND category_id = $%d", len(args)+1)
 		args = append(args, *categoryID)
 	}
-
 	if subcategoryID != nil {
-		query += fmt.Sprintf(" AND subcategory_id = $%d", len(args)+1)
+		whereClauses += fmt.Sprintf(" AND subcategory_id = $%d", len(args)+1)
 		args = append(args, *subcategoryID)
 	}
-
 	if search != nil && *search != "" {
-		query += fmt.Sprintf(" AND (name ILIKE $%d OR COALESCE(description, '') ILIKE $%d)", len(args)+1, len(args)+1)
+		whereClauses += fmt.Sprintf(" AND (name ILIKE $%d OR COALESCE(description, '') ILIKE $%d)", len(args)+1, len(args)+1)
 		args = append(args, "%"+*search+"%")
 	}
-
 	if availableOnly {
-		query += fmt.Sprintf(" AND is_available = $%d", len(args)+1)
+		whereClauses += fmt.Sprintf(" AND is_available = $%d", len(args)+1)
 		args = append(args, true)
 	}
 
-	query += " ORDER BY name"
+	// COUNT(*) для total — отдельный запрос, иначе на каждую строку Postgres считает.
+	var total int
+	if err := r.db.GetContext(ctx, &total, "SELECT COUNT(*) FROM products "+whereClauses, args...); err != nil {
+		return nil, 0, err
+	}
+
+	query := `SELECT id, category_id, subcategory_id, store_id, name, description, image_url, price, weight, is_available, created_at, updated_at FROM products ` + whereClauses + ` ORDER BY name`
+	if page != nil {
+		query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
+		args = append(args, page.Limit, page.Offset)
+	}
 
 	err := r.db.SelectContext(ctx, &products, query, args...)
-	return products, err
+	return products, total, err
 }
 
-func (r *postgresProductRepository) GetByStoreID(ctx context.Context, storeID uuid.UUID, subcategoryID *uuid.UUID, search *string, availableOnly bool, sort string, limit, offset int) ([]models.Product, error) {
+func (r *postgresProductRepository) GetByStoreID(ctx context.Context, storeID uuid.UUID, subcategoryID *uuid.UUID, search *string, availableOnly bool, sort string, page *models.Page) ([]models.Product, int, error) {
 	var products []models.Product
-	query := `SELECT id, category_id, subcategory_id, store_id, name, description, image_url, price, weight, is_available, created_at, updated_at FROM products WHERE store_id = $1`
+	whereClauses := "WHERE store_id = $1"
 	args := []interface{}{storeID}
 
 	if subcategoryID != nil {
-		query += fmt.Sprintf(" AND subcategory_id = $%d", len(args)+1)
+		whereClauses += fmt.Sprintf(" AND subcategory_id = $%d", len(args)+1)
 		args = append(args, *subcategoryID)
 	}
-
 	if search != nil && *search != "" {
-		query += fmt.Sprintf(" AND (name ILIKE $%d OR COALESCE(description, '') ILIKE $%d)", len(args)+1, len(args)+1)
+		whereClauses += fmt.Sprintf(" AND (name ILIKE $%d OR COALESCE(description, '') ILIKE $%d)", len(args)+1, len(args)+1)
 		args = append(args, "%"+*search+"%")
 	}
-
 	if availableOnly {
-		query += fmt.Sprintf(" AND is_available = $%d", len(args)+1)
+		whereClauses += fmt.Sprintf(" AND is_available = $%d", len(args)+1)
 		args = append(args, true)
 	}
 
+	var total int
+	if err := r.db.GetContext(ctx, &total, "SELECT COUNT(*) FROM products "+whereClauses, args...); err != nil {
+		return nil, 0, err
+	}
+
+	query := `SELECT id, category_id, subcategory_id, store_id, name, description, image_url, price, weight, is_available, created_at, updated_at FROM products ` + whereClauses
 	switch sort {
 	case "price_asc":
 		query += " ORDER BY price ASC"
@@ -144,13 +155,13 @@ func (r *postgresProductRepository) GetByStoreID(ctx context.Context, storeID uu
 		query += " ORDER BY name"
 	}
 
-	if limit > 0 {
+	if page != nil {
 		query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
-		args = append(args, limit, offset)
+		args = append(args, page.Limit, page.Offset)
 	}
 
 	err := r.db.SelectContext(ctx, &products, query, args...)
-	return products, err
+	return products, total, err
 }
 
 func (r *postgresProductRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Product, error) {

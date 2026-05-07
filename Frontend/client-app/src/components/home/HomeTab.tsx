@@ -855,8 +855,10 @@ function SearchResults({
 
   useEffect(() => {
     setLoading(true);
-    catalogApi.getProducts({ search: q })
-      .then((data) => setProducts(Array.isArray(data) ? data : []))
+    // Поиск возвращает первую страницу — для search-результатов на главной
+    // обычно достаточно. Полный каталог открывается через "Смотреть все".
+    catalogApi.getProducts({ search: q, limit: 50 })
+      .then((res) => setProducts(res.data ?? []))
       .catch(() => setProducts([]))
       .finally(() => setLoading(false));
   }, [q]);
