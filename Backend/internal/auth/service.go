@@ -310,6 +310,9 @@ func (s *AuthService) VerifyCode(ctx context.Context, req VerifyCodeRequest) (*A
 
 	// Та же логика что в Verify — сначала лимит, потом проверка кода.
 	phone := normalizePhone(req.Phone)
+	if phone == "" {
+		return nil, fmt.Errorf("номер телефона пустой после очистки")
+	}
 	_, blocked, limiterErr := s.otpLimiter.CheckAndIncrement(ctx, phone)
 	if limiterErr != nil && s.logger != nil {
 		s.logger.Warn("OTPLimiter недоступен, пропускаем проверку", zap.Error(limiterErr), zap.String("phone", maskPhone(phone)))

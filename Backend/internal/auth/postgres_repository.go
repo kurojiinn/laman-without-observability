@@ -30,10 +30,11 @@ func (r *postgresAuthRepository) CreateAuthCode(ctx context.Context, code *model
 
 func (r *postgresAuthRepository) GetAuthCodeByPhoneAndCode(ctx context.Context, phone, code string) (*models.AuthCode, error) {
 	var authCode models.AuthCode
+	// email IS NULL — чтобы пустой phone не подбирал email-коды (которые хранятся с phone='').
 	query := `
 		SELECT id, phone, email, code, expires_at, used, created_at
 		FROM auth_codes
-		WHERE phone = $1 AND code = $2 AND used = FALSE AND expires_at > NOW()
+		WHERE phone = $1 AND email IS NULL AND code = $2 AND used = FALSE AND expires_at > NOW()
 		ORDER BY created_at DESC
 		LIMIT 1
 	`
@@ -54,7 +55,8 @@ func (r *postgresAuthRepository) MarkAuthCodeAsUsed(ctx context.Context, id uuid
 }
 
 func (r *postgresAuthRepository) InvalidateAuthCodesByPhone(ctx context.Context, phone string) error {
-	query := `UPDATE auth_codes SET used = TRUE WHERE phone = $1 AND used = FALSE`
+	// email IS NULL — чтобы не сбрасывать email-коды через phone='' случайно.
+	query := `UPDATE auth_codes SET used = TRUE WHERE phone = $1 AND email IS NULL AND used = FALSE`
 	_, err := r.db.ExecContext(ctx, query, phone)
 	return err
 }
