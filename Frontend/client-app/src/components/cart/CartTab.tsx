@@ -25,7 +25,7 @@ interface CartTabProps {
 
 export default function CartTab({ onGoToStore }: CartTabProps) {
   const { items, totalPrice, updateQuantity, removeItem, clear } = useCart();
-  const { isAuthenticated, user, openAuthModal } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   const [view, setView] = useState<View>("cart");
   const [lastOrderId, setLastOrderId] = useState<string | null>(null);
@@ -134,6 +134,7 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
         comment: comment.trim() || undefined,
         customer_phone: phone.trim() || undefined,
         out_of_stock_action: outOfStockAction,
+        ...(!isAuthenticated && guestName.trim() ? { guest_name: guestName.trim() } : {}),
       };
 
       try {
@@ -256,7 +257,6 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
   // ── Шаг 1: корзина + форма ────────────────────────────────────────────────
   function handleToCheckout(e: React.FormEvent) {
     e.preventDefault();
-    if (!isAuthenticated) { openAuthModal(); return; }
     if (store && !isStoreOpen(store)) {
       setError(
         `Магазин «${store.name}» сейчас закрыт` +
@@ -264,6 +264,7 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
       );
       return;
     }
+    if (!isAuthenticated && !guestName.trim()) { setError("Укажите ваше имя"); return; }
     if (!phone.trim())    { setError("Укажите номер телефона"); return; }
     if (!address.trim())  { setError("Укажите адрес доставки"); return; }
     setError(null);
@@ -441,7 +442,7 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
         type="submit"
         className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors"
       >
-        {isAuthenticated ? "Оформить заказ" : "Войдите для оформления"}
+        Оформить заказ
       </button>
 
       {selectedProduct && (

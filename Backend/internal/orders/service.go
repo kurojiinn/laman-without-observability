@@ -95,7 +95,8 @@ func NewOrderService(
 
 // CreateOrderRequest представляет запрос на создание заказа.
 type CreateOrderRequest struct {
-	UserID             uuid.UUID                 `json:"user_id"`
+	UserID             *uuid.UUID                `json:"user_id"`
+	GuestName          *string                   `json:"guest_name,omitempty"`
 	CustomerPhone      *string                   `json:"customer_phone,omitempty"`
 	Comment            *string                   `json:"comment,omitempty"`
 	Items              []CreateOrderItemRequest   `json:"items" binding:"required"`
@@ -188,7 +189,8 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 	}
 	order := &models.Order{
 		ID:               uuid.New(),
-		UserID:           &req.UserID,
+		UserID:           req.UserID,
+		GuestName:        req.GuestName,
 		CustomerPhone:    req.CustomerPhone,
 		Comment:          req.Comment,
 		Status:           models.OrderStatusNew,
@@ -266,8 +268,15 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 			comment = *req.Comment
 		}
 
+		customer := "Гость"
+		if req.GuestName != nil && *req.GuestName != "" {
+			customer = *req.GuestName
+		} else if req.UserID != nil {
+			customer = fmt.Sprintf("Пользователь %s", shortUUID(*req.UserID))
+		}
+
 		notifyCtx := observability.WithOrderMessageMeta(context.Background(), observability.OrderMessageMeta{
-			Customer: fmt.Sprintf("Пользователь %s", shortUUID(req.UserID)),
+			Customer: customer,
 			Phone:    phone,
 			Comment:  comment,
 			Address:  req.DeliveryAddress,

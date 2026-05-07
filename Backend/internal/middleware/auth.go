@@ -51,6 +51,23 @@ func AuthMiddleware(authService TokenValidator) gin.HandlerFunc {
 	}
 }
 
+// OptionalAuthMiddleware пытается валидировать JWT токен, но не блокирует запрос если токена нет.
+// Если токен валиден — устанавливает user_id и user_role в контекст.
+// Используется для эндпоинтов, доступных как авторизованным, так и гостям.
+func OptionalAuthMiddleware(authService TokenValidator) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := extractToken(c, false)
+		if token != "" {
+			userID, role, err := authService.ValidateToken(c.Request.Context(), token)
+			if err == nil {
+				c.Set("user_id", userID)
+				c.Set("user_role", role)
+			}
+		}
+		c.Next()
+	}
+}
+
 // SSEAuthMiddleware валидирует JWT токен и дополнительно принимает его через ?token=
 // query-параметр. Используется только для SSE-эндпоинтов, так как EventSource
 // в браузере не поддерживает произвольные заголовки.

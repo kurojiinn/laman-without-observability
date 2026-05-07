@@ -22,10 +22,10 @@ func NewPostgresOrderRepository(db *database.DB) OrderRepository {
 }
 
 const insertOrderQuery = `
-	INSERT INTO orders (id, user_id, courier_id, customer_phone, comment, status,
+	INSERT INTO orders (id, user_id, courier_id, guest_name, customer_phone, comment, status,
 	                    store_id, payment_method, items_total, service_fee, delivery_fee, final_total,
 	                    out_of_stock_action, created_at, updated_at)
-	VALUES (:id, :user_id, :courier_id, :customer_phone, :comment, :status,
+	VALUES (:id, :user_id, :courier_id, :guest_name, :customer_phone, :comment, :status,
 	        :store_id, :payment_method, :items_total, :service_fee, :delivery_fee, :final_total,
 	        :out_of_stock_action, :created_at, :updated_at)
 `
@@ -49,7 +49,7 @@ func (r *postgresOrderRepository) CreateTx(ctx context.Context, tx *sqlx.Tx, ord
 func (r *postgresOrderRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Order, error) {
 	var order models.Order
 	query := `
-		SELECT id, user_id, courier_id, customer_phone, comment, status, store_id, payment_method,
+		SELECT id, user_id, courier_id, guest_name, customer_phone, comment, status, store_id, payment_method,
 		       items_total, service_fee, delivery_fee, final_total, out_of_stock_action, created_at, updated_at
 		FROM orders WHERE id = $1
 	`
@@ -66,7 +66,7 @@ func (r *postgresOrderRepository) GetByID(ctx context.Context, id uuid.UUID) (*m
 func (r *postgresOrderRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]models.Order, error) {
 	var orders []models.Order
 	query := `
-		SELECT id, user_id, courier_id, customer_phone, comment, status, store_id, payment_method,
+		SELECT id, user_id, courier_id, guest_name, customer_phone, comment, status, store_id, payment_method,
 		       items_total, service_fee, delivery_fee, final_total, out_of_stock_action, created_at, updated_at
 		FROM orders WHERE user_id = $1 ORDER BY created_at DESC
 	`

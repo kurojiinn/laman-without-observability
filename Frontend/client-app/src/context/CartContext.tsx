@@ -10,7 +10,6 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import type { Product } from "@/lib/api";
-import { useAuth } from "@/context/AuthContext";
 
 export interface CartItem {
   product: Product;
@@ -35,7 +34,6 @@ const CartContext = createContext<CartContextValue | null>(null);
 const STORAGE_KEY = "yuher_cart";
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const { isAuthenticated, openAuthModal } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
   const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
 
@@ -51,12 +49,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [items]);
 
   const addItem = useCallback((product: Product): boolean => {
-    // Не авторизован — открываем модалку входа
-    if (!isAuthenticated) {
-      openAuthModal();
-      return false;
-    }
-
     // Если в корзине уже есть товары из другого магазина — отклоняем
     if (items.length > 0 && items[0].product.store_id !== product.store_id) {
       setPendingProduct(product);
@@ -75,7 +67,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return [...prev, { product, quantity: 1 }];
     });
     return true;
-  }, [items, isAuthenticated, openAuthModal]);
+  }, [items]);
 
   const removeItem = useCallback((productId: string) => {
     setItems((prev) => prev.filter((i) => i.product.id !== productId));
