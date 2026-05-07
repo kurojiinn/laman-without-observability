@@ -503,13 +503,18 @@ function OrderDetailModal({
   async function handleCancel() {
     setCancelError(null);
     setCancelling(true);
+    // Optimistic: сразу меняем статус на "Отменён" — UX мгновенный.
+    // На ошибке откатываем к предыдущему состоянию.
+    const previousFull = full;
+    const optimisticFull = { ...full, status: "CANCELLED" as const, updated_at: new Date().toISOString() };
+    setFull(optimisticFull);
+    onCancelled(optimisticFull);
     try {
       await ordersApi.cancelOrder(full.id);
-      const updated = await ordersApi.getOrder(full.id);
-      setFull(updated);
-      onCancelled(updated);
     } catch {
       setCancelError("Не удалось отменить заказ");
+      setFull(previousFull);
+      onCancelled(previousFull);
     } finally {
       setCancelling(false);
     }

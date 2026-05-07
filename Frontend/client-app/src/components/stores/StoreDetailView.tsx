@@ -638,6 +638,8 @@ function ReviewsSection({
       onReviewAdded(review);
       setComment("");
       setRating(5);
+      // canReview гасим оптимистично — backend всё равно отдаст false на следующий запрос
+      setCanReview(false);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Не удалось отправить отзыв");
     } finally {
@@ -735,6 +737,7 @@ function ReviewsSection({
               isAdmin={isAdmin}
               currentUserId={currentUserId}
               onDelete={onReviewDeleted}
+              onRollback={onReviewAdded}
             />
           ))}
         </div>
@@ -757,12 +760,14 @@ function ReviewCard({
   isAdmin = false,
   currentUserId,
   onDelete,
+  onRollback,
 }: {
   review: Review;
   storeId: string;
   isAdmin?: boolean;
   currentUserId?: string;
   onDelete: (id: string) => void;
+  onRollback?: (r: Review) => void;
 }) {
   const [deleting, setDeleting] = useState(false);
   const date = new Date(review.created_at).toLocaleDateString("ru-RU", {
@@ -774,15 +779,17 @@ function ReviewCard({
 
   async function handleDelete() {
     setDeleting(true);
+    // Optimistic: убираем отзыв из списка сразу, на ошибке восстанавливаем.
+    onDelete(review.id);
     try {
       if (isAdmin) {
         await adminApi.deleteReview(storeId, review.id);
       } else {
         await reviewsApi.deleteOwn(storeId, review.id);
       }
-      onDelete(review.id);
     } catch {
-      // ignore
+      // Rollback — возвращаем отзыв обратно через onRollback (parent добавит его заново)
+      onRollback?.(review);
     } finally {
       setDeleting(false);
     }
