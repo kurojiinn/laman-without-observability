@@ -335,7 +335,7 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1.5">Ваше имя</label>
             <input type="text" value={guestName} onChange={(e) => setGuestName(e.target.value)}
-              placeholder="Иван Иванов" className={INPUT_CLS} />
+              placeholder="Магомед Магомедов" className={INPUT_CLS} />
           </div>
         )}
 
@@ -352,7 +352,7 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
             Адрес доставки <span className="text-red-400">*</span>
           </label>
           <input type="text" value={address} onChange={(e) => setAddress(e.target.value)}
-            placeholder="ул. Пушкина, д. 1, кв. 10" className={INPUT_CLS} />
+            placeholder="ул. А. Кадырова, дом 10" className={INPUT_CLS} />
         </div>
 
         {/* Район доставки — только для магазинов из Ойсхара */}
@@ -384,7 +384,7 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1.5">Комментарий к заказу</label>
           <textarea value={comment} onChange={(e) => setComment(e.target.value)}
-            placeholder="Позвоните перед приездом, домофон не работает..."
+            placeholder="Например: позвоните когда подъедете, ориентир — синие ворота..."
             rows={3}
             className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none"
           />
