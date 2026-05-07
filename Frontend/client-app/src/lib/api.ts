@@ -14,16 +14,47 @@ function getBaseUrl(): string {
   return "http://localhost:8080/api";
 }
 
+/**
+ * Размеры под imgproxy. Подобраны под фактические размеры контейнеров в UI:
+ *  - thumb: миниатюры в корзине, ингредиенты рецептов, store avatar (~80px)
+ *  - card:  карточки товаров в каталоге/магазинах/избранном (~400px)
+ *  - hero:  фоны сценариев, рецептов на главной (~800px)
+ *  - full:  ProductModal во весь экран (~1200px)
+ *
+ * Все варианты берут квадратный crop (resize:fill) — это совпадает с aspect-square
+ * во всех карточках. Если нужно другое отношение — добавим отдельные пресеты.
+ */
+export type ImgSize = "thumb" | "card" | "hero" | "full";
+
+const IMG_SIZES: Record<ImgSize, number> = {
+  thumb: 160,  // x2 для retina на 80px контейнере
+  card: 600,   // x1.5 для retina на 400px контейнере
+  hero: 1200,
+  full: 1600,
+};
+
 // Нормализует image_url из БД.
-// MinIO URL (/laman-images/...) отдаётся напрямую с заменой хоста на текущий.
+// MinIO URL (/laman-images/...) — без size возвращается оригинал, с size — через imgproxy.
 // Старые /uploads/ URL тоже корректируются на текущий API-хост.
-export function resolveImageUrl(url: string | undefined | null): string | undefined {
+export function resolveImageUrl(url: string | undefined | null, size?: ImgSize): string | undefined {
   if (!url) return undefined;
   try {
     const parsed = new URL(url);
     if (parsed.pathname.startsWith("/laman-images/")) {
       // NEXT_PUBLIC_MINIO_URL задаётся явно для локального dev (localhost:3000 ≠ nginx).
       // В Docker window.location.origin уже указывает на nginx, переменная там не нужна.
+      const host = typeof window !== "undefined"
+        ? window.location.origin
+        : (process.env.NEXT_PUBLIC_MINIO_URL || "http://localhost:9000");
+
+      if (size) {
+        // imgproxy: /img/insecure/resize:fill:600:600:0/plain/laman-images/abc.jpg
+        // BASE_URL=http://minio:9000/ задан в docker-compose, путь относительный
+        const px = IMG_SIZES[size];
+        const sourcePath = parsed.pathname.replace(/^\//, "");
+        return `${host}/img/insecure/resize:fill:${px}:${px}:0/plain/${sourcePath}`;
+      }
+
       const minioHost = typeof window !== "undefined"
         ? (process.env.NEXT_PUBLIC_MINIO_URL || window.location.origin)
         : "http://localhost:9000";

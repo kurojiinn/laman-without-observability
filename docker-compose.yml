@@ -86,6 +86,37 @@ services:
       - laman-network
     restart: unless-stopped
 
+  imgproxy:
+    image: ghcr.io/imgproxy/imgproxy:latest
+    container_name: laman-imgproxy
+    environment:
+      # Слушаем на 8080 внутри контейнера, наружу через nginx /img/
+      IMGPROXY_BIND: ":8080"
+      # BASE_URL — все source URL разрешаются относительно этого префикса
+      IMGPROXY_BASE_URL: "http://minio:9000/"
+      # Ограничиваем чтобы нельзя было ресайзить чужие картинки через нас
+      IMGPROXY_ALLOWED_SOURCES: "http://minio:9000/"
+      # Качество JPEG/WebP — компромисс размер/чёткость
+      IMGPROXY_QUALITY: "82"
+      # Авто-формат: WebP/AVIF если браузер поддерживает (–50% размера)
+      IMGPROXY_AUTO_WEBP: "true"
+      IMGPROXY_AUTO_AVIF: "true"
+      # Лимиты: исходник до 20MP, кеш в браузере 30 дней
+      IMGPROXY_MAX_SRC_RESOLUTION: "20"
+      IMGPROXY_TTL: "2592000"
+      IMGPROXY_USE_ETAG: "true"
+      # Без подписи URL (KEY/SALT пустые) — security обеспечивается ALLOWED_SOURCES
+      IMGPROXY_KEY: ""
+      IMGPROXY_SALT: ""
+    expose:
+      - "8080"
+    networks:
+      - laman-network
+    restart: unless-stopped
+    depends_on:
+      minio:
+        condition: service_healthy
+
   minio:
     image: minio/minio:latest
     container_name: laman-minio

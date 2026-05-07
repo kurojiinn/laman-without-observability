@@ -24,7 +24,7 @@ export default function StoreAvatar({ store, className = "w-12 h-12 rounded-xl",
     return (
       <div className={`overflow-hidden flex-shrink-0 ${className}`}>
         <img
-          src={resolveImageUrl(store.image_url)}
+          src={resolveImageUrl(store.image_url, "thumb")}
           alt={store.name}
           className="w-full h-full object-cover"
           loading="lazy"

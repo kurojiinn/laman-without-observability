@@ -549,7 +549,7 @@ function StoreProductCard({
       )}
       <div className="w-full h-28 bg-gray-50 rounded-xl overflow-hidden flex items-center justify-center">
         {product.image_url ? (
-          <img src={resolveImageUrl(product.image_url)} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
+          <img src={resolveImageUrl(product.image_url, "card")} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
         ) : (
           <span className="text-3xl">🛍️</span>
         )}

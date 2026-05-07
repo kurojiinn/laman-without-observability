@@ -139,7 +139,7 @@ export default function CategoriesTab({ search, activeCity, onOpenStore }: { sea
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3 lg:gap-4 mb-8">
               {categoriesWithCount.map(({ type, meta, count }) => {
                 const dynamicImg = storeCatMeta[type] ?? null;
-                const bgImg = dynamicImg ? resolveImageUrl(dynamicImg) : (meta.bgImageFile ? getUploadUrl(meta.bgImageFile) : null);
+                const bgImg = dynamicImg ? resolveImageUrl(dynamicImg, "hero") : (meta.bgImageFile ? getUploadUrl(meta.bgImageFile) : null);
                 return (
                   <button
                     key={type}

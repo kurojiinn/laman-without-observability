@@ -116,7 +116,7 @@ export default function ProductModal({ product, storeName, onClose, onGoToStore,
         <div className="relative w-full aspect-square bg-gray-100 sm:touch-auto touch-none select-none" {...swipeHandlers}>
           {product.image_url ? (
             <img
-              src={resolveImageUrl(product.image_url)}
+              src={resolveImageUrl(product.image_url, "full")}
               alt={product.name}
               className="w-full h-full object-cover pointer-events-none"
               draggable={false}

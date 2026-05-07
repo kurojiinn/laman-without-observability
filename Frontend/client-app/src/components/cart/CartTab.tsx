@@ -171,7 +171,7 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-8 h-8 bg-gray-50 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center">
                     {product.image_url ? (
-                      <img src={resolveImageUrl(product.image_url)} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
+                      <img src={resolveImageUrl(product.image_url, "thumb")} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
                     ) : (
                       <span className="text-sm">🛍️</span>
                     )}
@@ -288,7 +288,7 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
             <div key={product.id} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-4 cursor-pointer" onClick={() => setSelectedProduct(product)}>
               <div className="w-14 h-14 bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden flex items-center justify-center">
                 {product.image_url ? (
-                  <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
+                  <img src={resolveImageUrl(product.image_url, "thumb")} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
                 ) : (
                   <span className="text-2xl">🛍️</span>
                 )}
