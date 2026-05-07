@@ -39,7 +39,7 @@ export default function Header({
   sort = "",
   onSortChange,
 }: HeaderProps) {
-  const { isAuthenticated, user, openAuthModal } = useAuth();
+  const { isAuthenticated, openAuthModal } = useAuth();
   const [sortOpen, setSortOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
 
@@ -160,13 +160,9 @@ export default function Header({
             className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors"
           >
             <div className="w-7 h-7 bg-indigo-100 rounded-full flex items-center justify-center">
-              {isAuthenticated ? (
-                <span className="text-xs font-bold text-indigo-600">{user?.phone.slice(-2)}</span>
-              ) : (
-                <svg className="w-4 h-4 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                </svg>
-              )}
+              <svg className="w-4 h-4 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+              </svg>
             </div>
             <span className="text-sm text-gray-600 hidden sm:block">
               {isAuthenticated ? "Кабинет" : "Войти"}

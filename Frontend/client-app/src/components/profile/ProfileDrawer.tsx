@@ -102,8 +102,17 @@ export default function ProfileDrawer({ open, onClose, onGoToCart }: Props) {
             <NotAuthorized onLogin={() => { onClose(); openAuthModal(); }} />
           ) : (
             <div className="px-5 py-4 space-y-5">
-              <UserCard phone={user?.phone ?? ""} role={user?.role ?? ""} id={user?.id ?? ""} />
-              <AddressSection profile={profile} onProfileUpdate={setProfile} fallbackName={user?.phone ?? ""} />
+              <UserCard
+                phone={user?.phone ?? ""}
+                email={user?.email ?? ""}
+                role={user?.role ?? ""}
+                id={user?.id ?? ""}
+              />
+              <AddressSection
+                profile={profile}
+                onProfileUpdate={setProfile}
+                fallbackName={user?.email?.split("@")[0] || user?.phone || "Пользователь"}
+              />
               <OrderHistory orders={orders} loading={loading} onSelect={setSelectedOrder} />
 
               {/* Переключатель темы */}
@@ -330,15 +339,18 @@ function AddressSection({
   );
 }
 
-function UserCard({ phone, role, id }: { phone: string; role: string; id: string }) {
+function UserCard({ phone, email, role, id }: { phone: string; email: string; role: string; id: string }) {
+  const displayName = email || phone || "—";
   return (
     <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-2xl p-4 text-white">
       <div className="flex items-center gap-3">
         <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
-          <span className="text-lg font-bold">{phone.slice(-2)}</span>
+          <svg className="w-6 h-6 text-white" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+          </svg>
         </div>
         <div className="min-w-0">
-          <p className="font-semibold truncate">{phone}</p>
+          <p className="font-semibold truncate">{displayName}</p>
           <span className="inline-block mt-0.5 px-2 py-0.5 bg-white/20 text-xs font-medium rounded-full">
             {role === "CLIENT" ? "Клиент" : role}
           </span>
