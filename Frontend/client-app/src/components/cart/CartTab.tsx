@@ -269,8 +269,27 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
       return;
     }
     if (!isAuthenticated && !guestName.trim()) { setError("Укажите ваше имя"); return; }
-    if (!phone.trim())    { setError("Укажите номер телефона"); return; }
+
+    // Валидация телефона: 10 цифр после кода страны (+7 или 8).
+    // Принимаем форматы: +79001234567, 89001234567, 9001234567 — нормализуем все к 10-значному формату.
+    const phoneDigits = phone.replace(/\D/g, "");
+    const normalizedPhone = phoneDigits.startsWith("7") || phoneDigits.startsWith("8")
+      ? phoneDigits.slice(1)
+      : phoneDigits;
+    if (normalizedPhone.length !== 10) {
+      setError("Введите корректный номер: например +7 900 123 45 67");
+      return;
+    }
+    // Российские мобильные номера начинаются с 9
+    if (!normalizedPhone.startsWith("9")) {
+      setError("Это не похоже на мобильный номер. Проверьте код оператора");
+      return;
+    }
+
     if (!address.trim())  { setError("Укажите адрес доставки"); return; }
+
+    // Сохраняем нормализованный телефон в state — на бэк уйдёт +7XXXXXXXXXX
+    setPhone("+7" + normalizedPhone);
     setError(null);
     setView("checkout");
   }

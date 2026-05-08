@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { useCart } from "@/context/CartContext";
 
 export type Tab = "home" | "categories" | "favorites" | "cart";
@@ -53,8 +54,31 @@ interface TabBarProps {
   isAdmin?: boolean;
 }
 
+/**
+ * Возвращает true на ~550ms когда totalCount УВЕЛИЧИЛСЯ.
+ * Используется для триггера cart-bounce анимации иконки.
+ * Уменьшение (удаление товара) не анимируется — это не требует визуального
+ * подкрепления.
+ */
+function useCartBounce(totalCount: number): boolean {
+  const [bouncing, setBouncing] = useState(false);
+  const prev = useRef(totalCount);
+
+  useEffect(() => {
+    if (totalCount > prev.current) {
+      setBouncing(true);
+      const t = setTimeout(() => setBouncing(false), 550);
+      return () => clearTimeout(t);
+    }
+    prev.current = totalCount;
+  }, [totalCount]);
+
+  return bouncing;
+}
+
 export default function TabBar({ active, onChange, isAdmin }: TabBarProps) {
   const { totalCount } = useCart();
+  const bounce = useCartBounce(totalCount);
 
   const visibleTabs = isAdmin ? TABS.filter((t) => t.id === "home" || t.id === "categories") : TABS;
   const colCount = visibleTabs.length;
@@ -78,10 +102,13 @@ export default function TabBar({ active, onChange, isAdmin }: TabBarProps) {
                   isActive ? "text-indigo-600" : "text-gray-400"
                 }`}
               >
-                <div className="relative">
+                <div className={`relative ${tab.id === "cart" && bounce ? "animate-cart-bounce" : ""}`}>
                   {tab.icon(isActive)}
                   {showBadge && (
-                    <span className="absolute -top-1 -right-1.5 min-w-[16px] h-4 bg-indigo-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5">
+                    <span
+                      key={totalCount}
+                      className="absolute -top-1 -right-1.5 min-w-[16px] h-4 bg-indigo-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5 animate-badge-pop"
+                    >
                       {totalCount > 9 ? "9+" : totalCount}
                     </span>
                   )}
@@ -111,10 +138,15 @@ export default function TabBar({ active, onChange, isAdmin }: TabBarProps) {
                     : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"
                 }`}
               >
-                {tab.icon(isActive)}
+                <span className={tab.id === "cart" && bounce ? "inline-flex animate-cart-bounce" : "inline-flex"}>
+                  {tab.icon(isActive)}
+                </span>
                 {tab.label}
                 {showBadge && (
-                  <span className="ml-1 px-1.5 py-0.5 bg-indigo-500 text-white text-xs font-bold rounded-full leading-none">
+                  <span
+                    key={totalCount}
+                    className="ml-1 px-1.5 py-0.5 bg-indigo-500 text-white text-xs font-bold rounded-full leading-none animate-badge-pop"
+                  >
                     {totalCount}
                   </span>
                 )}

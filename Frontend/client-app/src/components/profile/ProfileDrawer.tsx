@@ -31,9 +31,11 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onGoToCart?: () => void;
+  /** Если задан — после открытия drawer'а сразу открываем модалку этого заказа. */
+  initialOrderId?: string | null;
 }
 
-export default function ProfileDrawer({ open, onClose, onGoToCart }: Props) {
+export default function ProfileDrawer({ open, onClose, onGoToCart, initialOrderId }: Props) {
   const { isAuthenticated, user, logout, openAuthModal } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [supportOpen, setSupportOpen] = useState(false);
@@ -58,6 +60,21 @@ export default function ProfileDrawer({ open, onClose, onGoToCart }: Props) {
   const setProfile = (next: UserProfile | null) => {
     qc.setQueryData(queryKeys.profile, next);
   };
+
+  // Открытие конкретного заказа по требованию (push-нотификация / SSE).
+  // Используем существующий список заказов если уже загружен, иначе fetch'аем.
+  useEffect(() => {
+    if (!initialOrderId || !open || !isAuthenticated) return;
+    const found = orders.find((o) => o.id === initialOrderId);
+    if (found) {
+      setSelectedOrder(found);
+      return;
+    }
+    // Заказа нет в кеше — подгружаем напрямую через ordersApi.getOrder
+    ordersApi.getOrder(initialOrderId)
+      .then((order) => setSelectedOrder(order))
+      .catch(() => {});
+  }, [initialOrderId, open, isAuthenticated, orders]);
 
   useBodyScrollLockWhen(open);
   const { style: swipeStyle, backdropStyle, handlers: swipeHandlers } = useSwipeToDismiss({ onDismiss: onClose, isOpen: open });

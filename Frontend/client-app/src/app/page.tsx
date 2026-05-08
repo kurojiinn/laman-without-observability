@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useBodyScrollLockWhen } from "@/hooks/useBodyScrollLock";
 import Header from "@/components/layout/Header";
 import TabBar, { type Tab } from "@/components/layout/TabBar";
@@ -12,6 +12,7 @@ import ProfileDrawer from "@/components/profile/ProfileDrawer";
 import StoreDetailView from "@/components/stores/StoreDetailView";
 import { catalogApi, type Store } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useOrderNotification } from "@/context/OrderNotificationContext";
 
 const CITIES = ["Ойсхар", "Грозный"];
 
@@ -25,14 +26,30 @@ const SEARCH_PLACEHOLDERS: Record<Tab, string> = {
 const STORE_SEARCH_PLACEHOLDER = "Поиск товаров в магазине...";
 
 export default function Home() {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const isAdmin = user?.role === "ADMIN";
   const [activeTab, setActiveTab] = useState<Tab>("home");
   const [profileOpen, setProfileOpen] = useState(false);
+  const [initialOrderId, setInitialOrderId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [activeCity, setActiveCity] = useState(CITIES[0]);
   const [cityModalOpen, setCityModalOpen] = useState(false);
   useBodyScrollLockWhen(cityModalOpen);
+
+  // Push-уведомление или клик "Открыть заказ" в OrderUpdateModal — открываем кабинет + заказ.
+  // Источник pendingOrderId: ?order=xxx из URL (push) или openOrder() из SSE-модалки.
+  const { pendingOrderId, clearPendingOrder } = useOrderNotification();
+  useEffect(() => {
+    if (!pendingOrderId) return;
+    if (!isAuthenticated) {
+      // Гость не может открыть свой заказ — очищаем флаг чтобы не висел
+      clearPendingOrder();
+      return;
+    }
+    setInitialOrderId(pendingOrderId);
+    setProfileOpen(true);
+    clearPendingOrder();
+  }, [pendingOrderId, isAuthenticated, clearPendingOrder]);
 
   // Магазин открытый с главной через «Показать в магазине»
   const [openStore, setOpenStore] = useState<Store | null>(null);
@@ -106,8 +123,9 @@ export default function Home() {
 
       <ProfileDrawer
         open={profileOpen}
-        onClose={() => setProfileOpen(false)}
+        onClose={() => { setProfileOpen(false); setInitialOrderId(null); }}
         onGoToCart={() => { setProfileOpen(false); handleTabChange("cart"); }}
+        initialOrderId={initialOrderId}
       />
 
       {cityModalOpen && (

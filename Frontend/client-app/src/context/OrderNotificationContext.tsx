@@ -26,6 +26,10 @@ export interface OrderNotification {
 interface OrderNotificationContextValue {
   notification: OrderNotification | null;
   dismiss: () => void;
+  /** ID заказа который надо открыть (push-нотификация / SSE-кнопка). page.tsx читает и открывает drawer. */
+  pendingOrderId: string | null;
+  openOrder: (orderId: string) => void;
+  clearPendingOrder: () => void;
 }
 
 const OrderNotificationContext = createContext<OrderNotificationContextValue | null>(null);
@@ -33,7 +37,23 @@ const OrderNotificationContext = createContext<OrderNotificationContextValue | n
 export function OrderNotificationProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth();
   const [notification, setNotification] = useState<OrderNotification | null>(null);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
+
+  // При первой загрузке читаем ?order=xxx из URL — push-уведомление открывает
+  // приложение по этому формату (см. public/sw.js).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("order");
+    if (id) {
+      setPendingOrderId(id);
+      // Очищаем query чтобы при reload модалка не открылась снова
+      const url = new URL(window.location.href);
+      url.searchParams.delete("order");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -73,9 +93,11 @@ export function OrderNotificationProvider({ children }: { children: ReactNode })
   }, [isAuthenticated]);
 
   const dismiss = useCallback(() => setNotification(null), []);
+  const openOrder = useCallback((orderId: string) => setPendingOrderId(orderId), []);
+  const clearPendingOrder = useCallback(() => setPendingOrderId(null), []);
 
   return (
-    <OrderNotificationContext.Provider value={{ notification, dismiss }}>
+    <OrderNotificationContext.Provider value={{ notification, dismiss, pendingOrderId, openOrder, clearPendingOrder }}>
       {children}
     </OrderNotificationContext.Provider>
   );

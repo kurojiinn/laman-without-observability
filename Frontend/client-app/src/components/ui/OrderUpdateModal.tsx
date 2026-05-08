@@ -3,9 +3,15 @@
 import { useOrderNotification } from "@/context/OrderNotificationContext";
 
 export default function OrderUpdateModal() {
-  const { notification, dismiss } = useOrderNotification();
+  const { notification, dismiss, openOrder } = useOrderNotification();
 
   if (!notification) return null;
+
+  function handleOpenOrder() {
+    if (!notification) return;
+    openOrder(notification.orderId);
+    dismiss();
+  }
 
   return (
     <div
@@ -39,13 +45,21 @@ export default function OrderUpdateModal() {
           </span>
         </div>
 
-        {/* Кнопка */}
-        <button
-          onClick={dismiss}
-          className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-2xl transition-colors"
-        >
-          Понятно
-        </button>
+        {/* Кнопки */}
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={handleOpenOrder}
+            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-2xl transition-colors"
+          >
+            Открыть заказ
+          </button>
+          <button
+            onClick={dismiss}
+            className="w-full py-3 border border-gray-200 text-gray-700 text-sm font-medium rounded-2xl hover:bg-gray-50 transition-colors"
+          >
+            Закрыть
+          </button>
+        </div>
       </div>
     </div>
   );

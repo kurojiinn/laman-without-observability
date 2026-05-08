@@ -435,9 +435,11 @@ func (s *OrderService) UpdateOrderStatus(ctx context.Context, id uuid.UUID, newS
 		return fmt.Errorf("не удалось обновить статус заказа: %w", err)
 	}
 
-	// Push-уведомления для авторизованного клиента
+	// Push-уведомления для авторизованного клиента.
+	// URL содержит ?order=<id> — фронт прочитает и откроет модалку этого заказа.
 	if s.pusher != nil && order.UserID != nil {
 		if n, ok := orderStatusNotification(newStatus); ok {
+			n.URL = fmt.Sprintf("/?order=%s", id.String())
 			s.pusher.SendToUser(ctx, *order.UserID, n)
 		}
 	}
