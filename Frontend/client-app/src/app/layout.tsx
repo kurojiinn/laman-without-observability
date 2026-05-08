@@ -66,11 +66,15 @@ export default function RootLayout({
             position top-center хорошо смотрится на mobile (не перекрывает корзину снизу).
             richColors даёт цветные иконки success/error.
             duration 3500 — не слишком быстро/долго. */}
+        {/* offset/mobileOffset: env(safe-area-inset-top) автоматически учитывает
+            челку iPhone, Dynamic Island, статус-бар Android. +12px — отступ вниз от неё. */}
         <Toaster
           position="top-center"
           richColors
           duration={3500}
           closeButton
+          offset={{ top: "calc(env(safe-area-inset-top) + 12px)" }}
+          mobileOffset={{ top: "calc(env(safe-area-inset-top) + 12px)" }}
           toastOptions={{
             style: { fontSize: 14 },
           }}
