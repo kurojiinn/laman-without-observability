@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { toast } from "sonner";
 import type { Product } from "@/lib/api";
 
 export interface CartItem {
@@ -66,6 +67,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
       return [...prev, { product, quantity: 1 }];
     });
+    // Короткий тост чтобы пользователь понимал что клик сработал.
+    // duration небольшая, иначе при быстром добавлении нескольких товаров стек заваливает экран.
+    toast.success(`${product.name} в корзине`, { duration: 1800 });
     return true;
   }, [items]);
 

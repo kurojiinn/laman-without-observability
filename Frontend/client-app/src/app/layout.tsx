@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Toaster } from "sonner";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
 import { FavoritesProvider } from "@/context/FavoritesContext";
@@ -61,6 +62,19 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col">
         <ServiceWorkerRegistrar />
+        {/* Toast-уведомления.
+            position top-center хорошо смотрится на mobile (не перекрывает корзину снизу).
+            richColors даёт цветные иконки success/error.
+            duration 3500 — не слишком быстро/долго. */}
+        <Toaster
+          position="top-center"
+          richColors
+          duration={3500}
+          closeButton
+          toastOptions={{
+            style: { fontSize: 14 },
+          }}
+        />
         <QueryProvider>
           <ThemeProvider>
             <AuthProvider>

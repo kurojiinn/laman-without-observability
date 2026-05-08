@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { adminApi, catalogApi, reviewsApi, isStoreOpen, resolveImageUrl, type Store, type Product, type Review, type Subcategory } from "@/lib/api";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
@@ -638,8 +639,11 @@ function ReviewsSection({
       setRating(5);
       // canReview гасим оптимистично — backend всё равно отдаст false на следующий запрос
       setCanReview(false);
+      toast.success("Спасибо за отзыв!");
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Не удалось отправить отзыв");
+      const msg = err instanceof Error ? err.message : "Не удалось отправить отзыв";
+      setSubmitError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -785,9 +789,10 @@ function ReviewCard({
       } else {
         await reviewsApi.deleteOwn(storeId, review.id);
       }
+      toast.success("Отзыв удалён");
     } catch {
-      // Rollback — возвращаем отзыв обратно через onRollback (parent добавит его заново)
       onRollback?.(review);
+      toast.error("Не удалось удалить отзыв");
     } finally {
       setDeleting(false);
     }

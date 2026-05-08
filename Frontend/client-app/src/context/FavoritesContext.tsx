@@ -8,6 +8,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
+import { toast } from "sonner";
 import { favoritesApi, type Product } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
@@ -55,16 +56,21 @@ export function FavoritesProvider({ children }: { children: ReactNode }) {
     async (product: Product) => {
       if (favoriteIds.has(product.id)) {
         setFavorites((prev) => prev.filter((p) => p.id !== product.id));
-        await favoritesApi.remove(product.id).catch(() => {
-          // Rollback on error
+        try {
+          await favoritesApi.remove(product.id);
+        } catch {
           setFavorites((prev) => [product, ...prev]);
-        });
+          toast.error("Не удалось удалить из избранного");
+        }
       } else {
         setFavorites((prev) => [product, ...prev]);
-        await favoritesApi.add(product.id).catch(() => {
-          // Rollback on error
+        try {
+          await favoritesApi.add(product.id);
+          toast.success("В избранном", { duration: 1800 });
+        } catch {
           setFavorites((prev) => prev.filter((p) => p.id !== product.id));
-        });
+          toast.error("Не удалось добавить в избранное");
+        }
       }
     },
     [favoriteIds]

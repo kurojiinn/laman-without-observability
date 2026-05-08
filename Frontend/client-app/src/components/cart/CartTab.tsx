@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { catalogApi, ordersApi, usersApi, isStoreOpen, resolveImageUrl, type Store, type CreateOrderPayload, type Product, type OutOfStockAction } from "@/lib/api";
@@ -142,8 +143,11 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
         clear();
         setLastOrderId(order.id);
         setView("success");
+        toast.success("Заказ оформлен", { description: `№ ${order.id.slice(0, 8).toUpperCase()}` });
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Ошибка при оформлении заказа");
+        const msg = err instanceof Error ? err.message : "Ошибка при оформлении заказа";
+        setError(msg);
+        toast.error(msg);
       } finally {
         setLoading(false);
       }

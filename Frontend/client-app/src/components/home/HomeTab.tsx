@@ -9,6 +9,7 @@ import { useStores, useScenarios, useFeatured, useRecipes } from "@/lib/queries"
 import { useCart } from "@/context/CartContext";
 import ProductModal from "@/components/ui/ProductModal";
 import { FeaturedRowSkeleton, ScenariosSkeleton, SectionHeaderSkeleton } from "@/components/ui/Skeleton";
+import { ErrorBoundary, SectionErrorFallback } from "@/components/ui/ErrorBoundary";
 
 type ShowcaseKey = "new_items" | "hits" | "movie_night" | "quick_snack" | "lazy_cook";
 
@@ -99,6 +100,7 @@ export default function HomeTab({ onOpenStore, onGoToCart, search, activeCity }:
               <ScenariosSkeleton />
             </section>
           ) : scenarios.length > 0 && (
+            <ErrorBoundary fallback={<SectionErrorFallback message="Не удалось загрузить сценарии" />}>
             <section>
                               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-base font-bold text-gray-900">Быстрые сценарии</h2>
@@ -114,6 +116,7 @@ export default function HomeTab({ onOpenStore, onGoToCart, search, activeCity }:
                 ))}
               </div>
             </section>
+            </ErrorBoundary>
           )}
 
           {/* ── Новинки ── */}
@@ -123,17 +126,19 @@ export default function HomeTab({ onOpenStore, onGoToCart, search, activeCity }:
               <FeaturedRowSkeleton />
             </section>
           ) : newItems.length > 0 && (
-            <FeaturedSection
-              title="Новинки"
-              emoji="✨"
-              products={newItems}
-              storeMap={storeMap}
-              activeCity={activeCity}
-              onViewAll={() => handleOpenShowcase("new_items")}
-              onOpenProduct={setSelectedProduct}
-              onOpenStore={onOpenStore}
-              badge="new"
-            />
+            <ErrorBoundary fallback={<SectionErrorFallback message="Не удалось загрузить новинки" />}>
+              <FeaturedSection
+                title="Новинки"
+                emoji="✨"
+                products={newItems}
+                storeMap={storeMap}
+                activeCity={activeCity}
+                onViewAll={() => handleOpenShowcase("new_items")}
+                onOpenProduct={setSelectedProduct}
+                onOpenStore={onOpenStore}
+                badge="new"
+              />
+            </ErrorBoundary>
           )}
 
           {/* ── Популярное ── */}
@@ -143,29 +148,33 @@ export default function HomeTab({ onOpenStore, onGoToCart, search, activeCity }:
               <FeaturedRowSkeleton />
             </section>
           ) : hits.length > 0 && (
-            <FeaturedSection
-              title="Популярное"
-              emoji="🔥"
-              products={hits}
-              storeMap={storeMap}
-              activeCity={activeCity}
-              onViewAll={() => handleOpenShowcase("hits")}
-              onOpenProduct={setSelectedProduct}
-              onOpenStore={onOpenStore}
-              badge="hot"
-            />
+            <ErrorBoundary fallback={<SectionErrorFallback message="Не удалось загрузить популярное" />}>
+              <FeaturedSection
+                title="Популярное"
+                emoji="🔥"
+                products={hits}
+                storeMap={storeMap}
+                activeCity={activeCity}
+                onViewAll={() => handleOpenShowcase("hits")}
+                onOpenProduct={setSelectedProduct}
+                onOpenStore={onOpenStore}
+                badge="hot"
+              />
+            </ErrorBoundary>
           )}
 
           {/* ── Рецепты ── */}
           {recipesLoading ? (
             <div className="bg-gray-200 rounded-2xl h-32 animate-pulse" />
           ) : recipes.length > 0 && (
-            <RecipesBanner
-              recipes={recipes}
-              onOpen={() => setOpenRecipesModal(true)}
-              onOpenRecipe={handleOpenRecipe}
-              recipeLoading={recipeLoading}
-            />
+            <ErrorBoundary fallback={<SectionErrorFallback message="Не удалось загрузить рецепты" />}>
+              <RecipesBanner
+                recipes={recipes}
+                onOpen={() => setOpenRecipesModal(true)}
+                onOpenRecipe={handleOpenRecipe}
+                recipeLoading={recipeLoading}
+              />
+            </ErrorBoundary>
           )}
 
           {/* ── Благотворительность ── */}

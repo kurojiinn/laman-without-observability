@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, type FormEvent, type KeyboardEvent, type ClipboardEvent } from "react";
+import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { authApi } from "@/lib/api";
 import { useBodyScrollLockWhen } from "@/hooks/useBodyScrollLock";
@@ -273,10 +274,12 @@ function AuthForm() {
       if (mode === "login") {
         const res = await authApi.loginWithEmail(email.trim(), password);
         login(res.token, res.user);
+        toast.success("С возвращением!");
       } else {
         await authApi.registerWithEmail(email.trim(), password);
         setStep("otp");
         setOtp(Array(OTP_LENGTH).fill(""));
+        toast.info("Код отправлен на email");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка");
@@ -292,6 +295,7 @@ function AuthForm() {
     try {
       const res = await authApi.verifyEmail(email.trim(), otpCode);
       login(res.token, res.user);
+      toast.success("Добро пожаловать в Yuher!");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Неверный код");
       setOtp(Array(OTP_LENGTH).fill(""));

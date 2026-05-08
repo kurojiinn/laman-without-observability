@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useBodyScrollLockWhen } from "@/hooks/useBodyScrollLock";
 import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
 import { ordersApi, catalogApi, usersApi, type Order, type OrderItem, type UserProfile } from "@/lib/api";
@@ -306,8 +307,10 @@ function AddressSection({
       });
       onProfileUpdate(updated);
       setEditing(false);
+      toast.success("Адрес сохранён");
     } catch {
       setError("Не удалось сохранить адрес");
+      toast.error("Не удалось сохранить адрес");
     } finally {
       setSaving(false);
     }
@@ -544,10 +547,12 @@ function OrderDetailModal({
     onCancelled(optimisticFull);
     try {
       await ordersApi.cancelOrder(full.id);
+      toast.success("Заказ отменён");
     } catch {
       setCancelError("Не удалось отменить заказ");
       setFull(previousFull);
       onCancelled(previousFull);
+      toast.error("Не удалось отменить заказ");
     } finally {
       setCancelling(false);
     }
