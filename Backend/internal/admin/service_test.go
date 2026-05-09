@@ -110,6 +110,22 @@ func (m *adminRepoMock) UpdateStoreImage(ctx context.Context, id uuid.UUID, imag
 	return nil
 }
 
+func (m *adminRepoMock) CreatePicker(ctx context.Context, user *models.User) error {
+	return nil
+}
+
+func (m *adminRepoMock) GetPickers(ctx context.Context) ([]PickerInfo, error) {
+	return nil, nil
+}
+
+func (m *adminRepoMock) DeletePicker(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+
+func (m *adminRepoMock) IsPhoneTaken(ctx context.Context, phone string) (bool, error) {
+	return false, nil
+}
+
 func TestUpdateOrderStatus_Valid(t *testing.T) {
 	repo := &adminRepoMock{}
 	service := NewService(repo, zap.NewNop(), nil)

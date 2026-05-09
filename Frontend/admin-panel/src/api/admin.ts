@@ -369,3 +369,31 @@ export const updateScenario = async (
 export const deleteScenario = async (user: string, password: string, id: string) => {
   await createAdminClient(user, password).delete(`/scenarios/${id}`);
 };
+
+// ─── Pickers ──────────────────────────────────────────────────────────────────
+
+export type Picker = {
+  id: string;
+  phone: string;
+  store_id: string;
+  store_name: string;
+  created_at: string;
+};
+
+export const fetchPickers = async (user: string, password: string): Promise<Picker[]> => {
+  const { data } = await createAdminClient(user, password).get<Picker[]>("/pickers");
+  return data ?? [];
+};
+
+export const createPicker = async (
+  user: string,
+  password: string,
+  payload: { phone: string; password: string; store_id: string }
+): Promise<Picker> => {
+  const { data } = await createAdminClient(user, password).post<Picker>("/pickers", payload);
+  return data;
+};
+
+export const deletePicker = async (user: string, password: string, id: string) => {
+  await createAdminClient(user, password).delete(`/pickers/${id}`);
+};

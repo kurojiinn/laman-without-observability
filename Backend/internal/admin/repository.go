@@ -39,6 +39,20 @@ type Repository interface {
 	UpdateCategoryImage(ctx context.Context, id uuid.UUID, imageURL string) error
 	UpdateCategoryName(ctx context.Context, id uuid.UUID, name string) error
 	DeleteCategory(ctx context.Context, id uuid.UUID) error
+	// Сборщики
+	CreatePicker(ctx context.Context, user *models.User) error
+	GetPickers(ctx context.Context) ([]PickerInfo, error)
+	DeletePicker(ctx context.Context, id uuid.UUID) error
+	IsPhoneTaken(ctx context.Context, phone string) (bool, error)
+}
+
+// PickerInfo описывает сборщика с информацией о его магазине для админки.
+type PickerInfo struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	Phone     string    `db:"phone" json:"phone"`
+	StoreID   uuid.UUID `db:"store_id" json:"store_id"`
+	StoreName string    `db:"store_name" json:"store_name"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }
 
 // postgresRepository реализует Repository на PostgreSQL.
@@ -440,4 +454,50 @@ func (r *postgresRepository) UpdateCategoryName(ctx context.Context, id uuid.UUI
 func (r *postgresRepository) DeleteCategory(ctx context.Context, id uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM categories WHERE id = $1`, id)
 	return err
+}
+
+// CreatePicker создаёт пользователя с ролью PICKER, привязанного к магазину.
+func (r *postgresRepository) CreatePicker(ctx context.Context, user *models.User) error {
+	query := `
+		INSERT INTO users (id, phone, role, store_id, password_hash, created_at, updated_at)
+		VALUES (:id, :phone, :role, :store_id, :password_hash, :created_at, :updated_at)
+	`
+	_, err := r.db.NamedExecContext(ctx, query, user)
+	return err
+}
+
+// GetPickers возвращает всех сборщиков с названиями привязанных магазинов.
+func (r *postgresRepository) GetPickers(ctx context.Context) ([]PickerInfo, error) {
+	pickers := []PickerInfo{}
+	query := `
+		SELECT u.id, u.phone, u.store_id, COALESCE(s.name, '') AS store_name, u.created_at
+		FROM users u
+		LEFT JOIN stores s ON s.id = u.store_id
+		WHERE u.role = 'PICKER'
+		ORDER BY u.created_at DESC
+	`
+	if err := r.db.SelectContext(ctx, &pickers, query); err != nil {
+		return nil, err
+	}
+	return pickers, nil
+}
+
+// DeletePicker удаляет сборщика. Защита от удаления не-PICKER через проверку роли.
+func (r *postgresRepository) DeletePicker(ctx context.Context, id uuid.UUID) error {
+	res, err := r.db.ExecContext(ctx, `DELETE FROM users WHERE id = $1 AND role = 'PICKER'`, id)
+	if err != nil {
+		return err
+	}
+	affected, _ := res.RowsAffected()
+	if affected == 0 {
+		return fmt.Errorf("сборщик не найден")
+	}
+	return nil
+}
+
+// IsPhoneTaken проверяет, существует ли уже пользователь с этим телефоном.
+func (r *postgresRepository) IsPhoneTaken(ctx context.Context, phone string) (bool, error) {
+	var exists bool
+	err := r.db.GetContext(ctx, &exists, `SELECT EXISTS(SELECT 1 FROM users WHERE phone = $1)`, phone)
+	return exists, err
 }

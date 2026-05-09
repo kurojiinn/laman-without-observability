@@ -111,6 +111,10 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.Han
 		admin.PATCH("/categories/:id", h.AdminUpdateCategory)
 		admin.PATCH("/categories/:id/image", h.AdminUpdateCategoryImage)
 		admin.DELETE("/categories/:id", h.AdminDeleteCategory)
+		// Сборщики
+		admin.GET("/pickers", h.GetPickers)
+		admin.POST("/pickers", h.CreatePicker)
+		admin.DELETE("/pickers/:id", h.DeletePicker)
 		// Фоны типов магазинов
 		if h.storeCatUpdater != nil {
 			admin.PATCH("/store-category-meta/:type", h.AdminUpdateStoreCategoryMeta)
@@ -1112,6 +1116,45 @@ func (h *Handler) AdminRemoveRecipeProduct(c *gin.Context) {
 	}
 	if err := h.recipes.RemoveRecipeProduct(c.Request.Context(), recipeID, productID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// GetPickers возвращает список сборщиков с их магазинами.
+func (h *Handler) GetPickers(c *gin.Context) {
+	pickers, err := h.service.GetPickers(c.Request.Context())
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось получить сборщиков", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, pickers)
+}
+
+// CreatePicker создаёт сборщика, привязанного к магазину.
+func (h *Handler) CreatePicker(c *gin.Context) {
+	var req CreatePickerRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(c, http.StatusBadRequest, "некорректные данные", err.Error())
+		return
+	}
+	picker, err := h.service.CreatePicker(c.Request.Context(), &req)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err.Error(), "")
+		return
+	}
+	c.JSON(http.StatusCreated, picker)
+}
+
+// DeletePicker удаляет сборщика по ID.
+func (h *Handler) DeletePicker(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID", err.Error())
+		return
+	}
+	if err := h.service.DeletePicker(c.Request.Context(), id); err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось удалить сборщика", err.Error())
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})

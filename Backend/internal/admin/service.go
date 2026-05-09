@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // Service содержит бизнес-логику admin-операций.
@@ -207,4 +208,74 @@ func (s *Service) ImportProducts(ctx context.Context, filePath string, originalN
 	)
 
 	return &ImportResult{Inserted: len(products)}, nil
+}
+
+// CreatePickerRequest описывает запрос на создание сборщика.
+type CreatePickerRequest struct {
+	Phone    string    `json:"phone"`
+	Password string    `json:"password"`
+	StoreID  uuid.UUID `json:"store_id"`
+}
+
+// CreatePicker создаёт сборщика, привязанного к магазину.
+func (s *Service) CreatePicker(ctx context.Context, req *CreatePickerRequest) (*PickerInfo, error) {
+	phone := strings.TrimSpace(req.Phone)
+	password := strings.TrimSpace(req.Password)
+	if phone == "" || password == "" || req.StoreID == uuid.Nil {
+		return nil, fmt.Errorf("phone, password и store_id обязательны")
+	}
+	if len(password) < 6 {
+		return nil, fmt.Errorf("пароль должен быть минимум 6 символов")
+	}
+
+	taken, err := s.repo.IsPhoneTaken(ctx, phone)
+	if err != nil {
+		return nil, fmt.Errorf("не удалось проверить телефон: %w", err)
+	}
+	if taken {
+		return nil, fmt.Errorf("пользователь с таким телефоном уже существует")
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("не удалось хешировать пароль: %w", err)
+	}
+	hashStr := string(hash)
+	storeID := req.StoreID
+	now := time.Now().UTC()
+
+	user := &models.User{
+		ID:           uuid.New(),
+		Phone:        phone,
+		Role:         models.UserRolePicker,
+		StoreID:      &storeID,
+		PasswordHash: &hashStr,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	if err := s.repo.CreatePicker(ctx, user); err != nil {
+		return nil, fmt.Errorf("не удалось создать сборщика: %w", err)
+	}
+
+	pickers, err := s.repo.GetPickers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("создан, но не удалось получить данные: %w", err)
+	}
+	for _, p := range pickers {
+		if p.ID == user.ID {
+			return &p, nil
+		}
+	}
+	return nil, fmt.Errorf("создан, но не найден в списке")
+}
+
+// GetPickers возвращает всех сборщиков с привязкой к магазинам.
+func (s *Service) GetPickers(ctx context.Context) ([]PickerInfo, error) {
+	return s.repo.GetPickers(ctx)
+}
+
+// DeletePicker удаляет сборщика по ID.
+func (s *Service) DeletePicker(ctx context.Context, id uuid.UUID) error {
+	return s.repo.DeletePicker(ctx, id)
 }
