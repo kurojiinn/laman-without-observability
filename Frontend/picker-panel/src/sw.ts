@@ -8,9 +8,10 @@ cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
 
 // SPA navigation fallback — отдаём index.html из precache для всех навигаций
-// внутри /picker/, исключая API.
+// внутри /picker/, исключая API. URL должен совпадать с тем что vite-plugin-pwa
+// кладёт в __WB_MANIFEST — это "index.html" без /picker/ префикса.
 registerRoute(
-  new NavigationRoute(createHandlerBoundToURL("/picker/index.html"), {
+  new NavigationRoute(createHandlerBoundToURL("index.html"), {
     denylist: [/^\/api\//],
   }),
 );
