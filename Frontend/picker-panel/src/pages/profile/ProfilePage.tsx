@@ -4,6 +4,7 @@ import { useSession } from "../../features/auth/sessionStore";
 import { usePickerOrders } from "../../features/orders/hooks";
 import { formatPrice } from "../../shared/lib/format";
 import { useTheme, setTheme } from "../../shared/lib/themeStore";
+import { PushToggle } from "../../features/push/PushToggle";
 import type { OrderStatus } from "../../entities/order/model";
 
 function isToday(dateStr: string): boolean {
@@ -88,6 +89,14 @@ export function ProfilePage() {
             />
             <span className="toggle-track" />
           </label>
+        </div>
+      </div>
+
+      {/* Notifications */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <p className="card-title">🔔 Уведомления</p>
+        <div className="info-list">
+          <PushToggle />
         </div>
       </div>
 

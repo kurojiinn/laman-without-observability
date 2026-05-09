@@ -7,6 +7,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
       includeAssets: ["favicon.ico", "icons/apple-touch-icon.png"],
       manifest: {
         name: "Yuher — Сборщик",
@@ -26,16 +29,8 @@ export default defineConfig({
           { src: "icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
       },
-      workbox: {
-        navigateFallback: "/picker/index.html",
-        navigateFallbackDenylist: [/^\/api\//],
+      injectManifest: {
         globPatterns: ["**/*.{js,css,html,svg,png,ico,woff2}"],
-        runtimeCaching: [
-          {
-            urlPattern: ({ url }) => url.pathname.startsWith("/api/"),
-            handler: "NetworkOnly",
-          },
-        ],
       },
     }),
   ],

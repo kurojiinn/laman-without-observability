@@ -257,6 +257,12 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 		s.hub.Notify(order.StoreID, string(payload))
 	}
 
+	// Push-уведомление всем сборщикам магазина о новом заказе.
+	if s.pusher != nil {
+		n := push.NotificationForNewOrderPicker(order.ID.String(), finalTotal, len(orderItems))
+		s.pusher.SendToStorePickers(ctx, order.StoreID, n)
+	}
+
 	if s.notifier != nil {
 		itemsText := strings.Join(itemLines, ", ")
 		phone := ""

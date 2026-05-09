@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 
@@ -89,6 +90,37 @@ func (s *Service) SendToUser(ctx context.Context, userID uuid.UUID, n Notificati
 		zap.Int("subs", count))
 }
 
+// SendToStorePickers рассылает уведомление всем сборщикам магазина.
+func (s *Service) SendToStorePickers(ctx context.Context, storeID uuid.UUID, n Notification) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT ps.endpoint, ps.p256dh, ps.auth
+		FROM push_subscriptions ps
+		JOIN users u ON u.id = ps.user_id
+		WHERE u.role = 'PICKER' AND u.store_id = $1
+	`, storeID)
+	if err != nil {
+		s.logger.Error("push: query store pickers", zap.Error(err))
+		return
+	}
+	defer func() { _ = rows.Close() }()
+
+	payload, _ := json.Marshal(n)
+	count := 0
+
+	for rows.Next() {
+		var endpoint, p256dh, auth string
+		if err := rows.Scan(&endpoint, &p256dh, &auth); err != nil {
+			continue
+		}
+		count++
+		go s.send(endpoint, p256dh, auth, payload)
+	}
+	s.logger.Info("push: SendToStorePickers",
+		zap.String("store_id", storeID.String()),
+		zap.String("title", n.Title),
+		zap.Int("subs", count))
+}
+
 func (s *Service) send(endpoint, p256dh, auth string, payload []byte) {
 	sub := &webpush.Subscription{
 		Endpoint: endpoint,
@@ -149,4 +181,19 @@ func NotificationForOrderStatus(orderID, status string) (Notification, bool) {
 		}, true
 	}
 	return Notification{}, false
+}
+
+// NotificationForNewOrderPicker — уведомление пикеру о новом заказе.
+// URL открывает заказ в panel-е сборщика.
+func NotificationForNewOrderPicker(orderID string, total float64, itemsCount int) Notification {
+	body := "Зайдите в панель чтобы начать сборку"
+	if itemsCount > 0 && total > 0 {
+		body = fmt.Sprintf("Позиций: %d, сумма: %.0f ₽", itemsCount, total)
+	}
+	return Notification{
+		Title:   "Новый заказ",
+		Body:    body,
+		URL:     "/picker/orders/" + orderID,
+		OrderID: orderID,
+	}
 }
