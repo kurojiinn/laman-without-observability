@@ -110,7 +110,7 @@ func (s *Service) UpdateOrderStatus(ctx context.Context, id uuid.UUID, status st
 	// Push клиенту по новому статусу.
 	if s.pusher != nil {
 		if userID, err := s.repo.GetOrderUserID(ctx, id); err == nil && userID != nil {
-			if n, ok := push.NotificationForOrderStatus(normalized); ok {
+			if n, ok := push.NotificationForOrderStatus(id.String(), normalized); ok {
 				s.pusher.SendToUser(ctx, *userID, n)
 			}
 		}

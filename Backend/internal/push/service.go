@@ -20,9 +20,10 @@ type Subscription struct {
 }
 
 type Notification struct {
-	Title string `json:"title"`
-	Body  string `json:"body"`
-	URL   string `json:"url,omitempty"`
+	Title   string `json:"title"`
+	Body    string `json:"body"`
+	URL     string `json:"url,omitempty"`
+	OrderID string `json:"order_id,omitempty"`
 }
 
 type Service struct {
@@ -127,7 +128,9 @@ func (s *Service) VAPIDPublicKey() string {
 
 // NotificationForOrderStatus возвращает текст push-уведомления по статусу заказа.
 // Принимает статус как строку, чтобы избежать импорта models в push-пакет.
-func NotificationForOrderStatus(status string) (Notification, bool) {
+// orderID кладётся в URL и в data.order_id — фронт открывает модалку этого заказа
+// в личном кабинете (см. OrderNotificationContext + ProfileDrawer).
+func NotificationForOrderStatus(orderID, status string) (Notification, bool) {
 	msgs := map[string][2]string{
 		"ASSEMBLING":          {"Заказ собирается", "Сборщик начал формировать ваш заказ"},
 		"ASSEMBLED":           {"Заказ собран", "Ваш заказ готов и ждёт курьера"},
@@ -138,7 +141,12 @@ func NotificationForOrderStatus(status string) (Notification, bool) {
 		"CANCELLED":           {"Заказ отменён", "Ваш заказ был отменён"},
 	}
 	if m, ok := msgs[status]; ok {
-		return Notification{Title: m[0], Body: m[1], URL: "/orders"}, true
+		return Notification{
+			Title:   m[0],
+			Body:    m[1],
+			URL:     "/?order=" + orderID,
+			OrderID: orderID,
+		}, true
 	}
 	return Notification{}, false
 }

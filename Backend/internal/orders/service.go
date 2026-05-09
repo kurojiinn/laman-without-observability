@@ -438,8 +438,7 @@ func (s *OrderService) UpdateOrderStatus(ctx context.Context, id uuid.UUID, newS
 	// Push-уведомления для авторизованного клиента.
 	// URL содержит ?order=<id> — фронт прочитает и откроет модалку этого заказа.
 	if s.pusher != nil && order.UserID != nil {
-		if n, ok := orderStatusNotification(newStatus); ok {
-			n.URL = fmt.Sprintf("/?order=%s", id.String())
+		if n, ok := push.NotificationForOrderStatus(id.String(), string(newStatus)); ok {
 			s.pusher.SendToUser(ctx, *order.UserID, n)
 		}
 	}
@@ -474,7 +473,3 @@ func (s *OrderService) UpdateOrderStatus(ctx context.Context, id uuid.UUID, newS
 	return nil
 }
 
-// orderStatusNotification возвращает текст push-уведомления для клиента.
-func orderStatusNotification(status models.OrderStatus) (push.Notification, bool) {
-	return push.NotificationForOrderStatus(string(status))
-}

@@ -41,7 +41,7 @@ export function OrderNotificationProvider({ children }: { children: ReactNode })
   const esRef = useRef<EventSource | null>(null);
 
   // При первой загрузке читаем ?order=xxx из URL — push-уведомление открывает
-  // приложение по этому формату (см. public/sw.js).
+  // приложение по этому формату (см. public/sw.js, ветка openWindow).
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -53,6 +53,20 @@ export function OrderNotificationProvider({ children }: { children: ReactNode })
       url.searchParams.delete("order");
       window.history.replaceState({}, "", url.toString());
     }
+  }, []);
+
+  // Если приложение уже открыто, SW шлёт postMessage с orderId по клику на push.
+  // Это позволяет открыть модалку без перезагрузки страницы.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !navigator.serviceWorker) return;
+    const handler = (e: MessageEvent) => {
+      const data = e.data as { type?: string; orderId?: string } | null;
+      if (data?.type === "open-order" && data.orderId) {
+        setPendingOrderId(data.orderId);
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", handler);
+    return () => navigator.serviceWorker.removeEventListener("message", handler);
   }, []);
 
   useEffect(() => {
