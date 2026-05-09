@@ -550,8 +550,10 @@ function OrderDetailModal({
   // pending — корзина готова, ждём решения пользователя по конфликту
   const [pendingCart, setPendingCart] = useState<CartItem[] | null>(null);
 
-  const minutesSinceCreated = (Date.now() - new Date(full.created_at).getTime()) / 60000;
-  const canCancel = minutesSinceCreated < 10 && full.status !== "CANCELLED" && full.status !== "DELIVERED";
+  // Отмена доступна клиенту, пока сборщик не закончил сборку.
+  // После статуса ASSEMBLED отмену делает только пикер/админ.
+  const cancellableStatuses = new Set(["NEW", "ACCEPTED_BY_PICKER", "NEEDS_CONFIRMATION", "ASSEMBLING"]);
+  const canCancel = cancellableStatuses.has(full.status);
 
   async function handleCancel() {
     setCancelError(null);

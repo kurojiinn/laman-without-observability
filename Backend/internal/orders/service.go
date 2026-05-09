@@ -366,6 +366,18 @@ func (s *OrderService) CancelOrderByUser(ctx context.Context, orderID uuid.UUID,
 		return fmt.Errorf("доступ запрещён")
 	}
 
+	// Клиент может отменить заказ только до того, как сборщик собрал его.
+	// После статуса ASSEMBLED отмена доступна только пикеру/админу.
+	switch order.Status {
+	case models.OrderStatusNew,
+		models.OrderStatusAcceptedByPicker,
+		models.OrderStatusNeedsConfirmation,
+		models.OrderStatusAssembling:
+		// разрешено
+	default:
+		return fmt.Errorf("заказ уже собран — отмена недоступна")
+	}
+
 	if !models.IsValidStateTransition(order.Status, models.OrderStatusCancelled) {
 		return fmt.Errorf("заказ нельзя отменить на текущем этапе")
 	}
