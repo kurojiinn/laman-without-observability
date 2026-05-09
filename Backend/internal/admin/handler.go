@@ -114,6 +114,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.Han
 		// Сборщики
 		admin.GET("/pickers", h.GetPickers)
 		admin.POST("/pickers", h.CreatePicker)
+		admin.PATCH("/pickers/:id", h.UpdatePicker)
 		admin.DELETE("/pickers/:id", h.DeletePicker)
 		// Фоны типов магазинов
 		if h.storeCatUpdater != nil {
@@ -1144,6 +1145,27 @@ func (h *Handler) CreatePicker(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, picker)
+}
+
+// UpdatePicker меняет магазин сборщика.
+func (h *Handler) UpdatePicker(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID", err.Error())
+		return
+	}
+	var req struct {
+		StoreID uuid.UUID `json:"store_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(c, http.StatusBadRequest, "некорректные данные", err.Error())
+		return
+	}
+	if err := h.service.UpdatePickerStore(c.Request.Context(), id, req.StoreID); err != nil {
+		h.respondError(c, http.StatusBadRequest, err.Error(), "")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
 // DeletePicker удаляет сборщика по ID.

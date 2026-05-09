@@ -279,3 +279,11 @@ func (s *Service) GetPickers(ctx context.Context) ([]PickerInfo, error) {
 func (s *Service) DeletePicker(ctx context.Context, id uuid.UUID) error {
 	return s.repo.DeletePicker(ctx, id)
 }
+
+// UpdatePickerStore меняет магазин сборщика.
+func (s *Service) UpdatePickerStore(ctx context.Context, id uuid.UUID, storeID uuid.UUID) error {
+	if storeID == uuid.Nil {
+		return fmt.Errorf("store_id обязателен")
+	}
+	return s.repo.UpdatePickerStore(ctx, id, storeID)
+}

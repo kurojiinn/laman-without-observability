@@ -394,6 +394,15 @@ export const createPicker = async (
   return data;
 };
 
+export const updatePicker = async (
+  user: string,
+  password: string,
+  id: string,
+  payload: { store_id: string }
+) => {
+  await createAdminClient(user, password).patch(`/pickers/${id}`, payload);
+};
+
 export const deletePicker = async (user: string, password: string, id: string) => {
   await createAdminClient(user, password).delete(`/pickers/${id}`);
 };

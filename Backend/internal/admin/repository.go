@@ -43,6 +43,7 @@ type Repository interface {
 	CreatePicker(ctx context.Context, user *models.User) error
 	GetPickers(ctx context.Context) ([]PickerInfo, error)
 	DeletePicker(ctx context.Context, id uuid.UUID) error
+	UpdatePickerStore(ctx context.Context, id uuid.UUID, storeID uuid.UUID) error
 	IsPhoneTaken(ctx context.Context, phone string) (bool, error)
 }
 
@@ -482,9 +483,32 @@ func (r *postgresRepository) GetPickers(ctx context.Context) ([]PickerInfo, erro
 	return pickers, nil
 }
 
-// DeletePicker удаляет сборщика. Защита от удаления не-PICKER через проверку роли.
+// DeletePicker удаляет сборщика. В транзакции отвязывает его от исторических
+// заказов (picker_id = NULL), чтобы не нарушить FK orders.picker_id → users.
+// Защита от удаления не-PICKER через проверку роли в SQL.
 func (r *postgresRepository) DeletePicker(ctx context.Context, id uuid.UUID) error {
-	res, err := r.db.ExecContext(ctx, `DELETE FROM users WHERE id = $1 AND role = 'PICKER'`, id)
+	return r.db.WithTx(ctx, func(tx *sqlx.Tx) error {
+		if _, err := tx.ExecContext(ctx, `UPDATE orders SET picker_id = NULL WHERE picker_id = $1`, id); err != nil {
+			return err
+		}
+		res, err := tx.ExecContext(ctx, `DELETE FROM users WHERE id = $1 AND role = 'PICKER'`, id)
+		if err != nil {
+			return err
+		}
+		affected, _ := res.RowsAffected()
+		if affected == 0 {
+			return fmt.Errorf("сборщик не найден")
+		}
+		return nil
+	})
+}
+
+// UpdatePickerStore меняет магазин, к которому привязан сборщик.
+func (r *postgresRepository) UpdatePickerStore(ctx context.Context, id uuid.UUID, storeID uuid.UUID) error {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE users SET store_id = $1, updated_at = NOW() WHERE id = $2 AND role = 'PICKER'`,
+		storeID, id,
+	)
 	if err != nil {
 		return err
 	}

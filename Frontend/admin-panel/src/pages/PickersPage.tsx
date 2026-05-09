@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createPicker, deletePicker, fetchPickers, fetchStores } from "../api/admin";
+import { createPicker, deletePicker, fetchPickers, fetchStores, updatePicker } from "../api/admin";
 import { PageHeader, Card, Btn, Modal, Input, Select } from "../components/Layout";
 import type { Picker } from "../api/admin";
 
@@ -27,6 +27,10 @@ export function PickersPage({ user, password }: Props) {
   const [form, setForm] = useState({ phone: "", password: "", store_id: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+
+  const [editTarget, setEditTarget] = useState<Picker | null>(null);
+  const [editStoreID, setEditStoreID] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<Picker | null>(null);
 
@@ -59,6 +63,28 @@ export function PickersPage({ user, password }: Props) {
       setDeleteTarget(null);
     },
   });
+
+  const editMut = useMutation({
+    mutationFn: () =>
+      updatePicker(user, password, editTarget!.id, { store_id: editStoreID }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pickers"] });
+      setEditTarget(null);
+      setEditError(null);
+    },
+    onError: (err: unknown) => {
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        (err instanceof Error ? err.message : "Ошибка");
+      setEditError(msg);
+    },
+  });
+
+  function openEdit(p: Picker) {
+    setEditTarget(p);
+    setEditStoreID(p.store_id);
+    setEditError(null);
+  }
 
   function openCreate() {
     setForm({ phone: "", password: "", store_id: storeOptions[0]?.value ?? "" });
@@ -111,9 +137,14 @@ export function PickersPage({ user, password }: Props) {
                 <p className="text-xs text-gray-400">
                   {new Date(p.created_at).toLocaleDateString("ru-RU")}
                 </p>
-                <Btn variant="danger" size="sm" onClick={() => setDeleteTarget(p)}>
-                  Удалить
-                </Btn>
+                <div className="flex gap-2">
+                  <Btn variant="ghost" size="sm" onClick={() => openEdit(p)}>
+                    Изменить
+                  </Btn>
+                  <Btn variant="danger" size="sm" onClick={() => setDeleteTarget(p)}>
+                    Удалить
+                  </Btn>
+                </div>
               </li>
             ))}
           </ul>
@@ -176,6 +207,42 @@ export function PickersPage({ user, password }: Props) {
       </Modal>
 
       <Modal
+        open={!!editTarget}
+        onClose={() => setEditTarget(null)}
+        title="Изменить магазин"
+        footer={
+          <>
+            <Btn variant="ghost" onClick={() => setEditTarget(null)} className="flex-1 justify-center">
+              Отмена
+            </Btn>
+            <Btn
+              onClick={() => editMut.mutate()}
+              disabled={editMut.isPending || !editStoreID}
+              className="flex-1 justify-center"
+            >
+              {editMut.isPending ? "Сохраняем..." : "Сохранить"}
+            </Btn>
+          </>
+        }
+      >
+        {editTarget && (
+          <>
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Сборщик</p>
+              <p className="text-sm font-semibold text-gray-900">{editTarget.phone}</p>
+            </div>
+            <Select
+              label="Магазин"
+              value={editStoreID}
+              onChange={setEditStoreID}
+              options={storeOptions}
+            />
+            {editError && <p className="text-xs text-red-500">{editError}</p>}
+          </>
+        )}
+      </Modal>
+
+      <Modal
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         title="Удалить сборщика?"
@@ -196,10 +263,16 @@ export function PickersPage({ user, password }: Props) {
         }
       >
         {deleteTarget && (
-          <p className="text-sm text-gray-600">
-            Удалить аккаунт <span className="font-semibold">{deleteTarget.phone}</span> из магазина{" "}
-            <span className="font-semibold">{deleteTarget.store_name}</span>? Это действие необратимо.
-          </p>
+          <div className="space-y-2 text-sm text-gray-600">
+            <p>
+              Удалить аккаунт <span className="font-semibold">{deleteTarget.phone}</span> из магазина{" "}
+              <span className="font-semibold">{deleteTarget.store_name}</span>?
+            </p>
+            <p className="text-xs text-gray-400">
+              Заказы, которые он собирал, останутся в системе, но потеряют привязку к этому
+              сборщику. Действие необратимо.
+            </p>
+          </div>
         )}
       </Modal>
     </div>

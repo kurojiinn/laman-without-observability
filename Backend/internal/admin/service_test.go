@@ -122,6 +122,10 @@ func (m *adminRepoMock) DeletePicker(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (m *adminRepoMock) UpdatePickerStore(ctx context.Context, id uuid.UUID, storeID uuid.UUID) error {
+	return nil
+}
+
 func (m *adminRepoMock) IsPhoneTaken(ctx context.Context, phone string) (bool, error) {
 	return false, nil
 }
