@@ -3,8 +3,11 @@ import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import { AppRouter } from "./app/router";
+import { registerSW } from "virtual:pwa-register";
 import "./shared/ui/styles.css";
 import "./shared/lib/themeStore"; // applies saved theme on startup
+
+registerSW({ immediate: true });
 
 const queryClient = new QueryClient({
   defaultOptions: {

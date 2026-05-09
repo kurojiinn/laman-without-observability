@@ -49,10 +49,10 @@ export function Layout({ page, onNavigate, onLogout, user, children }: Props) {
         {/* Logo */}
         <div className="flex items-center gap-3 px-6 py-5 border-b border-white/10">
           <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">
-            L
+            Y
           </div>
           <div>
-            <p className="text-white font-bold text-sm leading-tight">Laman Admin</p>
+            <p className="text-white font-bold text-sm leading-tight">Yuher Admin</p>
             <p className="text-gray-400 text-xs">Панель управления</p>
           </div>
         </div>
@@ -104,7 +104,10 @@ export function Layout({ page, onNavigate, onLogout, user, children }: Props) {
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile header */}
-        <header className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 flex-shrink-0">
+        <header
+          className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 flex-shrink-0"
+          style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top))" }}
+        >
           <button
             onClick={() => setSidebarOpen(true)}
             className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
@@ -114,8 +117,8 @@ export function Layout({ page, onNavigate, onLogout, user, children }: Props) {
             </svg>
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-indigo-500 rounded-md flex items-center justify-center text-white font-bold text-xs">L</div>
-            <span className="font-bold text-sm text-gray-900">Laman Admin</span>
+            <div className="w-6 h-6 bg-indigo-500 rounded-md flex items-center justify-center text-white font-bold text-xs">Y</div>
+            <span className="font-bold text-sm text-gray-900">Yuher Admin</span>
           </div>
         </header>
 
