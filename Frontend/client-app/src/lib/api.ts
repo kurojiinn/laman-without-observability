@@ -330,10 +330,6 @@ export interface CreateOrderPayload {
   comment?: string;
   customer_phone?: string;   // телефон для пикера (и авторизованные, и гости)
   out_of_stock_action?: OutOfStockAction;
-  // guest-only (не нужны если есть JWT)
-  guest_name?: string;
-  guest_phone?: string;
-  guest_address?: string;
 }
 
 export const ordersApi = {

@@ -38,7 +38,6 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
   // Шаг 1 — форма
   const [address, setAddress]     = useState("");
   const [phone, setPhone]         = useState(user?.phone ?? "");
-  const [guestName, setGuestName] = useState("");
   const [comment, setComment]     = useState("");
   const [district, setDistrict]   = useState<District>("Ойсхар");
 
@@ -135,7 +134,6 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
         comment: comment.trim() || undefined,
         customer_phone: phone.trim() || undefined,
         out_of_stock_action: outOfStockAction,
-        ...(!isAuthenticated && guestName.trim() ? { guest_name: guestName.trim() } : {}),
       };
 
       try {
@@ -268,8 +266,6 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
       );
       return;
     }
-    if (!isAuthenticated && !guestName.trim()) { setError("Укажите ваше имя"); return; }
-
     // Валидация телефона: 10 цифр после кода страны (+7 или 8).
     // Принимаем форматы: +79001234567, 89001234567, 9001234567 — нормализуем все к 10-значному формату.
     const phoneDigits = phone.replace(/\D/g, "");
@@ -353,14 +349,6 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
       {/* Форма получателя */}
       <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
         <h3 className="text-sm font-semibold text-gray-900">Данные получателя</h3>
-
-        {!isAuthenticated && (
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Ваше имя</label>
-            <input type="text" value={guestName} onChange={(e) => setGuestName(e.target.value)}
-              placeholder="Магомед Магомедов" className={INPUT_CLS} />
-          </div>
-        )}
 
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1.5">
