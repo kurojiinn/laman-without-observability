@@ -46,6 +46,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 		pikers.PUT("/orders/:id/status", auth, pickerOnly, h.UpdateStatus)
 		pikers.POST("/orders/:id/items", auth, pickerOnly, h.AddItem)
 		pikers.DELETE("/orders/:id/items/:itemId", auth, pickerOnly, h.RemoveItem)
+		pikers.GET("/analytics/top-products", auth, pickerOnly, h.TopProducts)
 	}
 }
 
@@ -62,6 +63,7 @@ type PickerService interface {
 	GetStoreIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
 	AddItem(ctx context.Context, orderID uuid.UUID, pickerID uuid.UUID, req AddItemRequest) (*PickerOrderItem, error)
 	RemoveItem(ctx context.Context, orderID uuid.UUID, itemID uuid.UUID, pickerID uuid.UUID) error
+	GetTopProducts(ctx context.Context, pickerID uuid.UUID, period AnalyticsPeriod) ([]TopProduct, error)
 }
 
 // orderUpdatedEvent — структура SSE-уведомления об изменении заказа.
@@ -255,6 +257,40 @@ func (h *Handler) RemoveItem(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "товар удалён"})
+}
+
+// TopProducts — GET /api/v1/picker/analytics/top-products?period=day|week|month
+// Возвращает топ-10 самых продаваемых товаров магазина за выбранный период.
+func (h *Handler) TopProducts(c *gin.Context) {
+	userIDRaw, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "пользователь не аутентифицирован"})
+		return
+	}
+	pickerID, ok := userIDRaw.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "неверный ID пользователя"})
+		return
+	}
+
+	period := AnalyticsPeriod(c.DefaultQuery("period", string(AnalyticsPeriodDay)))
+	switch period {
+	case AnalyticsPeriodDay, AnalyticsPeriodWeek, AnalyticsPeriodMonth:
+		// ok
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "period must be one of: day, week, month"})
+		return
+	}
+
+	rows, err := h.service.GetTopProducts(c.Request.Context(), pickerID, period)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if rows == nil {
+		rows = []TopProduct{}
+	}
+	c.JSON(http.StatusOK, gin.H{"period": period, "items": rows})
 }
 
 func (h *Handler) Events(c *gin.Context) {

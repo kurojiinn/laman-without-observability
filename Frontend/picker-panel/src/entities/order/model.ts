@@ -30,6 +30,8 @@ export type OrderItem = {
   price: number;
 };
 
+export type DeliveryType = "now" | "scheduled" | "express";
+
 export type PickerOrder = {
   id: string;
   userId?: string | null;
@@ -48,6 +50,9 @@ export type PickerOrder = {
   serviceFee: number;
   deliveryFee: number;
   finalTotal: number;
+  deliveryType?: DeliveryType | null;
+  scheduledAt?: string | null;
+  deliverySurcharge?: number;
   createdAt: string;
   updatedAt: string;
   pickerId?: string | null;

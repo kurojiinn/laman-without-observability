@@ -8,7 +8,7 @@ import {
   useRemoveOrderItem,
 } from "../../features/orders/hooks";
 import { formatDate, formatPrice, shortId } from "../../shared/lib/format";
-import { getPickerActions, statusLabel, outOfStockLabel } from "../../entities/order/model";
+import { getPickerActions, statusLabel, outOfStockLabel, type DeliveryType } from "../../entities/order/model";
 
 export function OrderDetailsPage() {
   const { id = "" } = useParams();
@@ -82,6 +82,14 @@ export function OrderDetailsPage() {
               </p>
               <p>
                 <strong>Комментарий:</strong> {orderQuery.data.comment ?? "-"}
+              </p>
+              <p>
+                <strong>Время доставки:</strong>{" "}
+                <DeliveryBadge
+                  type={orderQuery.data.deliveryType}
+                  scheduledAt={orderQuery.data.scheduledAt}
+                  surcharge={orderQuery.data.deliverySurcharge}
+                />
               </p>
               <p>
                 <strong>Если товара нет:</strong>{" "}
@@ -321,5 +329,49 @@ export function OrderDetailsPage() {
         {mutation.isSuccess ? <p className="success-text">Статус обновлен</p> : null}
       </section>
     </AppShell>
+  );
+}
+
+function formatScheduledAt(iso: string): string {
+  const d = new Date(iso);
+  const day = d.toLocaleString("ru-RU", { day: "numeric", month: "long" });
+  const time = d.toLocaleString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  return `${day} в ${time}`;
+}
+
+function DeliveryBadge({
+  type,
+  scheduledAt,
+  surcharge,
+}: {
+  type: DeliveryType | null | undefined;
+  scheduledAt: string | null | undefined;
+  surcharge: number | undefined;
+}) {
+  const baseStyle: React.CSSProperties = {
+    display: "inline-block",
+    padding: "2px 10px",
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 600,
+  };
+  if (type === "express") {
+    return (
+      <span style={{ ...baseStyle, background: "#fee2e2", color: "#991b1b" }}>
+        ⚡ Срочная доставка{surcharge ? ` (+${surcharge} ₽)` : ""}
+      </span>
+    );
+  }
+  if (type === "scheduled" && scheduledAt) {
+    return (
+      <span style={{ ...baseStyle, background: "#dcfce7", color: "#166534" }}>
+        🕕 {formatScheduledAt(scheduledAt)}
+      </span>
+    );
+  }
+  return (
+    <span style={{ ...baseStyle, background: "#f3f4f6", color: "#374151" }}>
+      Как можно скорее
+    </span>
   );
 }

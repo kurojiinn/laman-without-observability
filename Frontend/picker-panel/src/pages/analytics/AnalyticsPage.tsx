@@ -1,6 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { AppShell } from "../../shared/ui/AppShell";
 import { usePickerOrders } from "../../features/orders/hooks";
+import { useTopProducts } from "../../features/analytics/hooks";
+import type { AnalyticsPeriod, TopProduct } from "../../features/analytics/api";
 import { formatPrice } from "../../shared/lib/format";
 import { statusLabel, type OrderStatus } from "../../entities/order/model";
 
@@ -152,82 +154,143 @@ export function AnalyticsPage() {
       </div>
 
       {/* Status breakdown */}
-      <div className="analytics-grid">
-        <div className="card">
-          <p className="card-title">
-            <span>📊</span> Распределение по статусам
-          </p>
-          {stats.totalCount === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">📭</div>
-              <div className="empty-state-title">Данных пока нет</div>
-            </div>
-          ) : (
-            <div className="chart-bar-list">
-              {statusBarItems.map(({ status, label }) => {
-                const count = stats.statusCounts[status] ?? 0;
-                if (count === 0) return null;
-                const pct = Math.round((count / stats.maxCount) * 100);
-                return (
-                  <div key={status} className="chart-bar-item">
-                    <div className="chart-bar-label">
-                      <span>{label}</span>
-                      <span>{count}</span>
-                    </div>
-                    <div className="chart-bar-track">
-                      <div
-                        className="chart-bar-fill"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <div className="card">
-          <p className="card-title">
-            <span>💡</span> Коэффициенты
-          </p>
-          <div className="info-list">
-            <div className="info-item">
-              <span className="info-label">Выполнено сегодня</span>
-              <span className="info-value">
-                {stats.todayCount > 0
-                  ? `${Math.round(((stats.todayCount - stats.todayCancelled) / stats.todayCount) * 100)}%`
-                  : "—"}
-              </span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">Отмен за месяц</span>
-              <span className="info-value">
-                {stats.monthCount > 0
-                  ? `${Math.round((stats.monthCancelled / stats.monthCount) * 100)}%`
-                  : "—"}
-              </span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">Средний чек (сегодня)</span>
-              <span className="info-value">
-                {stats.todayCount > 0
-                  ? formatPrice(Math.round(stats.todayRevenue / stats.todayCount))
-                  : "—"}
-              </span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">Средний чек (месяц)</span>
-              <span className="info-value">
-                {stats.monthCount > 0
-                  ? formatPrice(Math.round(stats.monthRevenue / stats.monthCount))
-                  : "—"}
-              </span>
-            </div>
+      <div className="card" style={{ marginBottom: 24 }}>
+        <p className="card-title">
+          <span>📊</span> Распределение по статусам
+        </p>
+        {stats.totalCount === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">📭</div>
+            <div className="empty-state-title">Данных пока нет</div>
           </div>
+        ) : (
+          <div className="chart-bar-list">
+            {statusBarItems.map(({ status, label }) => {
+              const count = stats.statusCounts[status] ?? 0;
+              if (count === 0) return null;
+              const pct = Math.round((count / stats.maxCount) * 100);
+              return (
+                <div key={status} className="chart-bar-item">
+                  <div className="chart-bar-label">
+                    <span>{label}</span>
+                    <span>{count}</span>
+                  </div>
+                  <div className="chart-bar-track">
+                    <div
+                      className="chart-bar-fill"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Top products */}
+      <TopProductsSection />
+    </AppShell>
+  );
+}
+
+// ── Top Products ─────────────────────────────────────────────────────────────
+
+const PERIOD_OPTIONS: { value: AnalyticsPeriod; label: string }[] = [
+  { value: "day",   label: "За день" },
+  { value: "week",  label: "За неделю" },
+  { value: "month", label: "За месяц" },
+];
+
+function TopProductsSection() {
+  const [period, setPeriod] = useState<AnalyticsPeriod>("day");
+  const query = useTopProducts(period);
+  const items = query.data ?? [];
+
+  return (
+    <div className="card">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
+        <p className="card-title" style={{ margin: 0 }}>
+          <span>🔥</span> Топ товаров
+        </p>
+        <div style={{ display: "flex", gap: 4, background: "#f3f4f6", padding: 4, borderRadius: 8 }}>
+          {PERIOD_OPTIONS.map((opt) => {
+            const isActive = period === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setPeriod(opt.value)}
+                style={{
+                  border: "none",
+                  background: isActive ? "#fff" : "transparent",
+                  color: isActive ? "#111" : "#6b7280",
+                  fontWeight: isActive ? 600 : 500,
+                  fontSize: 13,
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  boxShadow: isActive ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+                  transition: "all 0.15s",
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
         </div>
       </div>
-    </AppShell>
+
+      {query.isLoading ? (
+        <p className="empty-text">Загрузка...</p>
+      ) : query.isError ? (
+        <p className="error-text">Не удалось загрузить топ товаров</p>
+      ) : items.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">📭</div>
+          <div className="empty-state-title">Продаж за период нет</div>
+        </div>
+      ) : (
+        <table className="orders-table">
+          <thead>
+            <tr>
+              <th style={{ width: 40 }}>#</th>
+              <th>Товар</th>
+              <th style={{ textAlign: "right" }}>Шт.</th>
+              <th style={{ textAlign: "right" }}>Выручка</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((p, idx) => <TopProductRow key={p.name} rank={idx + 1} product={p} />)}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+function TopProductRow({ rank, product }: { rank: number; product: TopProduct }) {
+  const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `${rank}`;
+  return (
+    <tr>
+      <td style={{ fontWeight: 600, fontSize: 16 }}>{medal}</td>
+      <td>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {product.imageUrl ? (
+            <img
+              src={product.imageUrl}
+              alt={product.name}
+              style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 6, flexShrink: 0 }}
+            />
+          ) : (
+            <div style={{ width: 36, height: 36, background: "#f0f0f0", borderRadius: 6, flexShrink: 0 }} />
+          )}
+          <span>{product.name}</span>
+        </div>
+      </td>
+      <td style={{ textAlign: "right", fontWeight: 600 }}>{product.totalQty}</td>
+      <td style={{ textAlign: "right", fontWeight: 600 }}>{formatPrice(product.totalRevenue)}</td>
+    </tr>
   );
 }
 

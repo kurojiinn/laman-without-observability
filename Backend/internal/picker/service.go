@@ -202,6 +202,46 @@ func (p *Service) GetStoreIDByUserID(ctx context.Context, userID uuid.UUID) (uui
 	return p.getStoreID(ctx, userID)
 }
 
+// AnalyticsPeriod — окно аналитики, выбираемое сборщиком в UI.
+type AnalyticsPeriod string
+
+const (
+	AnalyticsPeriodDay   AnalyticsPeriod = "day"
+	AnalyticsPeriodWeek  AnalyticsPeriod = "week"
+	AnalyticsPeriodMonth AnalyticsPeriod = "month"
+)
+
+// periodStart возвращает начало текущих суток/недели/месяца в локальной зоне сервера.
+// Совпадает по семантике с Postgres date_trunc — т. е. "сегодня с 00:00".
+func periodStart(period AnalyticsPeriod, now time.Time) time.Time {
+	y, m, d := now.Date()
+	loc := now.Location()
+	switch period {
+	case AnalyticsPeriodWeek:
+		// ISO-неделя начинается с понедельника. Воскресенье = 7.
+		weekday := int(now.Weekday())
+		if weekday == 0 {
+			weekday = 7
+		}
+		monday := time.Date(y, m, d, 0, 0, 0, 0, loc).AddDate(0, 0, -(weekday - 1))
+		return monday
+	case AnalyticsPeriodMonth:
+		return time.Date(y, m, 1, 0, 0, 0, 0, loc)
+	default: // day и любой неизвестный — трактуем как "сегодня"
+		return time.Date(y, m, d, 0, 0, 0, 0, loc)
+	}
+}
+
+// GetTopProducts возвращает топ продаваемых товаров магазина сборщика за период.
+func (p *Service) GetTopProducts(ctx context.Context, pickerID uuid.UUID, period AnalyticsPeriod) ([]TopProduct, error) {
+	storeID, err := p.getStoreID(ctx, pickerID)
+	if err != nil {
+		return nil, err
+	}
+	since := periodStart(period, time.Now())
+	return p.pickerRepo.GetTopProducts(ctx, storeID, since, 10)
+}
+
 func (p *Service) getStoreID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
 	user, err := p.userRepo.GetByID(ctx, userID)
 	if err != nil {

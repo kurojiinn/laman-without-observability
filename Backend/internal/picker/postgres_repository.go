@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -163,6 +164,38 @@ func (r *postgresPikerRepository) RecalcOrderTotals(ctx context.Context, orderID
 		return fmt.Errorf("ошибка пересчёта суммы заказа: %w", err)
 	}
 	return nil
+}
+
+// GetTopProducts агрегирует продажи по магазину за период (since..now).
+// Группируем по имени товара (а не по product_id), чтобы вручную добавленные
+// сборщиком позиции с одинаковым именем тоже схлопывались в одну строку.
+// Отменённые заказы не учитываем — товары там фактически не проданы.
+func (r *postgresPikerRepository) GetTopProducts(ctx context.Context, storeID uuid.UUID, since time.Time, limit int) ([]TopProduct, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	query := `
+		SELECT
+			COALESCE(p.name, oi.product_name, '') AS name,
+			MIN(p.image_url) AS image_url,
+			SUM(oi.quantity)::int AS total_qty,
+			SUM(oi.quantity * oi.price) AS total_revenue
+		FROM order_items oi
+		JOIN orders o ON o.id = oi.order_id
+		LEFT JOIN products p ON p.id = oi.product_id
+		WHERE o.store_id = $1
+		  AND o.created_at >= $2
+		  AND o.status <> 'CANCELLED'
+		GROUP BY COALESCE(p.name, oi.product_name, '')
+		HAVING COALESCE(p.name, oi.product_name, '') <> ''
+		ORDER BY total_qty DESC, total_revenue DESC
+		LIMIT $3
+	`
+	var rows []TopProduct
+	if err := r.db.SelectContext(ctx, &rows, query, storeID, since, limit); err != nil {
+		return nil, fmt.Errorf("ошибка получения топа товаров: %w", err)
+	}
+	return rows, nil
 }
 
 func (r *postgresPikerRepository) AssignPicker(ctx context.Context, orderID uuid.UUID, pickerID uuid.UUID) error {

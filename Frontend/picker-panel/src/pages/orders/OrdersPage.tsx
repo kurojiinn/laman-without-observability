@@ -204,9 +204,15 @@ export function OrdersPage() {
                 >
                   <td>{order.customerPhone ?? order.guestPhone ?? "—"}</td>
                   <td>
-                    <span className={statusBadgeClass(order.status as OrderStatus)}>
-                      {statusLabel(order.status)}
-                    </span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+                      <span className={statusBadgeClass(order.status as OrderStatus)}>
+                        {statusLabel(order.status)}
+                      </span>
+                      <DeliveryInline
+                        type={order.deliveryType}
+                        scheduledAt={order.scheduledAt}
+                      />
+                    </div>
                   </td>
                   <td>{formatDate(order.createdAt)}</td>
                   <td style={{ fontWeight: 600 }}>{formatPrice(order.finalTotal)}</td>
@@ -303,4 +309,51 @@ export function OrdersPage() {
   function dismissIfClickedOutside() {
     setCancelled(null);
   }
+}
+
+function DeliveryInline({
+  type,
+  scheduledAt,
+}: {
+  type?: PickerOrder["deliveryType"];
+  scheduledAt?: string | null;
+}) {
+  if (type === "express") {
+    return (
+      <span
+        style={{
+          display: "inline-block",
+          padding: "1px 6px",
+          fontSize: 11,
+          fontWeight: 600,
+          borderRadius: 4,
+          background: "#fee2e2",
+          color: "#991b1b",
+        }}
+      >
+        ⚡ Срочно
+      </span>
+    );
+  }
+  if (type === "scheduled" && scheduledAt) {
+    const d = new Date(scheduledAt);
+    const day = d.toLocaleString("ru-RU", { day: "numeric", month: "short" });
+    const time = d.toLocaleString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+    return (
+      <span
+        style={{
+          display: "inline-block",
+          padding: "1px 6px",
+          fontSize: 11,
+          fontWeight: 600,
+          borderRadius: 4,
+          background: "#dcfce7",
+          color: "#166534",
+        }}
+      >
+        🕕 {day} в {time}
+      </span>
+    );
+  }
+  return null;
 }

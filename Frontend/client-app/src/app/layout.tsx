@@ -19,6 +19,11 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // Жёсткая фиксация масштаба — иначе на iOS Safari двойной тап и
+  // pinch'ом можно увеличить страницу, что для PWA-чекаута/каталога
+  // выглядит как баг (выезжает за safe-area, ломает sticky-элементы).
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
 };
 
