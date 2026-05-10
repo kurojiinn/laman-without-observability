@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { useBodyScrollLockWhen } from "@/hooks/useBodyScrollLock";
+import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
 
 export type DeliveryType = "now" | "scheduled" | "express";
 
@@ -122,14 +124,10 @@ export default function DeliveryTimePicker({ onSelect, defaultValue }: Props) {
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
+  // Правильный body-lock через position:fixed — единственный способ
+  // удержать страницу на месте в iOS Safari/PWA. Простой overflow:hidden
+  // там игнорируется и backdrop можно проскроллить пальцем.
+  useBodyScrollLockWhen(open);
 
   useEffect(() => {
     if (!open) return;
@@ -176,6 +174,14 @@ export default function DeliveryTimePicker({ onSelect, defaultValue }: Props) {
   const selectedDay = days[selectedDayIdx] ?? days[0];
   const selectedSlots = dailySlots[selectedDayIdx] ?? [];
 
+  // Свайп вниз закрывает sheet. isOpen передаём — хук сбросит offset
+  // когда модалка снова откроется (компонент не размонтируется).
+  const {
+    style: swipeStyle,
+    backdropStyle,
+    handlers: swipeHandlers,
+  } = useSwipeToDismiss({ onDismiss: close, isOpen: open });
+
   return (
     <>
       <button
@@ -209,19 +215,29 @@ export default function DeliveryTimePicker({ onSelect, defaultValue }: Props) {
           >
             <div
               onClick={close}
-              className={`absolute inset-0 bg-black/60 transition-opacity duration-300 ${
-                open ? "opacity-100" : "opacity-0"
-              }`}
+              className="absolute inset-0 bg-black/60"
+              style={
+                open
+                  ? backdropStyle
+                  : { opacity: 0, transition: "opacity 0.3s cubic-bezier(0.32,0.72,0,1)" }
+              }
             />
 
             <div
               role="dialog"
               aria-modal="true"
-              className={`absolute inset-x-0 bottom-0 mx-auto w-full max-w-[380px] bg-[#121430] rounded-t-3xl shadow-2xl overflow-hidden transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
-                open ? "translate-y-0" : "translate-y-full"
-              }`}
+              className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-[380px] bg-[#121430] rounded-t-3xl shadow-2xl overflow-hidden overscroll-contain"
+              style={
+                open
+                  ? swipeStyle
+                  : { transform: "translateY(100%)", transition: "transform 0.3s cubic-bezier(0.32,0.72,0,1)" }
+              }
             >
-              <div className="flex justify-center pt-3 pb-1">
+              {/* Drag handle — основная зона перехвата свайпа вниз */}
+              <div
+                className="flex justify-center pt-3 pb-2 touch-none select-none cursor-grab active:cursor-grabbing"
+                {...swipeHandlers}
+              >
                 <div className="w-10 h-1 rounded-full bg-white/20" />
               </div>
 
