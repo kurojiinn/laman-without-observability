@@ -110,6 +110,9 @@ export type AdminOrder = {
   service_fee: number;
   delivery_fee: number;
   final_total: number;
+  delivery_type?: "now" | "scheduled" | "express" | "" | null;
+  scheduled_at?: string | null;
+  delivery_surcharge?: number;
   items?: AdminOrderItem[];
   created_at: string;
   updated_at: string;

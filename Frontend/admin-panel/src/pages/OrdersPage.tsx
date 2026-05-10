@@ -55,6 +55,12 @@ export function OrdersPage({ user, password }: Props) {
     return o.status === filter;
   });
 
+  // Срочные — наверх. Сохраняем относительный порядок внутри каждой группы.
+  const sorted = [
+    ...filtered.filter((o) => o.delivery_type === "express"),
+    ...filtered.filter((o) => o.delivery_type !== "express"),
+  ];
+
   const activeCount = allOrders.filter((o) => ACTIVE_STATUSES.has(o.status)).length;
 
   return (
@@ -103,14 +109,14 @@ export function OrdersPage({ user, password }: Props) {
             </svg>
             Загрузка...
           </div>
-        ) : filtered.length === 0 ? (
+        ) : sorted.length === 0 ? (
           <div className="px-5 py-16 text-center text-gray-400">
             <p className="text-4xl mb-3">📭</p>
             <p className="text-sm font-medium">Заказов нет</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-50">
-            {filtered.map((order) => (
+            {sorted.map((order) => (
               <OrderRow
                 key={order.id}
                 order={order}
@@ -123,6 +129,37 @@ export function OrdersPage({ user, password }: Props) {
       </Card>
     </div>
   );
+}
+
+function formatScheduledAt(iso: string): string {
+  const d = new Date(iso);
+  const day = d.toLocaleString("ru-RU", { day: "numeric", month: "long" });
+  const time = d.toLocaleString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  return `${day} в ${time}`;
+}
+
+function DeliveryBadge({ order }: { order: AdminOrder }) {
+  if (order.delivery_type === "express") {
+    return (
+      <span
+        className="text-xs font-semibold px-2 py-0.5 rounded-full"
+        style={{ backgroundColor: "#3a1a1a", color: "#ff6b6b" }}
+      >
+        ⚡ Срочный
+      </span>
+    );
+  }
+  if (order.delivery_type === "scheduled" && order.scheduled_at) {
+    return (
+      <span
+        className="text-xs font-semibold px-2 py-0.5 rounded-full"
+        style={{ backgroundColor: "#152A32", color: "#5DCAA5" }}
+      >
+        🕕 {formatScheduledAt(order.scheduled_at)}
+      </span>
+    );
+  }
+  return null;
 }
 
 function OrderRow({
@@ -146,6 +183,7 @@ function OrderRow({
             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusColor}`}>
               {statusLabel}
             </span>
+            <DeliveryBadge order={order} />
             <span className="font-bold text-gray-900">{order.final_total.toLocaleString("ru-RU")} ₽</span>
           </div>
           <div className="mt-1.5 flex gap-4 text-xs text-gray-500 flex-wrap">

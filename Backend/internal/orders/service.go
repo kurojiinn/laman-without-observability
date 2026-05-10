@@ -103,6 +103,9 @@ type CreateOrderRequest struct {
 	PaymentMethod      models.PaymentMethod       `json:"payment_method" binding:"required"`
 	DeliveryAddress    string                     `json:"delivery_address" binding:"required"`
 	OutOfStockAction   *models.OutOfStockAction   `json:"out_of_stock_action,omitempty"`
+	DeliveryType       string                     `json:"delivery_type"`
+	ScheduledAt        *time.Time                 `json:"scheduled_at"`
+	DeliverySurcharge  int                        `json:"delivery_surcharge"`
 }
 
 // CreateOrderItemRequest представляет товар в запросе на создание заказа.
@@ -180,7 +183,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 
 	// Расчет сборов
 	serviceFee := itemsTotal * s.serviceFeePercent / 100
-	finalTotal := itemsTotal + serviceFee + s.deliveryFee
+	finalTotal := itemsTotal + serviceFee + s.deliveryFee + float64(req.DeliverySurcharge)
 
 	// Создание заказа
 	now := time.Now()
@@ -188,21 +191,24 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 		return nil, fmt.Errorf("не удалось определить магазин заказа")
 	}
 	order := &models.Order{
-		ID:               uuid.New(),
-		UserID:           req.UserID,
-		GuestName:        req.GuestName,
-		CustomerPhone:    req.CustomerPhone,
-		Comment:          req.Comment,
-		Status:           models.OrderStatusNew,
-		StoreID:          *storeID,
-		PaymentMethod:    req.PaymentMethod,
-		ItemsTotal:       itemsTotal,
-		ServiceFee:       serviceFee,
-		DeliveryFee:      s.deliveryFee,
-		FinalTotal:       finalTotal,
-		CreatedAt:        now,
-		UpdatedAt:        now,
-		OutOfStockAction: req.OutOfStockAction,
+		ID:                uuid.New(),
+		UserID:            req.UserID,
+		GuestName:         req.GuestName,
+		CustomerPhone:     req.CustomerPhone,
+		Comment:           req.Comment,
+		Status:            models.OrderStatusNew,
+		StoreID:           *storeID,
+		PaymentMethod:     req.PaymentMethod,
+		ItemsTotal:        itemsTotal,
+		ServiceFee:        serviceFee,
+		DeliveryFee:       s.deliveryFee,
+		FinalTotal:        finalTotal,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+		OutOfStockAction:  req.OutOfStockAction,
+		DeliveryType:      req.DeliveryType,
+		ScheduledAt:       req.ScheduledAt,
+		DeliverySurcharge: req.DeliverySurcharge,
 	}
 
 	// Устанавливаем OrderID для товаров до транзакции — он уже известен (uuid.New выше).

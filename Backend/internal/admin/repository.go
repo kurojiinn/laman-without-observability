@@ -105,7 +105,8 @@ func (r *postgresRepository) GetAllOrders(ctx context.Context) ([]models.Order, 
 	var orders []models.Order
 	query := `
 		SELECT id, user_id, customer_phone, comment, status, store_id, payment_method,
-		       items_total, service_fee, delivery_fee, final_total, created_at, updated_at
+		       items_total, service_fee, delivery_fee, final_total,
+		       delivery_type, scheduled_at, delivery_surcharge, created_at, updated_at
 		FROM orders
 		WHERE created_at >= NOW() - INTERVAL '90 days'
 		ORDER BY created_at DESC

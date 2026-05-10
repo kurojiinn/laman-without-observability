@@ -24,10 +24,12 @@ func NewPostgresOrderRepository(db *database.DB) OrderRepository {
 const insertOrderQuery = `
 	INSERT INTO orders (id, user_id, courier_id, guest_name, customer_phone, comment, status,
 	                    store_id, payment_method, items_total, service_fee, delivery_fee, final_total,
-	                    out_of_stock_action, created_at, updated_at)
+	                    out_of_stock_action, delivery_type, scheduled_at, delivery_surcharge,
+	                    created_at, updated_at)
 	VALUES (:id, :user_id, :courier_id, :guest_name, :customer_phone, :comment, :status,
 	        :store_id, :payment_method, :items_total, :service_fee, :delivery_fee, :final_total,
-	        :out_of_stock_action, :created_at, :updated_at)
+	        :out_of_stock_action, :delivery_type, :scheduled_at, :delivery_surcharge,
+	        :created_at, :updated_at)
 `
 
 func (r *postgresOrderRepository) Create(ctx context.Context, order *models.Order) error {
@@ -50,7 +52,8 @@ func (r *postgresOrderRepository) GetByID(ctx context.Context, id uuid.UUID) (*m
 	var order models.Order
 	query := `
 		SELECT id, user_id, courier_id, guest_name, customer_phone, comment, status, store_id, payment_method,
-		       items_total, service_fee, delivery_fee, final_total, out_of_stock_action, created_at, updated_at
+		       items_total, service_fee, delivery_fee, final_total, out_of_stock_action,
+		       delivery_type, scheduled_at, delivery_surcharge, created_at, updated_at
 		FROM orders WHERE id = $1
 	`
 	err := r.db.GetContext(ctx, &order, query, id)
@@ -72,7 +75,8 @@ func (r *postgresOrderRepository) GetByUserID(ctx context.Context, userID uuid.U
 	var orders []models.Order
 	query := `
 		SELECT id, user_id, courier_id, guest_name, customer_phone, comment, status, store_id, payment_method,
-		       items_total, service_fee, delivery_fee, final_total, out_of_stock_action, created_at, updated_at
+		       items_total, service_fee, delivery_fee, final_total, out_of_stock_action,
+		       delivery_type, scheduled_at, delivery_surcharge, created_at, updated_at
 		FROM orders WHERE user_id = $1 ORDER BY created_at DESC
 	`
 	args := []interface{}{userID}

@@ -25,7 +25,8 @@ func (r *postgresPikerRepository) GetOrderByID(ctx context.Context, id uuid.UUID
 		SELECT o.id, o.user_id, o.courier_id,
 		       o.customer_phone, o.comment, o.status, o.store_id, o.payment_method,
 		       o.items_total, o.service_fee, o.delivery_fee, o.final_total,
-		       o.out_of_stock_action, o.created_at, o.updated_at,
+		       o.out_of_stock_action, o.delivery_type, o.scheduled_at, o.delivery_surcharge,
+		       o.created_at, o.updated_at,
 		       o.picker_id, d.address AS delivery_address
 		FROM orders o
 		LEFT JOIN deliveries d ON d.order_id = o.id
@@ -47,7 +48,8 @@ func (r *postgresPikerRepository) GetOrders(ctx context.Context, storeID uuid.UU
 		SELECT o.id, o.user_id, o.courier_id,
 		       o.customer_phone, o.comment, o.status, o.store_id, o.payment_method,
 		       o.items_total, o.service_fee, o.delivery_fee, o.final_total,
-		       o.out_of_stock_action, o.created_at, o.updated_at,
+		       o.out_of_stock_action, o.delivery_type, o.scheduled_at, o.delivery_surcharge,
+		       o.created_at, o.updated_at,
 		       o.picker_id, d.address AS delivery_address
 		FROM orders o
 		LEFT JOIN deliveries d ON d.order_id = o.id

@@ -6,6 +6,7 @@ import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { catalogApi, ordersApi, usersApi, isStoreOpen, resolveImageUrl, type Store, type CreateOrderPayload, type Product, type OutOfStockAction } from "@/lib/api";
 import ProductModal from "@/components/ui/ProductModal";
+import { DeliveryTimePicker, type DeliveryType } from "@/components/ui/DeliveryTimePicker";
 
 type View = "cart" | "checkout" | "success";
 
@@ -44,6 +45,13 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
   // Что делать если товара нет
   const [outOfStockAction, setOutOfStockAction] = useState<OutOfStockAction>("REMOVE");
 
+  // Время доставки
+  const [deliveryTime, setDeliveryTime] = useState<{
+    type: DeliveryType;
+    datetime: Date | null;
+    surcharge: number;
+  }>({ type: "now", datetime: null, surcharge: 0 });
+
   // Шаг 2 — отправка
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState<string | null>(null);
@@ -72,7 +80,7 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
   const deliveryFee = isOysharStore
     ? OYSHAR_DISTRICTS.find((d) => d.label === district)!.fee
     : 200;
-  const finalTotal  = totalPrice + deliveryFee;
+  const finalTotal  = totalPrice + deliveryFee + deliveryTime.surcharge;
 
   // ── Успех ─────────────────────────────────────────────────────────────────
   if (view === "success") {
@@ -134,6 +142,9 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
         comment: comment.trim() || undefined,
         customer_phone: phone.trim() || undefined,
         out_of_stock_action: outOfStockAction,
+        delivery_type: deliveryTime.type,
+        scheduled_at: deliveryTime.datetime?.toISOString() ?? null,
+        delivery_surcharge: deliveryTime.surcharge,
       };
 
       try {
@@ -202,6 +213,12 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
               </span>
               <span>{deliveryFee.toLocaleString("ru-RU")} ₽</span>
             </div>
+            {deliveryTime.type === "express" && (
+              <div className="flex justify-between text-sm font-medium" style={{ color: "#5DCAA5" }}>
+                <span>⚡ Срочная доставка</span>
+                <span>+{deliveryTime.surcharge.toLocaleString("ru-RU")} ₽</span>
+              </div>
+            )}
             <div className="flex justify-between text-sm font-bold text-gray-900 pt-1 border-t border-gray-100">
               <span>Итого</span>
               <span>{finalTotal.toLocaleString("ru-RU")} ₽</span>
@@ -401,6 +418,18 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
           />
         </div>
       </div>
+
+      {/* Время доставки */}
+      <DeliveryTimePicker
+        defaultValue={{ type: "now" }}
+        onSelect={(type, datetime) => {
+          setDeliveryTime({
+            type,
+            datetime: datetime ?? null,
+            surcharge: type === "express" ? 100 : 0,
+          });
+        }}
+      />
 
       {/* Что делать если товара нет */}
       <div className="bg-white rounded-2xl border border-gray-100 p-5">

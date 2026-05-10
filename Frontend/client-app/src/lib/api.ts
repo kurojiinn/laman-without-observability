@@ -330,6 +330,9 @@ export interface CreateOrderPayload {
   comment?: string;
   customer_phone?: string;   // телефон для пикера (и авторизованные, и гости)
   out_of_stock_action?: OutOfStockAction;
+  delivery_type?: "now" | "scheduled" | "express";
+  scheduled_at?: string | null;
+  delivery_surcharge?: number;
 }
 
 export const ordersApi = {

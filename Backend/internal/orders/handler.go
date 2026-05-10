@@ -5,11 +5,31 @@ import (
 	"Laman/internal/middleware"
 	"Laman/internal/models"
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+)
+
+var (
+	errInvalidDeliveryType        = errors.New("invalid delivery_type")
+	errInvalidScheduledAtRequired = errors.New("scheduled_at is required for delivery_type=scheduled")
+	errInvalidScheduledAtTooSoon  = errors.New("scheduled_at must be at least 2 hours from now")
+	errInvalidScheduledAtHour     = errors.New("delivery available only 8:00–22:00")
+)
+
+// Доставка работает в локальной зоне магазина (Грозный, UTC+3).
+// Используем фиксированный offset, чтобы не зависеть от tzdata в Alpine-образе.
+var deliveryZone = time.FixedZone("MSK", 3*3600)
+
+const (
+	deliveryMinHour     = 8                   // первый разрешённый час слота, включительно
+	deliveryMaxHour     = 22                  // первый запрещённый час слота
+	deliveryLeadTime    = 2 * time.Hour       // минимальное "плечо" от now до scheduled_at
+	deliveryExpressFee  = 100                 // фиксированная доплата за срочную доставку
 )
 
 // Handler обрабатывает HTTP запросы для заказов.
@@ -48,10 +68,49 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	}
 }
 
+// normalizeDeliveryTime валидирует поля delivery_type / scheduled_at /
+// delivery_surcharge и приводит их к каноническому виду. Доплату за express
+// проставляем сами — фронт не имеет права её диктовать.
+func normalizeDeliveryTime(req *CreateOrderRequest) error {
+	if req.DeliveryType == "" {
+		req.DeliveryType = models.DeliveryTypeNow
+	}
+
+	switch req.DeliveryType {
+	case models.DeliveryTypeNow:
+		req.ScheduledAt = nil
+		req.DeliverySurcharge = 0
+	case models.DeliveryTypeExpress:
+		req.ScheduledAt = nil
+		req.DeliverySurcharge = deliveryExpressFee
+	case models.DeliveryTypeScheduled:
+		if req.ScheduledAt == nil {
+			return errInvalidScheduledAtRequired
+		}
+		minTime := time.Now().Add(deliveryLeadTime)
+		if req.ScheduledAt.Before(minTime) {
+			return errInvalidScheduledAtTooSoon
+		}
+		hour := req.ScheduledAt.In(deliveryZone).Hour()
+		if hour < deliveryMinHour || hour >= deliveryMaxHour {
+			return errInvalidScheduledAtHour
+		}
+		req.DeliverySurcharge = 0
+	default:
+		return errInvalidDeliveryType
+	}
+	return nil
+}
+
 // CreateOrder обрабатывает POST /orders (доступно гостям и авторизованным).
 func (h *Handler) CreateOrder(c *gin.Context) {
 	var req CreateOrderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := normalizeDeliveryTime(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

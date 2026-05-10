@@ -51,7 +51,17 @@ type Order struct {
 	UpdatedAt     time.Time     `db:"updated_at" json:"updated_at"`
 	PickerID           *uuid.UUID       `db:"picker_id" json:"picker_id,omitempty"`
 	OutOfStockAction   *OutOfStockAction `db:"out_of_stock_action" json:"out_of_stock_action,omitempty"`
+	DeliveryType       string            `db:"delivery_type" json:"delivery_type"`
+	ScheduledAt        *time.Time        `db:"scheduled_at" json:"scheduled_at"`
+	DeliverySurcharge  int               `db:"delivery_surcharge" json:"delivery_surcharge"`
 }
+
+// DeliveryType — тип доставки заказа.
+const (
+	DeliveryTypeNow       = "now"       // привезти сейчас, стандартная доставка
+	DeliveryTypeScheduled = "scheduled" // доставка к указанному времени
+	DeliveryTypeExpress   = "express"   // срочная доставка с доплатой
+)
 
 // OrderItem представляет товар в заказе.
 type OrderItem struct {
