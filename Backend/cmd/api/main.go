@@ -142,7 +142,7 @@ func main() {
 		logger,
 		hub,
 	)
-	pickerService := picker.NewPickerService(pickerRepo, userRepo, cfg.JWT.Secret, 5.0, logger)
+	pickerService := picker.NewPickerService(pickerRepo, userRepo, cfg.JWT.Secret, 5.0, logger, pushService, hub)
 	favoritesService := favorites.NewService(favoritesRepo, logger)
 
 	// Инициализация обработчиков

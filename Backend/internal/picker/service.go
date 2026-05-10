@@ -1,8 +1,11 @@
 package picker
 
 import (
+	"Laman/internal/events"
 	"Laman/internal/models"
+	"Laman/internal/push"
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -18,6 +21,8 @@ type Service struct {
 	jwtSecret         string
 	serviceFeePercent float64
 	logger            *zap.Logger
+	pusher            *push.Service
+	hub               *events.Hub
 }
 
 type UserRepository interface {
@@ -30,6 +35,8 @@ func NewPickerService(pickerRepo PickerRepository,
 	jwtSecret string,
 	serviceFeePercent float64,
 	logger *zap.Logger,
+	pusher *push.Service,
+	hub *events.Hub,
 ) *Service {
 	return &Service{
 		pickerRepo:        pickerRepo,
@@ -37,6 +44,8 @@ func NewPickerService(pickerRepo PickerRepository,
 		jwtSecret:         jwtSecret,
 		serviceFeePercent: serviceFeePercent,
 		logger:            logger,
+		pusher:            pusher,
+		hub:               hub,
 	}
 }
 func (p *Service) Login(ctx context.Context, login LoginRequest) (LoginResponse, error) {
@@ -139,6 +148,27 @@ func (p *Service) UpdateStatus(ctx context.Context, orderID uuid.UUID, pickerID 
 	}
 	if err != nil {
 		return fmt.Errorf("не удалось обновить статус заказа: %w", err)
+	}
+
+	// Уведомляем клиента: push + SSE. Симметрично с orders.OrderService.UpdateOrderStatus —
+	// раньше picker этого не делал и клиент не видел смены статусов от сборщика.
+	if order.UserID != nil {
+		if p.pusher != nil {
+			if n, ok := push.NotificationForOrderStatus(orderID.String(), string(newStatus)); ok {
+				p.pusher.SendToUser(ctx, *order.UserID, n)
+			}
+		}
+		if p.hub != nil {
+			payload := map[string]any{
+				"type":        "order_status_changed",
+				"order_id":    orderID.String(),
+				"status":      string(newStatus),
+				"final_total": order.FinalTotal,
+			}
+			if data, mErr := json.Marshal(payload); mErr == nil {
+				p.hub.Notify(*order.UserID, string(data))
+			}
+		}
 	}
 
 	return nil
