@@ -6,8 +6,8 @@
 Сервис доставки "чего угодно" — продукты, еда, товары из магазинов.
 
 ## Репозитории
-- GitHub: git@github.com:kurojiinn/Laman-App.git (origin)
-- GitLab: git@gitlab.com:Khadzhiev404/laman-backend.git (gitlab)
+- GitHub: git@github.com:kurojiinn/laman-without-observability.git (origin) — основной, push сюда
+- GitLab: git@gitlab.com:Khadzhiev404/laman-backend.git (gitlab) — устарел, ветки расходятся, не пушить
 
 ---
 
@@ -209,11 +209,15 @@ cd Frontend/picker-panel && npm run build
 ```go
 User    { ID, Phone, Role, StoreID, PasswordHash, CreatedAt, UpdatedAt }
 Order   { ID, UserID, PickerID, StoreID, Status, PaymentMethod,
-          ItemsTotal, ServiceFee, DeliveryFee, FinalTotal, ... }
+          ItemsTotal, ServiceFee, DeliveryFee, DeliverySurcharge, FinalTotal,
+          DeliveryType, ScheduledAt, ... }
 Store   { ID, Name, Lat, Lng, ... }
 Product { ID, StoreID, Name, Price, ImageURL, ... }
 OrderItem { ID, OrderID, ProductID, Quantity, Price }
 ```
+
+`DeliveryType` ∈ {`now`, `scheduled`, `express`}. `ScheduledAt` заполнен только для `scheduled`,
+`DeliverySurcharge=100` ставится бэком принудительно для `express` (фронту не доверяем).
 
 > Поле `Order.CourierID` сохранено в БД, но не используется кодом до появления
 > курьерской интеграции.
@@ -242,20 +246,26 @@ GET  /api/v1/auth/me
 
 ### Orders
 ```
-POST /api/v1/orders
-GET  /api/v1/orders/:id
-GET  /api/v1/orders
-POST /api/v1/orders/:id/cancel
+POST /api/v1/orders              — создание (поля: items, delivery_address,
+                                   payment_method, delivery_type, scheduled_at,
+                                   delivery_surcharge, out_of_stock_action, comment)
+GET  /api/v1/orders/:id          — получить заказ (только владелец)
+GET  /api/v1/orders              — список заказов клиента (?limit, ?offset)
+POST /api/v1/orders/:id/cancel   — отмена клиентом
 GET  /api/v1/orders/events       — SSE поток уведомлений клиенту
+                                   (типы: order_status_changed, order_updated)
 ```
 
 ### Picker
 ```
-POST /api/v1/picker/auth/login          — логин (phone + password)
-GET  /api/v1/picker                     — список заказов магазина (без items!)
-GET  /api/v1/picker/orders/:id          — конкретный заказ (с items + image_url)
-PUT  /api/v1/picker/orders/:id/status   — обновить статус
-GET  /api/v1/picker/events              — SSE поток уведомлений
+POST /api/v1/picker/auth/login                     — логин (phone + password)
+GET  /api/v1/picker                                — список заказов магазина (без items!)
+GET  /api/v1/picker/orders/:id                     — конкретный заказ (с items + image_url)
+PUT  /api/v1/picker/orders/:id/status              — обновить статус (шлёт push+SSE клиенту)
+POST /api/v1/picker/orders/:id/items               — добавить товар в заказ
+DELETE /api/v1/picker/orders/:id/items/:itemId     — удалить товар
+GET  /api/v1/picker/analytics/top-products?period= — топ-10 товаров (period=day|week|month)
+GET  /api/v1/picker/events                         — SSE поток уведомлений
 ```
 
 ### Admin
@@ -288,10 +298,30 @@ lint → build → deploy_staging (auto) → deploy_prod (manual)
 - CI/CD GitLab pipeline
 - Панель сборщика — бэкенд + фронт (picker-panel)
 - SSE уведомления для сборщика и клиента (Hub поддерживает несколько пикеров на магазин)
+- Push-уведомления клиенту при смене статуса заказа — работает и от админа, и от пикера
+  (раньше пикер только обновлял БД и клиент ничего не получал)
+- **Время доставки** в чекауте: «привезти сейчас», «указать время», «срочная +100 ₽»
+  - DeliveryTimePicker — bottomsheet с кастомным календарём на 7 дней
+  - Динамические 2-часовые слоты для сегодня (от ceil(now+2ч), шаг 2ч, до start<22),
+    фиксированный 8–22 для будущих дней
+  - Бэк валидирует: 8:00–22:00 в MSK, минимум +2ч, доплата 100 ₽ за express
+    проставляется принудительно (фронту не доверяем)
+  - Picker видит тип доставки в списке и на странице заказа («⚡ Срочная», «🕕 11 мая в 18:00»)
+  - Admin: бейджи в списке заказов, express-заказы сортируются наверх
+- **Гостевая история заказов** — для незарегистрированных вкладка «Заказы / Избранное»
+  с последними 2 заказами из localStorage (`yuher_guest_orders`) + CTA-плашка
+  «Войдите чтобы сохранить историю»
+- **Аналитика для сборщика** — топ-10 продаваемых товаров за день/неделю/месяц
+  (агрегация по имени товара, без отменённых заказов)
 - Swipe-to-dismiss на всех модалках: hook `useSwipeToDismiss` (`src/hooks/useSwipeToDismiss.ts`)
-  - Bottom sheets (ProductModal, PromoModal, CharityModal, ProfileDrawer, AuthModal): drag handle + свайп вниз
+  - Bottom sheets (ProductModal, PromoModal, CharityModal, ProfileDrawer, AuthModal,
+    DeliveryTimePicker): drag handle + свайп вниз
   - Fullscreen (ShowcasePage, RecipesModal, RecipeDetailModal): свайп вниз по хедеру
   - PromoModal и CharityModal переведены на createPortal (fix backdrop не доходил до верха)
+- PWA жёстко запинен по zoom (maximumScale=1, userScalable=false) — нельзя разъехать
+  pinch'ом или двойным тапом
+- Body-scroll-lock через `useBodyScrollLockWhen` (position:fixed) — единственный способ
+  удержать страницу под открытой модалкой в iOS Safari/PWA, простой overflow:hidden там игнорируется
 - Безопасность: аудит и исправление критических уязвимостей (см. ниже)
 
 ## Что в разработке
@@ -386,6 +416,44 @@ GET /orders?page=1&limit=20
   → при изменении кода нужно пересобирать образ: `docker-compose build <service>`
   → для активной разработки лучше запускать `npm run dev` локально
 - После изменения `.env` на сервере: `docker compose up -d api` (пересборка не нужна)
+
+## Время доставки — модель
+
+В таблице `orders` три колонки (миграция `20260510000001_add_delivery_time_to_orders.sql`):
+- `delivery_type VARCHAR(20) NOT NULL DEFAULT 'now'` с CHECK на `('now','scheduled','express')`
+- `scheduled_at TIMESTAMPTZ NULL` — заполнен только для `scheduled`
+- `delivery_surcharge INTEGER NOT NULL DEFAULT 0` — для `express` бэк ставит 100 принудительно
+
+**Backend валидация** (в `internal/orders/handler.go`, функция `normalizeDeliveryTime`):
+- `delivery_type=""` → ставится `now`
+- неизвестный тип → 400 `invalid delivery_type`
+- `scheduled` без `scheduled_at` → 400
+- `scheduled_at < now+2ч` → 400 `scheduled_at must be at least 2 hours from now`
+- час `scheduled_at` (в `Europe/Moscow`) вне `[8;22)` → 400 `delivery available only 8:00–22:00`
+
+**Часовой пояс**: фронт шлёт `toISOString()` в UTC, бэк парсит и конвертирует в MSK (через
+`time.FixedZone("MSK", 3*3600)`) — иначе локальное «20:00» из браузера превращалось бы в «17».
+
+**Расчёт итога**: `final_total = items_total + service_fee + delivery_fee + delivery_surcharge`.
+
+**Фронт (DeliveryTimePicker)** генерирует слоты:
+- Сегодня — от `ceil(now+2ч)` до `start<22`, шаг 2 часа. Если now ≥ 19:30 — слотов нет, чип «Сегодня» дизейблится.
+- Завтра и далее — фиксированный набор 7 окон: 8–10, 10–12, …, 20–22.
+
+---
+
+## Push-уведомления статусов заказа
+
+Push отправляется клиенту при смене статуса из обоих путей:
+- `orders.OrderService.UpdateOrderStatus` (админка) — через `s.pusher.SendToUser`
+- `picker.Service.UpdateStatus` (сборщик) — добавлено симметрично, раньше отсутствовало
+
+Обе ветки также пишут SSE-payload в `events.Hub` для `userID` (тип `order_status_changed`).
+Если у picker'а появится новый код пути обновления статуса — не забыть продублировать обе посылки.
+
+VAPID-ключи в env: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL` — без них push молча no-op'ится.
+
+---
 
 ## OTP / SMS — текущее состояние
 
