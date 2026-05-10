@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 export type DeliveryType = "now" | "scheduled" | "express";
@@ -15,10 +15,20 @@ interface Props {
   defaultValue?: DeliveryTimeValue;
 }
 
-const MIN_HOUR = 8;
-const MAX_HOUR = 22;
 const MIN_LEAD_HOURS = 2;
 const EXPRESS_PRICE = "+100 ₽";
+const DAYS_AHEAD = 7;
+
+// 2-часовые окна, как у курьерских служб. Перекрывают весь рабочий день 8–22.
+const TIME_SLOTS: { start: number; end: number }[] = [
+  { start: 8,  end: 10 },
+  { start: 10, end: 12 },
+  { start: 12, end: 14 },
+  { start: 14, end: 16 },
+  { start: 16, end: 18 },
+  { start: 18, end: 20 },
+  { start: 20, end: 22 },
+];
 
 function pad(n: number) {
   return n < 10 ? `0${n}` : String(n);
@@ -30,6 +40,33 @@ function isSameDay(a: Date, b: Date) {
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate()
   );
+}
+
+function buildDays(now: Date): Date[] {
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  return Array.from({ length: DAYS_AHEAD }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    return d;
+  });
+}
+
+function slotDateOn(day: Date, hour: number): Date {
+  const d = new Date(day);
+  d.setHours(hour, 0, 0, 0);
+  return d;
+}
+
+function dayHasAvailableSlot(day: Date, minTime: Date): boolean {
+  return TIME_SLOTS.some((s) => slotDateOn(day, s.start) >= minTime);
+}
+
+function shortWeekday(d: Date): string {
+  return d
+    .toLocaleString("ru-RU", { weekday: "short" })
+    .replace(".", "")
+    .toUpperCase();
 }
 
 function formatTriggerLabel(v: DeliveryTimeValue): { icon: string; text: string; accent: boolean } {
@@ -51,39 +88,6 @@ function formatTriggerLabel(v: DeliveryTimeValue): { icon: string; text: string;
   return { icon: "🕐", text: "Привезти сейчас", accent: false };
 }
 
-interface QuickSlot {
-  id: string;
-  label: string;
-  date: Date;
-}
-
-function buildQuickSlots(now: Date): QuickSlot[] {
-  const minTime = new Date(now.getTime() + MIN_LEAD_HOURS * 3600 * 1000);
-  const slots: QuickSlot[] = [];
-
-  const today18 = new Date(now);
-  today18.setHours(18, 0, 0, 0);
-  if (today18 > minTime) {
-    slots.push({ id: "today-18", label: "Сегодня 18:00–20:00", date: today18 });
-  }
-
-  const tomorrow9 = new Date(now);
-  tomorrow9.setDate(now.getDate() + 1);
-  tomorrow9.setHours(9, 0, 0, 0);
-  slots.push({ id: "tomorrow-9", label: "Завтра 9:00–11:00", date: tomorrow9 });
-
-  const tomorrow18 = new Date(now);
-  tomorrow18.setDate(now.getDate() + 1);
-  tomorrow18.setHours(18, 0, 0, 0);
-  slots.push({ id: "tomorrow-18", label: "Завтра 18:00–20:00", date: tomorrow18 });
-
-  return slots;
-}
-
-function toLocalInputValue(d: Date): string {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
 export { DeliveryTimePicker };
 
 export default function DeliveryTimePicker({ onSelect, defaultValue }: Props) {
@@ -91,8 +95,7 @@ export default function DeliveryTimePicker({ onSelect, defaultValue }: Props) {
   const [open, setOpen] = useState(false);
   const [screen, setScreen] = useState<"main" | "scheduled">("main");
   const [mounted, setMounted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [selectedDayIdx, setSelectedDayIdx] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -117,11 +120,21 @@ export default function DeliveryTimePicker({ onSelect, defaultValue }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // Каждый раз при открытии sheet'а пересчитываем дни (вдруг зашли вчера, открыли сегодня).
+  const days = useMemo(() => buildDays(new Date()), [open]);
+  const minTime = useMemo(() => new Date(Date.now() + MIN_LEAD_HOURS * 3600 * 1000), [open, screen]);
+
+  // При входе на экран "scheduled" дефолтим на первый день со свободными слотами.
+  useEffect(() => {
+    if (screen !== "scheduled") return;
+    const firstAvailable = days.findIndex((d) => dayHasAvailableSlot(d, minTime));
+    setSelectedDayIdx(firstAvailable < 0 ? 0 : firstAvailable);
+  }, [screen, days, minTime]);
+
   function close() {
     setOpen(false);
     setTimeout(() => {
       setScreen("main");
-      setError(null);
     }, 250);
   }
 
@@ -131,25 +144,8 @@ export default function DeliveryTimePicker({ onSelect, defaultValue }: Props) {
     close();
   }
 
-  function handleNativeChange(e: React.ChangeEvent<HTMLInputElement>) {
-    if (!e.target.value) return;
-    const d = new Date(e.target.value);
-    const now = new Date();
-    const minTime = new Date(now.getTime() + MIN_LEAD_HOURS * 3600 * 1000);
-    if (d < minTime) {
-      setError(`Минимум через ${MIN_LEAD_HOURS} ч от текущего времени`);
-      return;
-    }
-    if (d.getHours() < MIN_HOUR || d.getHours() >= MAX_HOUR) {
-      setError(`Доступные часы: ${MIN_HOUR}:00–${MAX_HOUR}:00`);
-      return;
-    }
-    commit({ type: "scheduled", datetime: d });
-  }
-
   const trigger = formatTriggerLabel(value);
-  const slots = buildQuickSlots(new Date());
-  const minInput = toLocalInputValue(new Date(Date.now() + MIN_LEAD_HOURS * 3600 * 1000));
+  const selectedDay = days[selectedDayIdx] ?? days[0];
 
   return (
     <>
@@ -205,6 +201,7 @@ export default function DeliveryTimePicker({ onSelect, defaultValue }: Props) {
                   className="flex transition-transform duration-300 ease-out"
                   style={{ transform: screen === "main" ? "translateX(0%)" : "translateX(-100%)" }}
                 >
+                  {/* Экран 1 — выбор типа доставки */}
                   <div className="w-full shrink-0 px-5 pb-6">
                     <h3 className="text-base font-bold text-white mb-4 text-center">Когда привезти?</h3>
 
@@ -221,10 +218,7 @@ export default function DeliveryTimePicker({ onSelect, defaultValue }: Props) {
                         title="Указать время"
                         subtitle="Выбрать удобный слот"
                         selected={value.type === "scheduled"}
-                        onClick={() => {
-                          setError(null);
-                          setScreen("scheduled");
-                        }}
+                        onClick={() => setScreen("scheduled")}
                         hasArrow
                       />
                       <Option
@@ -239,14 +233,12 @@ export default function DeliveryTimePicker({ onSelect, defaultValue }: Props) {
                     </div>
                   </div>
 
+                  {/* Экран 2 — кастомный календарь на 7 дней + слоты */}
                   <div className="w-full shrink-0 px-5 pb-6">
                     <div className="flex items-center mb-4">
                       <button
                         type="button"
-                        onClick={() => {
-                          setScreen("main");
-                          setError(null);
-                        }}
+                        onClick={() => setScreen("main")}
                         className="w-9 h-9 -ml-2 flex items-center justify-center text-white/80 hover:text-white"
                         aria-label="Назад"
                       >
@@ -257,49 +249,72 @@ export default function DeliveryTimePicker({ onSelect, defaultValue }: Props) {
                       <h3 className="flex-1 text-center text-base font-bold text-white pr-7">Выбрать время</h3>
                     </div>
 
-                    <p className="text-[11px] uppercase tracking-wider text-[#2e4a5a] mb-2 px-1">Быстрые слоты</p>
-                    <div className="flex flex-col gap-2 mb-4">
-                      {slots.map((s) => (
-                        <button
-                          key={s.id}
-                          type="button"
-                          onClick={() => commit({ type: "scheduled", datetime: s.date })}
-                          className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-[#152A32] hover:bg-[#1b3540] active:scale-[0.99] text-white text-sm font-medium transition-all"
-                        >
-                          <span className="text-base">🕒</span>
-                          <span className="flex-1 text-left">{s.label}</span>
-                        </button>
-                      ))}
+                    {/* Дни — горизонтальный скролл с snap'ом, чтобы любой день был достижим */}
+                    <p className="text-[11px] uppercase tracking-wider text-[#2e4a5a] mb-2 px-1">День</p>
+                    <div className="-mx-5 px-5 mb-5 overflow-x-auto snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      <div className="flex gap-2 pb-1">
+                        {days.map((d, idx) => {
+                          const isSelected = idx === selectedDayIdx;
+                          const isToday = idx === 0;
+                          const isDisabled = !dayHasAvailableSlot(d, minTime);
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              disabled={isDisabled}
+                              onClick={() => setSelectedDayIdx(idx)}
+                              className={`shrink-0 snap-start flex flex-col items-center justify-center w-[60px] h-[68px] rounded-2xl transition-all ${
+                                isSelected
+                                  ? "bg-[#4B5EFC] text-white shadow-[0_4px_16px_-4px_rgba(75,94,252,0.6)]"
+                                  : isDisabled
+                                  ? "bg-[#0d1024] text-white/25 cursor-not-allowed"
+                                  : "bg-[#152A32] text-white/80 hover:bg-[#1b3540] active:scale-[0.97]"
+                              }`}
+                            >
+                              <span
+                                className={`text-[10px] font-semibold uppercase tracking-wider ${
+                                  isSelected
+                                    ? "text-white/85"
+                                    : isToday && !isDisabled
+                                    ? "text-[#5DCAA5]"
+                                    : "text-white/45"
+                                }`}
+                              >
+                                {isToday ? "Сег" : shortWeekday(d)}
+                              </span>
+                              <span className="text-xl font-bold leading-tight mt-1">{d.getDate()}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
-                    {/* Тап на «кнопке» физически попадает в <input> поверх неё —
-                        мобильный браузер штатно открывает нативный picker.
-                        showPicker() в onClick — для desktop Chrome/Edge, где
-                        иначе открывается inline-редактор без календаря. */}
-                    <label className="block relative w-full cursor-pointer">
-                      <span className="block w-full py-3.5 rounded-2xl bg-[#4B5EFC] hover:bg-[#3f51e0] active:scale-[0.99] text-white text-sm font-bold text-center transition-all">
-                        Выбрать другое время
-                      </span>
-                      <input
-                        ref={inputRef}
-                        type="datetime-local"
-                        min={minInput}
-                        onChange={handleNativeChange}
-                        onClick={(e) => {
-                          const el = e.currentTarget;
-                          if (typeof el.showPicker === "function") {
-                            try { el.showPicker(); } catch { /* mobile уже открывает сам */ }
-                          }
-                        }}
-                        aria-label="Выбрать другое время"
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      />
-                    </label>
+                    {/* Слоты выбранного дня */}
+                    <p className="text-[11px] uppercase tracking-wider text-[#2e4a5a] mb-2 px-1">Время</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {TIME_SLOTS.map((s) => {
+                        const slotDate = slotDateOn(selectedDay, s.start);
+                        const isAvailable = slotDate >= minTime;
+                        return (
+                          <button
+                            key={s.start}
+                            type="button"
+                            disabled={!isAvailable}
+                            onClick={() => commit({ type: "scheduled", datetime: slotDate })}
+                            className={`py-3 rounded-2xl text-sm font-semibold transition-all ${
+                              isAvailable
+                                ? "bg-[#152A32] hover:bg-[#1b3540] active:scale-[0.98] text-white"
+                                : "bg-[#0d1024] text-white/25 cursor-not-allowed"
+                            }`}
+                          >
+                            {pad(s.start)}:00 – {pad(s.end)}:00
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                    {error && <p className="mt-3 text-xs text-red-400 text-center">{error}</p>}
-
-                    <p className="mt-3 text-[11px] text-[#2e4a5a] text-center">
-                      Доступные часы: {MIN_HOUR}:00–{MAX_HOUR}:00, минимум через {MIN_LEAD_HOURS} ч
+                    <p className="mt-4 text-[11px] text-[#2e4a5a] text-center">
+                      Минимум через {MIN_LEAD_HOURS} ч от текущего времени
                     </p>
                   </div>
                 </div>
