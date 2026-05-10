@@ -131,22 +131,6 @@ export default function DeliveryTimePicker({ onSelect, defaultValue }: Props) {
     close();
   }
 
-  function openNativePicker() {
-    const el = inputRef.current;
-    if (!el) return;
-    // showPicker — современный API; иначе фокус откроет нативный диалог на мобильных.
-    if (typeof el.showPicker === "function") {
-      try {
-        el.showPicker();
-        return;
-      } catch {
-        // упадём в фолбек
-      }
-    }
-    el.focus();
-    el.click();
-  }
-
   function handleNativeChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.value) return;
     const d = new Date(e.target.value);
@@ -288,29 +272,35 @@ export default function DeliveryTimePicker({ onSelect, defaultValue }: Props) {
                       ))}
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={openNativePicker}
-                      className="w-full py-3.5 rounded-2xl bg-[#4B5EFC] hover:bg-[#3f51e0] active:scale-[0.99] text-white text-sm font-bold transition-all"
-                    >
-                      Выбрать другое время
-                    </button>
+                    {/* Тап на «кнопке» физически попадает в <input> поверх неё —
+                        мобильный браузер штатно открывает нативный picker.
+                        showPicker() в onClick — для desktop Chrome/Edge, где
+                        иначе открывается inline-редактор без календаря. */}
+                    <label className="block relative w-full cursor-pointer">
+                      <span className="block w-full py-3.5 rounded-2xl bg-[#4B5EFC] hover:bg-[#3f51e0] active:scale-[0.99] text-white text-sm font-bold text-center transition-all">
+                        Выбрать другое время
+                      </span>
+                      <input
+                        ref={inputRef}
+                        type="datetime-local"
+                        min={minInput}
+                        onChange={handleNativeChange}
+                        onClick={(e) => {
+                          const el = e.currentTarget;
+                          if (typeof el.showPicker === "function") {
+                            try { el.showPicker(); } catch { /* mobile уже открывает сам */ }
+                          }
+                        }}
+                        aria-label="Выбрать другое время"
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      />
+                    </label>
 
                     {error && <p className="mt-3 text-xs text-red-400 text-center">{error}</p>}
 
                     <p className="mt-3 text-[11px] text-[#2e4a5a] text-center">
                       Доступные часы: {MIN_HOUR}:00–{MAX_HOUR}:00, минимум через {MIN_LEAD_HOURS} ч
                     </p>
-
-                    <input
-                      ref={inputRef}
-                      type="datetime-local"
-                      min={minInput}
-                      onChange={handleNativeChange}
-                      className="sr-only"
-                      tabIndex={-1}
-                      aria-hidden="true"
-                    />
                   </div>
                 </div>
               </div>
