@@ -16,11 +16,16 @@ interface Props {
 }
 
 const MIN_LEAD_HOURS = 2;
+const MIN_HOUR = 8;       // первый разрешённый час старта слота, включительно
+const MAX_HOUR = 22;      // первый запрещённый час старта (совпадает с проверкой бэка)
+const SLOT_STEP_HOURS = 2;
 const EXPRESS_PRICE = "+100 ₽";
 const DAYS_AHEAD = 7;
 
-// 2-часовые окна, как у курьерских служб. Перекрывают весь рабочий день 8–22.
-const TIME_SLOTS: { start: number; end: number }[] = [
+interface TimeSlot { start: number; end: number; }
+
+// Полное расписание для дней, отличных от сегодняшнего.
+const FUTURE_DAY_SLOTS: TimeSlot[] = [
   { start: 8,  end: 10 },
   { start: 10, end: 12 },
   { start: 12, end: 14 },
@@ -58,8 +63,24 @@ function slotDateOn(day: Date, hour: number): Date {
   return d;
 }
 
-function dayHasAvailableSlot(day: Date, minTime: Date): boolean {
-  return TIME_SLOTS.some((s) => slotDateOn(day, s.start) >= minTime);
+// Слоты для конкретного дня. Для сегодня — динамически от ceil(now + 2ч),
+// шаг 2 часа, пока start < 22. Для будущих дней — полное расписание.
+function buildSlotsForDay(day: Date, now: Date): TimeSlot[] {
+  if (!isSameDay(day, now)) return FUTURE_DAY_SLOTS;
+
+  const minTime = new Date(now.getTime() + MIN_LEAD_HOURS * 3600 * 1000);
+  if (!isSameDay(minTime, day)) return [];   // дедлайн уже скакнул на завтра
+
+  // Если minTime — 14:30, начинаем с 15:00. Если ровно 14:00 — с 14:00.
+  let start = minTime.getHours() + (minTime.getMinutes() > 0 || minTime.getSeconds() > 0 ? 1 : 0);
+  start = Math.max(MIN_HOUR, start);
+
+  const slots: TimeSlot[] = [];
+  while (start < MAX_HOUR) {
+    slots.push({ start, end: start + SLOT_STEP_HOURS });
+    start += SLOT_STEP_HOURS;
+  }
+  return slots;
 }
 
 function shortWeekday(d: Date): string {
@@ -120,16 +141,23 @@ export default function DeliveryTimePicker({ onSelect, defaultValue }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Каждый раз при открытии sheet'а пересчитываем дни (вдруг зашли вчера, открыли сегодня).
-  const days = useMemo(() => buildDays(new Date()), [open]);
-  const minTime = useMemo(() => new Date(Date.now() + MIN_LEAD_HOURS * 3600 * 1000), [open, screen]);
+  // Каждый раз при открытии sheet'а пересчитываем дни и слоты на основе свежего now.
+  const { days, dailySlots } = useMemo(() => {
+    const now = new Date();
+    const ds = buildDays(now);
+    return {
+      days: ds,
+      dailySlots: ds.map((d) => buildSlotsForDay(d, now)),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, screen]);
 
   // При входе на экран "scheduled" дефолтим на первый день со свободными слотами.
   useEffect(() => {
     if (screen !== "scheduled") return;
-    const firstAvailable = days.findIndex((d) => dayHasAvailableSlot(d, minTime));
+    const firstAvailable = dailySlots.findIndex((s) => s.length > 0);
     setSelectedDayIdx(firstAvailable < 0 ? 0 : firstAvailable);
-  }, [screen, days, minTime]);
+  }, [screen, dailySlots]);
 
   function close() {
     setOpen(false);
@@ -146,6 +174,7 @@ export default function DeliveryTimePicker({ onSelect, defaultValue }: Props) {
 
   const trigger = formatTriggerLabel(value);
   const selectedDay = days[selectedDayIdx] ?? days[0];
+  const selectedSlots = dailySlots[selectedDayIdx] ?? [];
 
   return (
     <>
@@ -256,7 +285,7 @@ export default function DeliveryTimePicker({ onSelect, defaultValue }: Props) {
                         {days.map((d, idx) => {
                           const isSelected = idx === selectedDayIdx;
                           const isToday = idx === 0;
-                          const isDisabled = !dayHasAvailableSlot(d, minTime);
+                          const isDisabled = dailySlots[idx].length === 0;
                           return (
                             <button
                               key={idx}
@@ -289,29 +318,30 @@ export default function DeliveryTimePicker({ onSelect, defaultValue }: Props) {
                       </div>
                     </div>
 
-                    {/* Слоты выбранного дня */}
+                    {/* Слоты выбранного дня. На сегодня список пересчитывается
+                        от ceil(now+2ч), так что прошедших окон в принципе нет. */}
                     <p className="text-[11px] uppercase tracking-wider text-[#2e4a5a] mb-2 px-1">Время</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {TIME_SLOTS.map((s) => {
-                        const slotDate = slotDateOn(selectedDay, s.start);
-                        const isAvailable = slotDate >= minTime;
-                        return (
-                          <button
-                            key={s.start}
-                            type="button"
-                            disabled={!isAvailable}
-                            onClick={() => commit({ type: "scheduled", datetime: slotDate })}
-                            className={`py-3 rounded-2xl text-sm font-semibold transition-all ${
-                              isAvailable
-                                ? "bg-[#152A32] hover:bg-[#1b3540] active:scale-[0.98] text-white"
-                                : "bg-[#0d1024] text-white/25 cursor-not-allowed"
-                            }`}
-                          >
-                            {pad(s.start)}:00 – {pad(s.end)}:00
-                          </button>
-                        );
-                      })}
-                    </div>
+                    {selectedSlots.length === 0 ? (
+                      <p className="py-6 text-center text-sm text-white/40">
+                        На этот день свободных слотов нет
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        {selectedSlots.map((s) => {
+                          const slotDate = slotDateOn(selectedDay, s.start);
+                          return (
+                            <button
+                              key={s.start}
+                              type="button"
+                              onClick={() => commit({ type: "scheduled", datetime: slotDate })}
+                              className="py-3 rounded-2xl text-sm font-semibold bg-[#152A32] hover:bg-[#1b3540] active:scale-[0.98] text-white transition-all"
+                            >
+                              {pad(s.start)}:00 – {pad(s.end)}:00
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     <p className="mt-4 text-[11px] text-[#2e4a5a] text-center">
                       Минимум через {MIN_LEAD_HOURS} ч от текущего времени
