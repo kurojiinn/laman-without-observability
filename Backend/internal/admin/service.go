@@ -287,3 +287,16 @@ func (s *Service) UpdatePickerStore(ctx context.Context, id uuid.UUID, storeID u
 	}
 	return s.repo.UpdatePickerStore(ctx, id, storeID)
 }
+
+// UpdatePickerPassword меняет пароль сборщика (с bcrypt).
+func (s *Service) UpdatePickerPassword(ctx context.Context, id uuid.UUID, password string) error {
+	password = strings.TrimSpace(password)
+	if len(password) < 6 {
+		return fmt.Errorf("пароль должен быть минимум 6 символов")
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("не удалось хешировать пароль: %w", err)
+	}
+	return s.repo.UpdatePickerPassword(ctx, id, string(hash))
+}

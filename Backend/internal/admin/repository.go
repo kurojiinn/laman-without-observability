@@ -44,6 +44,7 @@ type Repository interface {
 	GetPickers(ctx context.Context) ([]PickerInfo, error)
 	DeletePicker(ctx context.Context, id uuid.UUID) error
 	UpdatePickerStore(ctx context.Context, id uuid.UUID, storeID uuid.UUID) error
+	UpdatePickerPassword(ctx context.Context, id uuid.UUID, passwordHash string) error
 	IsPhoneTaken(ctx context.Context, phone string) (bool, error)
 }
 
@@ -508,6 +509,22 @@ func (r *postgresRepository) UpdatePickerStore(ctx context.Context, id uuid.UUID
 	res, err := r.db.ExecContext(ctx,
 		`UPDATE users SET store_id = $1, updated_at = NOW() WHERE id = $2 AND role = 'PICKER'`,
 		storeID, id,
+	)
+	if err != nil {
+		return err
+	}
+	affected, _ := res.RowsAffected()
+	if affected == 0 {
+		return fmt.Errorf("сборщик не найден")
+	}
+	return nil
+}
+
+// UpdatePickerPassword меняет пароль сборщика (хэш уже посчитан в сервисе).
+func (r *postgresRepository) UpdatePickerPassword(ctx context.Context, id uuid.UUID, passwordHash string) error {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2 AND role = 'PICKER'`,
+		passwordHash, id,
 	)
 	if err != nil {
 		return err

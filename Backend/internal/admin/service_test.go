@@ -126,6 +126,10 @@ func (m *adminRepoMock) UpdatePickerStore(ctx context.Context, id uuid.UUID, sto
 	return nil
 }
 
+func (m *adminRepoMock) UpdatePickerPassword(ctx context.Context, id uuid.UUID, passwordHash string) error {
+	return nil
+}
+
 func (m *adminRepoMock) IsPhoneTaken(ctx context.Context, phone string) (bool, error) {
 	return false, nil
 }

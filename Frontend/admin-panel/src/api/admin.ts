@@ -403,6 +403,17 @@ export const updatePicker = async (
   await createAdminClient(user, password).patch(`/pickers/${id}`, payload);
 };
 
+export const updatePickerPassword = async (
+  user: string,
+  password: string,
+  id: string,
+  newPassword: string
+) => {
+  await createAdminClient(user, password).patch(`/pickers/${id}/password`, {
+    password: newPassword,
+  });
+};
+
 export const deletePicker = async (user: string, password: string, id: string) => {
   await createAdminClient(user, password).delete(`/pickers/${id}`);
 };

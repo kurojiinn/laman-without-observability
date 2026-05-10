@@ -115,6 +115,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.Han
 		admin.GET("/pickers", h.GetPickers)
 		admin.POST("/pickers", h.CreatePicker)
 		admin.PATCH("/pickers/:id", h.UpdatePicker)
+		admin.PATCH("/pickers/:id/password", h.UpdatePickerPassword)
 		admin.DELETE("/pickers/:id", h.DeletePicker)
 		// Фоны типов магазинов
 		if h.storeCatUpdater != nil {
@@ -1162,6 +1163,27 @@ func (h *Handler) UpdatePicker(c *gin.Context) {
 		return
 	}
 	if err := h.service.UpdatePickerStore(c.Request.Context(), id, req.StoreID); err != nil {
+		h.respondError(c, http.StatusBadRequest, err.Error(), "")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// UpdatePickerPassword меняет пароль сборщика.
+func (h *Handler) UpdatePickerPassword(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID", err.Error())
+		return
+	}
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(c, http.StatusBadRequest, "некорректные данные", err.Error())
+		return
+	}
+	if err := h.service.UpdatePickerPassword(c.Request.Context(), id, req.Password); err != nil {
 		h.respondError(c, http.StatusBadRequest, err.Error(), "")
 		return
 	}

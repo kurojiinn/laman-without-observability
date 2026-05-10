@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createPicker, deletePicker, fetchPickers, fetchStores, updatePicker } from "../api/admin";
+import { createPicker, deletePicker, fetchPickers, fetchStores, updatePicker, updatePickerPassword } from "../api/admin";
 import { PageHeader, Card, Btn, Modal, Input, Select } from "../components/Layout";
 import type { Picker } from "../api/admin";
 
@@ -31,6 +31,11 @@ export function PickersPage({ user, password }: Props) {
   const [editTarget, setEditTarget] = useState<Picker | null>(null);
   const [editStoreID, setEditStoreID] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
+
+  const [pwdTarget, setPwdTarget] = useState<Picker | null>(null);
+  const [pwdValue, setPwdValue] = useState("");
+  const [pwdShow, setPwdShow] = useState(false);
+  const [pwdError, setPwdError] = useState<string | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<Picker | null>(null);
 
@@ -86,6 +91,38 @@ export function PickersPage({ user, password }: Props) {
     setEditError(null);
   }
 
+  const pwdMut = useMutation({
+    mutationFn: () => updatePickerPassword(user, password, pwdTarget!.id, pwdValue.trim()),
+    onSuccess: () => {
+      setPwdTarget(null);
+      setPwdValue("");
+      setPwdShow(false);
+      setPwdError(null);
+    },
+    onError: (err: unknown) => {
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        (err instanceof Error ? err.message : "Ошибка");
+      setPwdError(msg);
+    },
+  });
+
+  function openPwd(p: Picker) {
+    setPwdTarget(p);
+    setPwdValue("");
+    setPwdShow(false);
+    setPwdError(null);
+  }
+
+  function submitPwd() {
+    setPwdError(null);
+    if (pwdValue.trim().length < 6) {
+      setPwdError("Пароль минимум 6 символов");
+      return;
+    }
+    pwdMut.mutate();
+  }
+
   function openCreate() {
     setForm({ phone: "", password: "", store_id: storeOptions[0]?.value ?? "" });
     setCreateError(null);
@@ -137,9 +174,12 @@ export function PickersPage({ user, password }: Props) {
                 <p className="text-xs text-gray-400">
                   {new Date(p.created_at).toLocaleDateString("ru-RU")}
                 </p>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Btn variant="ghost" size="sm" onClick={() => openEdit(p)}>
-                    Изменить
+                    Магазин
+                  </Btn>
+                  <Btn variant="secondary" size="sm" onClick={() => openPwd(p)}>
+                    Пароль
                   </Btn>
                   <Btn variant="danger" size="sm" onClick={() => setDeleteTarget(p)}>
                     Удалить
@@ -238,6 +278,56 @@ export function PickersPage({ user, password }: Props) {
               options={storeOptions}
             />
             {editError && <p className="text-xs text-red-500">{editError}</p>}
+          </>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!pwdTarget}
+        onClose={() => setPwdTarget(null)}
+        title="Сменить пароль"
+        footer={
+          <>
+            <Btn variant="ghost" onClick={() => setPwdTarget(null)} className="flex-1 justify-center">
+              Отмена
+            </Btn>
+            <Btn
+              onClick={submitPwd}
+              disabled={pwdMut.isPending}
+              className="flex-1 justify-center"
+            >
+              {pwdMut.isPending ? "Меняем..." : "Сохранить"}
+            </Btn>
+          </>
+        }
+      >
+        {pwdTarget && (
+          <>
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Сборщик</p>
+              <p className="text-sm font-semibold text-gray-900">{pwdTarget.phone}</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Новый пароль</label>
+              <div className="relative">
+                <input
+                  type={pwdShow ? "text" : "password"}
+                  value={pwdValue}
+                  onChange={(e) => setPwdValue(e.target.value)}
+                  placeholder="минимум 6 символов"
+                  className="w-full px-3 py-2 pr-20 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+                  style={{ fontSize: 16 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setPwdShow((s) => !s)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-indigo-500 hover:text-indigo-700 px-2 py-1"
+                >
+                  {pwdShow ? "Скрыть" : "Показать"}
+                </button>
+              </div>
+            </div>
+            {pwdError && <p className="text-xs text-red-500">{pwdError}</p>}
           </>
         )}
       </Modal>
