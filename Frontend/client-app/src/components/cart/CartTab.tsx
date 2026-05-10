@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { catalogApi, ordersApi, usersApi, isStoreOpen, resolveImageUrl, type Store, type CreateOrderPayload, type Product, type OutOfStockAction } from "@/lib/api";
+import { saveGuestOrder } from "@/lib/guestOrders";
 import ProductModal from "@/components/ui/ProductModal";
 import { DeliveryTimePicker, type DeliveryType } from "@/components/ui/DeliveryTimePicker";
 
@@ -149,6 +150,15 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
 
       try {
         const order = await ordersApi.createOrder(payload);
+        // Кешируем последние 2 заказа в localStorage — гостевой вид
+        // FavoritesTab показывает их без обращения к API.
+        saveGuestOrder({
+          id: order.id,
+          created_at: order.created_at ?? new Date().toISOString(),
+          total: order.final_total ?? finalTotal,
+          status: order.status ?? "NEW",
+          store_name: store?.name ?? "Магазин",
+        });
         clear();
         setLastOrderId(order.id);
         setView("success");

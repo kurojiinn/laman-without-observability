@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useCart } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
 
 export type Tab = "home" | "categories" | "favorites" | "cart";
 
@@ -78,9 +79,15 @@ function useCartBounce(totalCount: number): boolean {
 
 export default function TabBar({ active, onChange, isAdmin }: TabBarProps) {
   const { totalCount } = useCart();
+  const { isAuthenticated } = useAuth();
   const bounce = useCartBounce(totalCount);
 
-  const visibleTabs = isAdmin ? TABS.filter((t) => t.id === "home" || t.id === "categories") : TABS;
+  // Для гостей вкладка «Избранное» переименовывается в «Заказы / Избранное» —
+  // там кроме пустой избранки показываем последние заказы из localStorage.
+  const baseTabs = isAdmin ? TABS.filter((t) => t.id === "home" || t.id === "categories") : TABS;
+  const visibleTabs = baseTabs.map((t) =>
+    t.id === "favorites" && !isAuthenticated ? { ...t, label: "Заказы / Избранное" } : t,
+  );
   const colCount = visibleTabs.length;
 
   return (
@@ -113,7 +120,7 @@ export default function TabBar({ active, onChange, isAdmin }: TabBarProps) {
                     </span>
                   )}
                 </div>
-                <span className={`text-[9px] font-medium leading-none ${isActive ? "text-indigo-600" : "text-gray-400"}`}>
+                <span className={`text-[9px] font-medium leading-tight text-center px-0.5 ${isActive ? "text-indigo-600" : "text-gray-400"}`}>
                   {tab.label}
                 </span>
               </button>

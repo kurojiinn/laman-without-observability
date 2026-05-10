@@ -1,11 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { resolveImageUrl, type Product } from "@/lib/api";
+import { readGuestOrders, type GuestOrder } from "@/lib/guestOrders";
 import ProductModal from "@/components/ui/ProductModal";
+
+// Бэкенд оперирует длинным списком статусов; здесь сгруппированы под
+// упрощённые лейблы, согласованные с ТЗ (NEW/CONFIRMED/IN_PROGRESS/...).
+const STATUS_LABELS: Record<string, string> = {
+  NEW: "Новый",
+  CONFIRMED: "Подтверждён",
+  ACCEPTED_BY_PICKER: "Подтверждён",
+  NEEDS_CONFIRMATION: "Требует уточнения",
+  IN_PROGRESS: "Собирается",
+  ASSEMBLING: "Собирается",
+  ASSEMBLED: "Собран",
+  WAITING_COURIER: "Ждёт курьера",
+  COURIER_PICKED_UP: "В пути",
+  DELIVERING: "В пути",
+  DELIVERED: "Доставлен ✓",
+  CANCELLED: "Отменён",
+};
 
 export default function FavoritesTab({ search }: { search: string }) {
   const { isAuthenticated, openAuthModal } = useAuth();
@@ -19,18 +37,7 @@ export default function FavoritesTab({ search }: { search: string }) {
     : favorites;
 
   if (!isAuthenticated) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 text-gray-400">
-        <span className="text-6xl mb-4">🤍</span>
-        <p className="text-base font-medium text-gray-500">Войдите, чтобы видеть избранное</p>
-        <button
-          onClick={openAuthModal}
-          className="mt-4 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors"
-        >
-          Войти
-        </button>
-      </div>
-    );
+    return <GuestView openAuthModal={openAuthModal} />;
   }
 
   if (loading) {
@@ -147,4 +154,88 @@ function pluralize(n: number, one: string, few: string, many: string): string {
   if (mod10 === 1) return one;
   if (mod10 >= 2 && mod10 <= 4) return few;
   return many;
+}
+
+function GuestView({ openAuthModal }: { openAuthModal: () => void }) {
+  const [orders, setOrders] = useState<GuestOrder[]>([]);
+
+  // localStorage недоступен на сервере — читаем после mount.
+  useEffect(() => {
+    setOrders(readGuestOrders());
+  }, []);
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-5">
+      {orders.length > 0 && (
+        <section>
+          <h2 className="text-sm font-semibold text-gray-900 mb-3 px-1">Последние заказы</h2>
+          <div className="space-y-2">
+            {orders.map((o) => <GuestOrderCard key={o.id} order={o} />)}
+          </div>
+        </section>
+      )}
+
+      <section className="flex flex-col items-center py-10 text-gray-400">
+        <span className="text-6xl mb-3">🤍</span>
+        <p className="text-base font-medium text-gray-500">Войдите, чтобы видеть избранное</p>
+        <p className="text-sm text-gray-400 mt-1">Сохраняйте товары и возвращайтесь к ним</p>
+      </section>
+
+      <section className="rounded-2xl p-5" style={{ background: "#121430" }}>
+        <p className="text-sm font-medium text-center mb-3" style={{ color: "#5DCAA5" }}>
+          Войдите чтобы сохранить историю заказов и избранное
+        </p>
+        <button
+          type="button"
+          onClick={openAuthModal}
+          className="w-full py-3 rounded-xl text-white font-semibold text-sm active:scale-[0.99] transition-transform"
+          style={{ background: "#4B5EFC" }}
+        >
+          Войти
+        </button>
+      </section>
+    </div>
+  );
+}
+
+function GuestOrderCard({ order }: { order: GuestOrder }) {
+  const date = new Date(order.created_at);
+  const dateStr = date.toLocaleString("ru-RU", {
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const statusLabel = STATUS_LABELS[order.status] ?? order.status;
+  const isDelivered = order.status === "DELIVERED";
+  const isCancelled = order.status === "CANCELLED";
+
+  return (
+    <div className="rounded-2xl p-4" style={{ background: "#121430" }}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="font-mono text-xs text-white/60">
+          № {order.id.slice(0, 8).toUpperCase()}
+        </span>
+        <span className="font-bold text-white text-sm">
+          {order.total.toLocaleString("ru-RU")} ₽
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-white/60 truncate flex-1 min-w-0">
+          <span className="text-white/80">{order.store_name}</span>
+          <span className="text-white/30 mx-1">·</span>
+          {dateStr}
+        </p>
+        <span
+          className="text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0"
+          style={{
+            background: isDelivered ? "rgba(93,202,165,0.15)" : isCancelled ? "rgba(255,107,107,0.15)" : "#152A32",
+            color: isDelivered ? "#5DCAA5" : isCancelled ? "#ff6b6b" : "rgba(255,255,255,0.7)",
+          }}
+        >
+          {statusLabel}
+        </span>
+      </div>
+    </div>
+  );
 }
