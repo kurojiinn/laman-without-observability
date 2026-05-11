@@ -390,25 +390,25 @@ const WA_LINK = "https://wa.me/79640691596";
 
 const PROMO_BANNERS = [
   {
-    id: "cities",
-    tag: "Расширяемся",
-    headline: "Скоро откроемся\nв вашем городе",
-    sub: "Начали с Ойсхара — идём дальше по республике",
-    emoji: "🗺️",
+    id: "idea",
+    tag: "Поделитесь",
+    headline: "Есть идея? 🎯",
+    sub: "Помогите сделать Yuher лучше — какой магазин добавить, чего не хватает?",
+    emoji: "💡",
     bg: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 55%, #1e40af 100%)",
     dotColor: "#3b82f6",
     chipColor: "bg-blue-500/20 text-blue-200",
-    chips: ["Ойсхар ✓", "Грозный", "Гудермес"],
+    chips: ["Магазины", "Идеи", "Фидбэк"],
     modal: {
-      title: "Скоро в вашем городе", emoji: "🗺️",
+      title: "Есть идея?", emoji: "🎯",
       headerBg: "linear-gradient(135deg, #0f172a, #1e40af)",
       body: [
-        { icon: "📍", title: "Уже работаем", desc: "Ойсхар — первый город Yuher" },
-        { icon: "🚀", title: "Следующие города", desc: "Грозный, Гудермес, Аргун и другие города ЧР" },
-        { icon: "🔔", title: "Узнайте первыми", desc: "Следите за нами в Instagram" },
+        { icon: "🏪", title: "Какой магазин добавить", desc: "Любимое место, до которого долго ездить" },
+        { icon: "💡", title: "Идеи и предложения", desc: "Что добавить или улучшить в сервисе" },
+        { icon: "🐛", title: "Что-то не работает", desc: "Расскажите — починим как можно скорее" },
       ],
-      cta: "Быть в курсе новостей", ctaBg: "linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)",
-      ctaAction: "https://www.instagram.com/yuherexpress", hideCta: false,
+      cta: "Написать в WhatsApp", ctaBg: "#25D366",
+      ctaAction: WA_LINK, hideCta: false,
     },
   },
   {
@@ -500,23 +500,23 @@ function PromoBannerCarousel() {
         <div className="flex transition-transform duration-500 ease-in-out" style={{ transform: `translateX(-${index * 100}%)` }}>
           {PROMO_BANNERS.map((b) => (
             <button key={b.id} onClick={() => { if (!didSwipe.current) setOpenBanner(b); }} className="relative w-full flex-shrink-0 text-left overflow-hidden" style={{ background: b.bg }}>
-              <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/5" />
-              <div className="relative px-5 pt-5 pb-5 flex items-start justify-between gap-4">
+              <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full bg-white/5" />
+              <div className="relative px-4 pt-3 pb-3 flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <span className="inline-block text-[10px] font-bold uppercase tracking-widest text-white/50 mb-2">{b.tag}</span>
-                  <h2 className="text-[18px] font-extrabold text-white leading-snug whitespace-pre-line">{b.headline}</h2>
-                  <p className="text-white/60 text-[11px] mt-1.5 leading-relaxed">{b.sub}</p>
-                  <div className="flex flex-wrap gap-1.5 mt-3">
+                  <span className="inline-block text-[9px] font-bold uppercase tracking-widest text-white/50 mb-1">{b.tag}</span>
+                  <h2 className="text-[14px] font-extrabold text-white leading-snug whitespace-pre-line">{b.headline}</h2>
+                  <p className="text-white/60 text-[10px] mt-1 leading-relaxed">{b.sub}</p>
+                  <div className="flex flex-wrap gap-1 mt-2">
                     {b.chips.slice(0, 3).map((chip) => (
-                      <span key={chip} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${b.chipColor}`}>{chip}</span>
+                      <span key={chip} className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${b.chipColor}`}>{chip}</span>
                     ))}
                   </div>
                 </div>
-                <div className="flex flex-col items-center gap-2 flex-shrink-0 pt-1">
-                  <span className="text-[44px] leading-none">{b.emoji}</span>
-                  <span className="text-white/40 text-[10px] font-medium flex items-center gap-0.5">
+                <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                  <span className="text-[30px] leading-none">{b.emoji}</span>
+                  <span className="text-white/40 text-[9px] font-medium flex items-center gap-0.5">
                     Подробнее
-                    <svg className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor">
+                    <svg className="w-2 h-2" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                     </svg>
                   </span>
@@ -525,7 +525,7 @@ function PromoBannerCarousel() {
             </button>
           ))}
         </div>
-        <div className="flex items-center justify-between px-3 py-2" style={{ background: banner.bg }}>
+        <div className="flex items-center justify-between px-3 py-1.5" style={{ background: banner.bg }}>
           <button onClick={(e) => { e.stopPropagation(); go(-1); }} className="w-7 h-7 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors">
             <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
