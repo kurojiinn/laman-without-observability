@@ -16,6 +16,13 @@
     "react-dom": "19.1.0",
     "sonner": "^2.0.7"
   },
+  "browserslist": [
+    "chrome 90",
+    "edge 90",
+    "firefox 88",
+    "safari 14",
+    "ios_saf 14"
+  ],
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^19",
