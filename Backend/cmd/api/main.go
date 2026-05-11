@@ -163,7 +163,7 @@ func main() {
 	}
 
 	adminRepo := admin.NewPostgresRepository(db)
-	adminService := admin.NewService(adminRepo, logger, pushService)
+	adminService := admin.NewService(adminRepo, logger, pushService).WithCache(redisClient.Client())
 	adminHandler := admin.NewHandler(adminService, logger, minioProvider).WithRecipes(catalogService).WithStoreCategoryUpdater(catalogService).WithScenarios(catalogService)
 	pickerHandler := picker.NewHandler(pickerService, logger, authService, hub, pickerLoginLimiter)
 	favoritesHandler := favorites.NewHandler(favoritesService, authService, logger)

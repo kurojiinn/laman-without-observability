@@ -304,7 +304,7 @@ func (h *Handler) UpdateStoreImage(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, "изображение обязательно", "")
 		return
 	}
-	if err := h.service.repo.UpdateStoreImage(ctx, storeID, imageURL); err != nil {
+	if err := h.service.UpdateStoreImage(ctx, storeID, imageURL); err != nil {
 		h.respondError(c, http.StatusInternalServerError, "не удалось обновить фото", err.Error())
 		return
 	}

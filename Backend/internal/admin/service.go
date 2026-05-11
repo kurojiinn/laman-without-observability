@@ -7,11 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"Laman/internal/cache"
 	"Laman/internal/models"
 	"Laman/internal/observability"
 	"Laman/internal/push"
 
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -21,11 +23,28 @@ type Service struct {
 	repo   Repository
 	logger *zap.Logger
 	pusher *push.Service
+	rdb    *redis.Client // optional: nil = без инвалидации кеша
 }
 
 // NewService создает сервис admin-операций.
 func NewService(repo Repository, logger *zap.Logger, pusher *push.Service) *Service {
 	return &Service{repo: repo, logger: logger, pusher: pusher}
+}
+
+// WithCache подключает Redis-клиент для инвалидации кешей при мутациях.
+// Без него admin-операции работают, но кеш списка магазинов протухнет только по TTL (5 мин).
+func (s *Service) WithCache(rdb *redis.Client) *Service {
+	s.rdb = rdb
+	return s
+}
+
+// invalidateStoresCache сбрасывает кеш списка магазинов в Redis.
+// Вызывается после любой мутации stores, иначе клиенты до 5 минут видят старый список.
+func (s *Service) invalidateStoresCache(ctx context.Context) {
+	if s.rdb == nil {
+		return
+	}
+	cache.InvalidatePattern(ctx, s.rdb, cache.KeyStores+":*")
 }
 
 // GetDashboardStats возвращает сводные метрики.
@@ -43,6 +62,7 @@ func (s *Service) CreateStore(ctx context.Context, req *CreateStoreRequest) (*mo
 	if err := s.repo.CreateStore(ctx, store); err != nil {
 		return nil, err
 	}
+	s.invalidateStoresCache(ctx)
 	return store, nil
 }
 
@@ -72,12 +92,29 @@ func (s *Service) GetAllOrders(ctx context.Context) ([]models.Order, error) {
 
 // UpdateStore обновляет поля магазина.
 func (s *Service) UpdateStore(ctx context.Context, id uuid.UUID, name, address, city, description string, categoryType models.StoreCategoryType) error {
-	return s.repo.UpdateStore(ctx, id, name, address, city, description, categoryType)
+	if err := s.repo.UpdateStore(ctx, id, name, address, city, description, categoryType); err != nil {
+		return err
+	}
+	s.invalidateStoresCache(ctx)
+	return nil
+}
+
+// UpdateStoreImage обновляет фото магазина и сбрасывает кеш.
+func (s *Service) UpdateStoreImage(ctx context.Context, id uuid.UUID, imageURL string) error {
+	if err := s.repo.UpdateStoreImage(ctx, id, imageURL); err != nil {
+		return err
+	}
+	s.invalidateStoresCache(ctx)
+	return nil
 }
 
 // DeleteStore удаляет магазин и связанные товары.
 func (s *Service) DeleteStore(ctx context.Context, id uuid.UUID) error {
-	return s.repo.DeleteStore(ctx, id)
+	if err := s.repo.DeleteStore(ctx, id); err != nil {
+		return err
+	}
+	s.invalidateStoresCache(ctx)
+	return nil
 }
 
 // DeleteProduct удаляет товар по ID.
