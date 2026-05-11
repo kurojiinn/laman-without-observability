@@ -41,6 +41,9 @@ type ProductRepository interface {
 
 	// Update обновляет поля товара.
 	Update(ctx context.Context, id uuid.UUID, name string, price float64, description *string, isAvailable bool) (*models.Product, error)
+
+	// UpdateImage обновляет только image_url товара.
+	UpdateImage(ctx context.Context, id uuid.UUID, imageURL string) (*models.Product, error)
 }
 
 // FeaturedProductRepository определяет доступ к блокам витрины.

@@ -58,6 +58,7 @@ func (h *Handler) RegisterAdminRoutes(router *gin.RouterGroup, authMW gin.Handle
 	products := router.Group("/catalog/products", authMW, adminMW)
 	{
 		products.PATCH("/:id", h.AdminUpdateProduct)
+		products.PATCH("/:id/image", h.AdminUpdateProductImage)
 	}
 	stores := router.Group("/stores", authMW, adminMW)
 	{
@@ -510,6 +511,36 @@ func (h *Handler) AdminUpdateProduct(c *gin.Context) {
 	product, err := h.catalogService.UpdateProduct(c.Request.Context(), id, req.Name, req.Price, req.Description, req.IsAvailable)
 	if err != nil {
 		h.logger.Error("Не удалось обновить товар", zap.String("product_id", id.String()), zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, product)
+}
+
+// AdminUpdateProductImage обрабатывает PATCH /catalog/products/:id/image (только для ADMIN).
+// Принимает multipart/form-data с полем image, сохраняет файл и обновляет image_url товара.
+func (h *Handler) AdminUpdateProductImage(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID товара"})
+		return
+	}
+	if err := c.Request.ParseMultipartForm(20 << 20); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "не удалось разобрать форму"})
+		return
+	}
+	imageURL, err := h.saveUploadedImageCatalog(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if imageURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "файл изображения обязателен"})
+		return
+	}
+	product, err := h.catalogService.UpdateProductImage(c.Request.Context(), id, imageURL)
+	if err != nil {
+		h.logger.Error("Не удалось обновить фото товара", zap.String("product_id", id.String()), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

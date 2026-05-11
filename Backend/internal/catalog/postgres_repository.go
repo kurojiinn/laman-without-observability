@@ -209,6 +209,24 @@ RETURNING id, category_id, subcategory_id, store_id, name, description, image_ur
 	return &product, nil
 }
 
+// UpdateImage обновляет только image_url товара и возвращает свежий товар.
+func (r *postgresProductRepository) UpdateImage(ctx context.Context, id uuid.UUID, imageURL string) (*models.Product, error) {
+	query := `
+UPDATE products
+SET image_url=$1, updated_at=NOW()
+WHERE id=$2
+RETURNING id, category_id, subcategory_id, store_id, name, description, image_url, price, weight, is_available, created_at, updated_at`
+	var product models.Product
+	err := r.db.GetContext(ctx, &product, query, imageURL, id)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("товар не найден")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &product, nil
+}
+
 // postgresStoreRepository реализует StoreRepository используя PostgreSQL.
 type postgresStoreRepository struct {
 	db *database.DB

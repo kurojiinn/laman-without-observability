@@ -373,6 +373,30 @@ export const adminApi = {
     payload: { name: string; price: number; description?: string; is_available: boolean }
   ) => api.patch<Product>(`/v1/catalog/products/${id}`, payload),
 
+  // Загружает новое фото товара. Делает прямой fetch с FormData — обычный
+  // api-обёртка форсит JSON Content-Type, для multipart его нужно опустить,
+  // чтобы браузер выставил с правильным boundary.
+  uploadProductImage: async (id: string, file: File): Promise<Product> => {
+    const form = new FormData();
+    form.append("image", file);
+    const headers: Record<string, string> = {};
+    const token = tokenStore.get();
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(`${getBaseUrl()}/v1/catalog/products/${id}/image`, {
+      method: "PATCH",
+      body: form,
+      credentials: "include",
+      headers,
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(
+        (body as { error?: string } | null)?.error ?? `HTTP ${res.status}`
+      );
+    }
+    return res.json() as Promise<Product>;
+  },
+
   updateStore: (
     id: string,
     payload: { name: string; address: string; description?: string; opens_at?: string; closes_at?: string }

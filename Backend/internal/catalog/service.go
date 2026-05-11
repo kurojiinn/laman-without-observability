@@ -230,6 +230,16 @@ func (s *CatalogService) UpdateProduct(ctx context.Context, id uuid.UUID, name s
 	return product, nil
 }
 
+// UpdateProductImage обновляет только фото товара (только для ADMIN).
+func (s *CatalogService) UpdateProductImage(ctx context.Context, id uuid.UUID, imageURL string) (*models.Product, error) {
+	product, err := s.productRepo.UpdateImage(ctx, id, imageURL)
+	if err != nil {
+		return nil, fmt.Errorf("не удалось обновить фото товара: %w", err)
+	}
+	s.invalidateCatalogCache(ctx)
+	return product, nil
+}
+
 // UpdateStore обновляет поля магазина (только для ADMIN).
 func (s *CatalogService) UpdateStore(ctx context.Context, id uuid.UUID, name string, address string, description *string, opensAt *string, closesAt *string) (*models.Store, error) {
 	store, err := s.storeRepo.Update(ctx, id, name, address, description, opensAt, closesAt)

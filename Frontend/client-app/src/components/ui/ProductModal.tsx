@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
@@ -35,8 +35,22 @@ export default function ProductModal({ product, storeName, onClose, onGoToStore,
   const [editPrice, setEditPrice] = useState(String(product.price));
   const [editDesc, setEditDesc] = useState(product.description ?? "");
   const [editAvailable, setEditAvailable] = useState(product.is_available);
+  const [editImageFile, setEditImageFile] = useState<File | null>(null);
+  const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Превью выбранного файла — освобождаем object URL при размонтировании/смене.
+  useEffect(() => {
+    if (!editImageFile) {
+      setEditImagePreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(editImageFile);
+    setEditImagePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [editImageFile]);
 
   // Close on Escape
   useEffect(() => {
@@ -77,13 +91,21 @@ export default function ProductModal({ product, storeName, onClose, onGoToStore,
     setSaving(true);
     setSaveError(null);
     try {
-      const updated = await adminApi.updateProduct(product.id, {
+      // Текстовые поля и фото — два независимых эндпоинта. Если выбрана новая
+      // картинка, грузим её первой; затем обновляем остальные поля. Используем
+      // результат последнего вызова — он содержит все актуальные значения.
+      let updated = product;
+      if (editImageFile) {
+        updated = await adminApi.uploadProductImage(product.id, editImageFile);
+      }
+      updated = await adminApi.updateProduct(product.id, {
         name: editName.trim(),
         price,
         description: editDesc.trim() || undefined,
         is_available: editAvailable,
       });
       onProductUpdated?.(updated);
+      setEditImageFile(null);
       setEditMode(false);
       onClose();
     } catch (err) {
@@ -114,7 +136,14 @@ export default function ProductModal({ product, storeName, onClose, onGoToStore,
         </div>
         {/* Image — вся зона кратинки тоже работает как drag handle (mobile only) */}
         <div className="relative w-full aspect-square bg-gray-100 sm:touch-auto touch-none select-none" {...swipeHandlers}>
-          {product.image_url ? (
+          {editImagePreview ? (
+            <img
+              src={editImagePreview}
+              alt={product.name}
+              className="w-full h-full object-cover pointer-events-none"
+              draggable={false}
+            />
+          ) : product.image_url ? (
             <img
               src={resolveImageUrl(product.image_url, "full")}
               alt={product.name}
@@ -124,6 +153,33 @@ export default function ProductModal({ product, storeName, onClose, onGoToStore,
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-7xl">🛍️</div>
+          )}
+
+          {/* Admin: кнопка смены фото — поверх картинки в режиме редактирования */}
+          {editMode && isAdmin && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) setEditImageFile(file);
+                  e.target.value = "";
+                }}
+                className="hidden"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute bottom-3 left-3 right-3 py-2.5 bg-black/60 hover:bg-black/75 text-white text-sm font-semibold rounded-xl backdrop-blur-sm flex items-center justify-center gap-2 transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <circle cx="12" cy="13" r="3" />
+                </svg>
+                {editImageFile ? "Заменить фото" : "Загрузить фото"}
+              </button>
+            </>
           )}
 
           {/* Close button */}
@@ -214,7 +270,7 @@ export default function ProductModal({ product, storeName, onClose, onGoToStore,
               {saveError && <p className="text-xs text-red-500">{saveError}</p>}
               <div className="flex gap-2 mt-1">
                 <button
-                  onClick={() => setEditMode(false)}
+                  onClick={() => { setEditMode(false); setEditImageFile(null); }}
                   className="flex-1 py-3 border border-gray-200 text-gray-600 text-sm font-semibold rounded-2xl hover:bg-gray-50 transition-colors"
                 >
                   Отмена
