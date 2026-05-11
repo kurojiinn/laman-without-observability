@@ -161,6 +161,7 @@ func main() {
 	if err != nil {
 		logger.Fatal("Не удалось подключиться к MinIO", zap.Error(err))
 	}
+	catalogHandler.WithStorage(minioProvider)
 
 	adminRepo := admin.NewPostgresRepository(db)
 	adminService := admin.NewService(adminRepo, logger, pushService).WithCache(redisClient.Client())

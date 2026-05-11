@@ -14,6 +14,7 @@ import (
 
 	"Laman/internal/models"
 	"Laman/internal/observability"
+	"Laman/internal/storage"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -31,6 +32,7 @@ type Handler struct {
 	authService    TokenValidator
 	logger         *zap.Logger
 	uploadsBaseURL string
+	storage        storage.Provider // опциональный — для админ-загрузок фото в MinIO
 }
 
 // NewHandler создает новый обработчик каталога.
@@ -50,6 +52,13 @@ func (h *Handler) WithUploadsBaseURL(url string) *Handler {
 // WithAuth добавляет TokenValidator для защищённых эндпоинтов отзывов.
 func (h *Handler) WithAuth(auth TokenValidator) *Handler {
 	h.authService = auth
+	return h
+}
+
+// WithStorage подключает хранилище для админских загрузок фото (MinIO).
+// Без него админ-загрузки фото товара упадут с 500.
+func (h *Handler) WithStorage(s storage.Provider) *Handler {
+	h.storage = s
 	return h
 }
 
@@ -518,18 +527,23 @@ func (h *Handler) AdminUpdateProduct(c *gin.Context) {
 }
 
 // AdminUpdateProductImage обрабатывает PATCH /catalog/products/:id/image (только для ADMIN).
-// Принимает multipart/form-data с полем image, сохраняет файл и обновляет image_url товара.
+// Принимает multipart/form-data с полем image, грузит файл в MinIO и обновляет image_url товара.
 func (h *Handler) AdminUpdateProductImage(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID товара"})
 		return
 	}
+	if h.storage == nil {
+		h.logger.Error("Storage не сконфигурирован — невозможно загрузить фото")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "сервер не настроен для загрузки фото"})
+		return
+	}
 	if err := c.Request.ParseMultipartForm(20 << 20); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "не удалось разобрать форму"})
 		return
 	}
-	imageURL, err := h.saveUploadedImageCatalog(c)
+	imageURL, err := h.uploadImageToMinIO(c.Request.Context(), c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -545,6 +559,69 @@ func (h *Handler) AdminUpdateProductImage(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, product)
+}
+
+// uploadImageToMinIO валидирует и грузит изображение в MinIO, возвращая публичный URL.
+// Аналог admin/handler.saveUploadedImage — нужен здесь, чтобы каталожные админ-эндпоинты
+// не зависели от admin-пакета.
+func (h *Handler) uploadImageToMinIO(ctx context.Context, c *gin.Context) (string, error) {
+	fileHeader, err := c.FormFile("image")
+	if err != nil {
+		return "", nil
+	}
+	f, err := fileHeader.Open()
+	if err != nil {
+		return "", fmt.Errorf("не удалось открыть файл")
+	}
+	defer f.Close()
+
+	header := make([]byte, 12)
+	if _, err := io.ReadFull(f, header); err != nil && err != io.ErrUnexpectedEOF {
+		return "", fmt.Errorf("не удалось прочитать файл")
+	}
+
+	var ext, contentType string
+	for _, t := range allowedMIMETypesCatalog {
+		if len(header) >= len(t.magic) && bytes.Equal(header[:len(t.magic)], t.magic) {
+			if t.ext == ".webp" {
+				if !(len(header) >= 12 && string(header[8:12]) == "WEBP") {
+					continue
+				}
+			}
+			ext = t.ext
+			break
+		}
+	}
+	if ext == "" {
+		return "", fmt.Errorf("разрешены только JPEG, PNG, GIF, WebP")
+	}
+	switch ext {
+	case ".jpg", ".jpeg":
+		contentType = "image/jpeg"
+	case ".png":
+		contentType = "image/png"
+	case ".gif":
+		contentType = "image/gif"
+	case ".webp":
+		contentType = "image/webp"
+	}
+
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return "", fmt.Errorf("не удалось прочитать файл")
+	}
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return "", fmt.Errorf("не удалось прочитать файл")
+	}
+
+	key := uuid.NewString() + ext
+	url, err := h.storage.Upload(ctx, key, contentType, data)
+	if err != nil {
+		h.logger.Error("Загрузка фото товара: ошибка MinIO", zap.Error(err))
+		return "", fmt.Errorf("не удалось сохранить изображение")
+	}
+	h.logger.Info("Фото товара загружено", zap.String("url", url))
+	return url, nil
 }
 
 // AdminUpdateStore обрабатывает PATCH /stores/:id (только для ADMIN)
