@@ -177,23 +177,22 @@ export default function HomeTab({ onOpenStore, onGoToCart, search, activeCity }:
             </ErrorBoundary>
           )}
 
-          {/* ── Благотворительность ── */}
+          {/* ── Благотворительность (пока неактивно — серая заглушка) ── */}
           <button
             onClick={() => setCharityOpen(true)}
-            className="w-full text-left rounded-2xl overflow-hidden relative hover:opacity-95 active:scale-[0.98] transition-all"
-            style={{ background: "linear-gradient(135deg, #92400e 0%, #b45309 40%, #d97706 100%)" }}
+            className="w-full text-left rounded-2xl overflow-hidden relative active:scale-[0.99] transition-all border border-gray-200 bg-gray-100"
           >
-            <div className="absolute -top-4 -right-4 w-20 h-20 rounded-full opacity-10 bg-white" />
-            <div className="relative px-4 py-3 flex items-center gap-3 text-white">
-              <span className="text-2xl flex-shrink-0">🫶</span>
+            <div className="absolute -top-4 -right-4 w-20 h-20 rounded-full opacity-30 bg-gray-200" />
+            <div className="relative px-4 py-3 flex items-center gap-3 text-gray-500">
+              <span className="text-2xl flex-shrink-0 grayscale opacity-70">🫶</span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-bold leading-none">Делимся теплом с теми, кому нужно</p>
-                  <span className="text-[10px] font-semibold bg-white/20 px-1.5 py-0.5 rounded-full flex-shrink-0">Скоро</span>
+                  <p className="text-sm font-bold leading-none text-gray-600">Делимся теплом с теми, кому нужно</p>
+                  <span className="text-[10px] font-semibold bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full flex-shrink-0">Скоро</span>
                 </div>
-                <p className="text-[11px] opacity-65 mt-0.5 truncate">Оставь любую сумму — купим продукты нуждающимся</p>
+                <p className="text-[11px] opacity-80 mt-0.5 truncate">Купим продукты нуждающимся в Чеченской Республике</p>
               </div>
-              <svg className="w-4 h-4 opacity-50 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+              <svg className="w-4 h-4 opacity-40 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
               </svg>
             </div>
@@ -973,43 +972,43 @@ function CharityModal({ onClose }: { onClose: () => void }) {
         <div className="sm:hidden flex justify-center py-2.5 flex-shrink-0 touch-none select-none cursor-grab" {...swipeHandlers}>
           <div className="w-10 h-1 bg-gray-300 rounded-full" />
         </div>
-        <div className="relative flex-shrink-0 px-6 pt-6 pb-5 text-white overflow-hidden rounded-t-3xl sm:touch-auto touch-none select-none" style={{ background: "linear-gradient(135deg, #92400e 0%, #b45309 40%, #d97706 100%)" }} {...swipeHandlers}>
-          <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full opacity-10 bg-white" />
-          <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors z-10">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="white" strokeWidth="2" strokeLinecap="round" /></svg>
+        <div className="relative flex-shrink-0 px-6 pt-6 pb-5 text-gray-700 overflow-hidden rounded-t-3xl sm:touch-auto touch-none select-none bg-gray-100 border-b border-gray-200" {...swipeHandlers}>
+          <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full opacity-40 bg-gray-200" />
+          <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center transition-colors z-10">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="#4b5563" strokeWidth="2" strokeLinecap="round" /></svg>
           </button>
           <div className="relative flex items-center gap-3">
-            <span className="text-4xl">🫶</span>
+            <span className="text-4xl grayscale opacity-70">🫶</span>
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest opacity-60 mb-0.5">Yuher Добро</p>
-              <h2 className="text-xl font-bold leading-tight">Делимся теплом</h2>
+              <p className="text-xs font-bold uppercase tracking-widest opacity-60 mb-0.5">Yuher Добро · скоро</p>
+              <h2 className="text-xl font-bold leading-tight text-gray-800">Делимся теплом</h2>
               <p className="text-xs opacity-75 mt-0.5">Каждый рубль — это чья-то тарелка еды</p>
             </div>
           </div>
         </div>
         <div className="overflow-y-auto overscroll-contain flex-1 px-6 py-4 space-y-3">
-          <p className="text-sm text-gray-600 leading-relaxed">В Грозном, как и в любом городе, есть люди, которым сейчас тяжело. Им не хватает самого необходимого.</p>
+          <p className="text-sm text-gray-600 leading-relaxed">В Чеченской Республике есть люди, которым сейчас тяжело — не хватает самого необходимого. Когда функция запустится, ваши пожертвования пойдут на конкретные покупки в наших магазинах.</p>
           <div className="space-y-2">
             {[
               { icon: "🥖", title: "Еда", desc: "Хлеб, крупы, консервы, молоко" },
               { icon: "🧴", title: "Гигиена", desc: "Мыло, шампунь, зубная паста" },
               { icon: "🧥", title: "Тёплые вещи", desc: "Одежда и одеяла в холода" },
             ].map(({ icon, title, desc }) => (
-              <div key={title} className="flex items-center gap-3 bg-amber-50 rounded-xl px-4 py-3">
-                <span className="text-2xl flex-shrink-0">{icon}</span>
+              <div key={title} className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
+                <span className="text-2xl flex-shrink-0 grayscale opacity-70">{icon}</span>
                 <div>
-                  <p className="text-sm font-semibold text-amber-900">{title}</p>
-                  <p className="text-xs text-amber-700 opacity-80">{desc}</p>
+                  <p className="text-sm font-semibold text-gray-700">{title}</p>
+                  <p className="text-xs text-gray-500">{desc}</p>
                 </div>
               </div>
             ))}
           </div>
         </div>
-        <div className="flex-shrink-0 px-6 pb-6 pt-3 space-y-2 border-t border-amber-50">
-          <button onClick={onClose} className="w-full py-3.5 font-bold rounded-2xl transition-all active:scale-[0.98] text-white" style={{ background: "linear-gradient(135deg, #b45309, #d97706)" }}>
-            Буду рад помочь ❤️
+        <div className="flex-shrink-0 px-6 pb-6 pt-3 space-y-2 border-t border-gray-100">
+          <button disabled className="w-full py-3.5 font-bold rounded-2xl bg-gray-200 text-gray-400 cursor-not-allowed">
+            Скоро будет доступно
           </button>
-          <p className="text-[11px] text-gray-400 text-center">Функция пожертвования появится совсем скоро</p>
+          <p className="text-[11px] text-gray-400 text-center">Готовим запуск — скоро сможете помочь</p>
         </div>
       </div>
       </div>
