@@ -284,6 +284,39 @@ func (s *Service) ImportProducts(ctx context.Context, filePath string, originalN
 		return nil, fmt.Errorf("не удалось загрузить справочники категорий/магазинов")
 	}
 
+	// Кеш: (storeID, нижний_регистр_имя) → subcategory_id. Заполняется лениво:
+	// при первом запросе подкатегория ищется среди уже привязанных к магазину,
+	// иначе создаётся новая.
+	subcategoryCache := make(map[string]uuid.UUID)
+	resolveSubcategory := func(storeID uuid.UUID, name string) (*uuid.UUID, error) {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			return nil, nil
+		}
+		key := storeID.String() + "|" + strings.ToLower(name)
+		if id, ok := subcategoryCache[key]; ok {
+			return &id, nil
+		}
+		existing, err := s.repo.GetStoreSubcategories(ctx, storeID)
+		if err != nil {
+			return nil, fmt.Errorf("не удалось получить подкатегории магазина: %w", err)
+		}
+		for _, sub := range existing {
+			if strings.EqualFold(sub.Name, name) {
+				subcategoryCache[key] = sub.ID
+				id := sub.ID
+				return &id, nil
+			}
+		}
+		created, err := s.repo.CreateStoreSubcategory(ctx, storeID, name)
+		if err != nil {
+			return nil, fmt.Errorf("не удалось создать подкатегорию '%s': %w", name, err)
+		}
+		subcategoryCache[key] = created.ID
+		id := created.ID
+		return &id, nil
+	}
+
 	products := make([]ImportProductRow, 0, len(rows))
 	for _, row := range rows {
 		categoryID, ok := categoryMap[strings.ToLower(row.CategoryName)]
@@ -294,13 +327,18 @@ func (s *Service) ImportProducts(ctx context.Context, filePath string, originalN
 		if !ok {
 			return nil, fmt.Errorf("магазин '%s' не найден (строка %d)", row.StoreName, row.RowNumber)
 		}
+		subID, err := resolveSubcategory(storeID, row.SubcategoryName)
+		if err != nil {
+			return nil, fmt.Errorf("строка %d: %w", row.RowNumber, err)
+		}
 		products = append(products, ImportProductRow{
-			RowNumber:   row.RowNumber,
-			Name:        row.Name,
-			Price:       row.Price,
-			Description: row.Description,
-			CategoryID:  categoryID,
-			StoreID:     storeID,
+			RowNumber:     row.RowNumber,
+			Name:          row.Name,
+			Price:         row.Price,
+			Description:   row.Description,
+			CategoryID:    categoryID,
+			StoreID:       storeID,
+			SubcategoryID: subID,
 		})
 	}
 

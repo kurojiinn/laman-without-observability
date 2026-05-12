@@ -14,22 +14,24 @@ import (
 
 // ImportRawRow описывает сырую строку из файла импорта.
 type ImportRawRow struct {
-	RowNumber    int
-	Name         string
-	Price        float64
-	Description  *string
-	CategoryName string
-	StoreName    string
+	RowNumber       int
+	Name            string
+	Price           float64
+	Description     *string
+	CategoryName    string
+	StoreName       string
+	SubcategoryName string // опционально: магазин-локальная подкатегория
 }
 
 // ImportProductRow — строка, готовая к вставке в БД.
 type ImportProductRow struct {
-	RowNumber   int
-	Name        string
-	Price       float64
-	Description *string
-	CategoryID  uuid.UUID
-	StoreID     uuid.UUID
+	RowNumber     int
+	Name          string
+	Price         float64
+	Description   *string
+	CategoryID    uuid.UUID
+	StoreID       uuid.UUID
+	SubcategoryID *uuid.UUID
 }
 
 // parseImportFile читает Excel/CSV и возвращает подготовленные строки.
@@ -130,6 +132,10 @@ func parseRows(rows [][]string) ([]ImportRawRow, error) {
 		description := strings.TrimSpace(row[2])
 		categoryName := strings.TrimSpace(row[3])
 		storeName := strings.TrimSpace(row[4])
+		var subcategoryName string
+		if len(row) >= 6 {
+			subcategoryName = strings.TrimSpace(row[5])
+		}
 
 		if name == "" || priceRaw == "" || categoryName == "" || storeName == "" {
 			return nil, fmt.Errorf("пустые обязательные поля в строке %d", rowNumber)
@@ -147,12 +153,13 @@ func parseRows(rows [][]string) ([]ImportRawRow, error) {
 		}
 
 		result = append(result, ImportRawRow{
-			RowNumber:    rowNumber,
-			Name:         name,
-			Price:        price,
-			Description:  descPtr,
-			CategoryName: categoryName,
-			StoreName:    storeName,
+			RowNumber:       rowNumber,
+			Name:            name,
+			Price:           price,
+			Description:     descPtr,
+			CategoryName:    categoryName,
+			StoreName:       storeName,
+			SubcategoryName: subcategoryName,
 		})
 	}
 
@@ -165,5 +172,5 @@ func isHeaderRow(row []string) bool {
 		return false
 	}
 	header := strings.ToLower(strings.Join(row, " "))
-	return strings.Contains(header, "название") || strings.Contains(header, "price") || strings.Contains(header, "категория")
+	return strings.Contains(header, "название") || strings.Contains(header, "price") || strings.Contains(header, "категория") || strings.Contains(header, "подкатегория")
 }

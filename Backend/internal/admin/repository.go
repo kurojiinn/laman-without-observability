@@ -375,11 +375,11 @@ func (r *postgresRepository) BulkInsertProducts(ctx context.Context, rows []Impo
 
 	return r.db.WithTx(ctx, func(tx *sqlx.Tx) error {
 		query := `
-			INSERT INTO products (id, category_id, store_id, name, description, price, is_available, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, TRUE, NOW(), NOW())
+			INSERT INTO products (id, category_id, subcategory_id, store_id, name, description, price, is_available, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, NOW(), NOW())
 		`
 		for _, row := range rows {
-			if _, err := tx.ExecContext(ctx, query, uuid.New(), row.CategoryID, row.StoreID, row.Name, row.Description, row.Price); err != nil {
+			if _, err := tx.ExecContext(ctx, query, uuid.New(), row.CategoryID, row.SubcategoryID, row.StoreID, row.Name, row.Description, row.Price); err != nil {
 				return fmt.Errorf("ошибка вставки строки %d: %w", row.RowNumber, err)
 			}
 		}
