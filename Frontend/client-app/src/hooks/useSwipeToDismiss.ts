@@ -42,7 +42,11 @@ export function useSwipeToDismiss({
     startMain.current  = direction === "down" ? e.touches[0].clientY : e.touches[0].clientX;
     startOrtho.current = direction === "down" ? e.touches[0].clientX : e.touches[0].clientY;
     currentOffset.current = 0;
-    gesture.current = null;
+    // Если касание началось внутри элемента с data-no-swipe (горизонтально-скроллящиеся
+    // чипсы категорий, фильтры и т.п.), сразу помечаем жест как "ignore" — он не отнимет
+    // у браузера управление прокруткой и не закроет страницу.
+    const target = e.target as HTMLElement | null;
+    gesture.current = target && target.closest("[data-no-swipe]") ? "ignore" : null;
     setDragging(true);
     setOffset(0);
   }

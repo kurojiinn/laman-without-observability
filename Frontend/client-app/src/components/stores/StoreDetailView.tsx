@@ -353,9 +353,10 @@ export default function StoreDetailView({
 
       {activeTab === "products" && (
         <>
-          {/* Фильтр по подкатегориям */}
+          {/* Фильтр по подкатегориям. data-no-swipe — чтобы горизонтальный скролл
+              чипсов не воспринимался как свайп-выход из магазина. */}
           {subcategories.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 mb-4 -mx-4 px-4">
+            <div data-no-swipe className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 mb-4 -mx-4 px-4">
               {subcategories.map((sc) => (
                 <button
                   key={sc.id}
