@@ -48,6 +48,12 @@ type ScenarioManager interface {
 	DeleteScenario(ctx context.Context, id uuid.UUID) error
 }
 
+// OptionsRouter позволяет внешнему пакету (internal/options) подключить свои
+// admin-роуты к нашей группе под BasicAuth (RegisterRoutes(admin)).
+type OptionsRouter interface {
+	RegisterRoutes(admin *gin.RouterGroup)
+}
+
 // Handler принимает admin-запросы и проксирует их в сервис.
 type Handler struct {
 	service         *Service
@@ -56,6 +62,7 @@ type Handler struct {
 	recipes         RecipeManager
 	storeCatUpdater StoreCategoryImageUpdater
 	scenarios       ScenarioManager
+	optionsRouter   OptionsRouter
 }
 
 // WithRecipes добавляет поддержку управления рецептами.
@@ -73,6 +80,13 @@ func (h *Handler) WithStoreCategoryUpdater(u StoreCategoryImageUpdater) *Handler
 // WithScenarios добавляет поддержку управления сценариями.
 func (h *Handler) WithScenarios(sm ScenarioManager) *Handler {
 	h.scenarios = sm
+	return h
+}
+
+// WithOptionsRouter подключает CRUD опций (product_option_groups/values)
+// к admin-роутеру. Без него endpoints просто не регистрируются.
+func (h *Handler) WithOptionsRouter(r OptionsRouter) *Handler {
+	h.optionsRouter = r
 	return h
 }
 
@@ -146,6 +160,10 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.Han
 			admin.DELETE("/recipes/:id", h.AdminDeleteRecipe)
 			admin.POST("/recipes/:id/products", h.AdminAddRecipeProduct)
 			admin.DELETE("/recipes/:id/products/:product_id", h.AdminRemoveRecipeProduct)
+		}
+		// Опции товара (product_option_groups / values)
+		if h.optionsRouter != nil {
+			h.optionsRouter.RegisterRoutes(admin)
 		}
 	}
 }

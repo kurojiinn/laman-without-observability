@@ -23,6 +23,7 @@ import (
 	"Laman/internal/favorites"
 	"Laman/internal/middleware"
 	"Laman/internal/observability"
+	"Laman/internal/options"
 	"Laman/internal/orders"
 	"Laman/internal/payments"
 	"Laman/internal/push"
@@ -99,6 +100,9 @@ func main() {
 	deliveryRepo := delivery.NewPostgresDeliveryRepository(db)
 	pickerRepo := picker.NewPostgresPikerRepository(db)
 	favoritesRepo := favorites.NewPostgresRepository(db)
+	optionsRepo := options.NewPostgresRepository(db)
+	optionsService := options.NewService(optionsRepo)
+	optionsHandler := options.NewHandler(optionsService)
 
 	hub := events.NewHub()
 	// Инициализация сервисов
@@ -126,7 +130,8 @@ func main() {
 	)
 	userService := users.NewUserService(userRepo)
 	catalogService := catalog.NewCatalogService(categoryRepo, subcategoryRepo, productRepo, storeRepo, reviewRepo, featuredRepo, recipeRepo, scenarioRepo, storeCatMetaRepo).
-		WithCache(redisClient.Client())
+		WithCache(redisClient.Client()).
+		WithOptions(optionsRepo)
 	pushService := push.NewService(db.DB.DB, logger, cfg.VAPID.PublicKey, cfg.VAPID.PrivateKey, cfg.VAPID.Email)
 	orderService := orders.NewOrderService(
 		db,
@@ -141,8 +146,9 @@ func main() {
 		pushService,
 		logger,
 		hub,
-	)
-	pickerService := picker.NewPickerService(pickerRepo, userRepo, cfg.JWT.Secret, 5.0, logger, pushService, hub)
+	).WithOptions(orders.NewOptionsAdapter(optionsRepo))
+	pickerService := picker.NewPickerService(pickerRepo, userRepo, cfg.JWT.Secret, 5.0, logger, pushService, hub).
+		WithOptions(optionsRepo)
 	favoritesService := favorites.NewService(favoritesRepo, logger)
 
 	// Инициализация обработчиков
@@ -165,7 +171,11 @@ func main() {
 
 	adminRepo := admin.NewPostgresRepository(db)
 	adminService := admin.NewService(adminRepo, logger, pushService).WithCache(redisClient.Client())
-	adminHandler := admin.NewHandler(adminService, logger, minioProvider).WithRecipes(catalogService).WithStoreCategoryUpdater(catalogService).WithScenarios(catalogService)
+	adminHandler := admin.NewHandler(adminService, logger, minioProvider).
+		WithRecipes(catalogService).
+		WithStoreCategoryUpdater(catalogService).
+		WithScenarios(catalogService).
+		WithOptionsRouter(optionsHandler)
 	pickerHandler := picker.NewHandler(pickerService, logger, authService, hub, pickerLoginLimiter)
 	favoritesHandler := favorites.NewHandler(favoritesService, authService, logger)
 	pushHandler := push.NewHandler(pushService, authService)

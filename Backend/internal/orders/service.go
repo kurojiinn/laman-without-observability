@@ -26,12 +26,33 @@ type OrderService struct {
 	productRepo       ProductRepository
 	deliveryRepo      DeliveryRepository
 	paymentRepo       PaymentRepository
+	optionsRepo       OptionsRepo // nil = опции отключены
 	notifier          *observability.TelegramNotifier
 	pusher            *push.Service
 	logger            *zap.Logger
 	serviceFeePercent float64
 	deliveryFee       float64
 	hub               *events.Hub
+}
+
+// OptionsRepo — узкий интерфейс над репозиторием опций. Объявлен здесь,
+// чтобы пакет orders не зависел напрямую от internal/options.
+type OptionsRepo interface {
+	GetValuesByIDs(ctx context.Context, ids []uuid.UUID) ([]OptionValueWithGroup, error)
+	CreateOrderItemOptionTx(ctx context.Context, tx *sqlx.Tx, opt *models.OrderItemOption) error
+	GetOptionsForOrderItems(ctx context.Context, orderItemIDs []uuid.UUID) (map[uuid.UUID][]models.OrderItemOption, error)
+}
+
+// OptionValueWithGroup — то же что options.ValueWithGroup, объявлено в этом пакете
+// чтобы избежать кросс-импорта между orders и options.
+type OptionValueWithGroup struct {
+	ValueID    uuid.UUID
+	ValueName  string
+	PriceDelta *float64
+	GroupID    uuid.UUID
+	GroupName  string
+	ProductID  uuid.UUID
+	Kind       string
 }
 
 // ProductRepository определяет интерфейс, необходимый из модуля catalog.
@@ -93,6 +114,13 @@ func NewOrderService(
 	}
 }
 
+// WithOptions подключает работу с опциями товара. Без него заказы создаются как раньше
+// — без snapshot'ов опций (обратно-совместимо со старым фронтом).
+func (s *OrderService) WithOptions(r OptionsRepo) *OrderService {
+	s.optionsRepo = r
+	return s
+}
+
 // CreateOrderRequest представляет запрос на создание заказа.
 type CreateOrderRequest struct {
 	UserID             *uuid.UUID                `json:"user_id"`
@@ -109,9 +137,13 @@ type CreateOrderRequest struct {
 }
 
 // CreateOrderItemRequest представляет товар в запросе на создание заказа.
+// SelectedOptions — список выбранных значений опций (UUID из product_option_values).
+// Бэк сам подгрузит metadata группы/значения и сохранит snapshot в order_item_options;
+// price_delta учтётся в стоимости позиции.
 type CreateOrderItemRequest struct {
-	ProductID uuid.UUID `json:"product_id" binding:"required"`
-	Quantity  int       `json:"quantity" binding:"required,min=1"`
+	ProductID       uuid.UUID   `json:"product_id" binding:"required"`
+	Quantity        int         `json:"quantity" binding:"required,min=1"`
+	SelectedOptions []uuid.UUID `json:"selected_options,omitempty"`
 }
 
 // CreateOrder создает новый заказ с товарами, доставкой и оплатой.
@@ -134,10 +166,32 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 		productMap[product.ID] = product
 	}
 
+	// Батч-загрузка выбранных опций по всем item'ам сразу, чтобы не делать N+1.
+	var optionsIndex map[uuid.UUID]OptionValueWithGroup
+	if s.optionsRepo != nil {
+		var allOptionIDs []uuid.UUID
+		for _, it := range req.Items {
+			allOptionIDs = append(allOptionIDs, it.SelectedOptions...)
+		}
+		if len(allOptionIDs) > 0 {
+			values, err := s.optionsRepo.GetValuesByIDs(ctx, allOptionIDs)
+			if err != nil {
+				return nil, fmt.Errorf("не удалось загрузить опции: %w", err)
+			}
+			optionsIndex = make(map[uuid.UUID]OptionValueWithGroup, len(values))
+			for _, v := range values {
+				optionsIndex[v.ValueID] = v
+			}
+		}
+	}
+
 	// Расчет общей стоимости товаров
 	var itemsTotal float64
 	var totalWeight float64
 	orderItems := make([]models.OrderItem, 0, len(req.Items))
+	// itemOptions[i] — список snapshot'ов опций для orderItems[i]; заполняем параллельно,
+	// чтобы потом записать в БД в той же транзакции, что и сами позиции.
+	itemOptions := make([][]models.OrderItemOption, 0, len(req.Items))
 	itemLines := make([]string, 0, len(req.Items))
 	var storeID *uuid.UUID
 
@@ -161,7 +215,39 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 			return nil, fmt.Errorf("товар недоступен: %s", product.Name)
 		}
 
-		itemTotal := product.Price * float64(itemReq.Quantity)
+		// Применение выбранных опций: цена = базовая + сумма price_delta,
+		// snapshot имён/дельт уходит в order_item_options.
+		unitPrice := product.Price
+		var snapshots []models.OrderItemOption
+		var optionLabels []string
+		for _, optID := range itemReq.SelectedOptions {
+			val, ok := optionsIndex[optID]
+			if !ok {
+				return nil, fmt.Errorf("опция не найдена: %s", optID)
+			}
+			if val.ProductID != product.ID {
+				return nil, fmt.Errorf("опция %s не относится к товару %s", val.ValueName, product.Name)
+			}
+			if val.PriceDelta != nil {
+				unitPrice += *val.PriceDelta
+			}
+			gID := val.GroupID
+			vID := val.ValueID
+			snapshots = append(snapshots, models.OrderItemOption{
+				ID:         uuid.New(),
+				GroupID:    &gID,
+				ValueID:    &vID,
+				GroupName:  val.GroupName,
+				ValueName:  val.ValueName,
+				PriceDelta: val.PriceDelta,
+			})
+			optionLabels = append(optionLabels, fmt.Sprintf("%s: %s", val.GroupName, val.ValueName))
+		}
+		if unitPrice < 0 {
+			unitPrice = 0
+		}
+
+		itemTotal := unitPrice * float64(itemReq.Quantity)
 		itemsTotal += itemTotal
 
 		if product.Weight != nil {
@@ -174,11 +260,16 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 			ProductID: &productID,
 			Name:      product.Name,
 			Quantity:  itemReq.Quantity,
-			Price:     product.Price,
+			Price:     unitPrice,
 			CreatedAt: time.Now(),
 		})
+		itemOptions = append(itemOptions, snapshots)
 
-		itemLines = append(itemLines, fmt.Sprintf("%s ×%d", product.Name, itemReq.Quantity))
+		line := fmt.Sprintf("%s ×%d", product.Name, itemReq.Quantity)
+		if len(optionLabels) > 0 {
+			line += " (" + strings.Join(optionLabels, ", ") + ")"
+		}
+		itemLines = append(itemLines, line)
 	}
 
 	// Расчет сборов
@@ -214,6 +305,11 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 	// Устанавливаем OrderID для товаров до транзакции — он уже известен (uuid.New выше).
 	for i := range orderItems {
 		orderItems[i].OrderID = order.ID
+		// Привязываем snapshot'ы опций к свежесозданному OrderItem.ID.
+		for j := range itemOptions[i] {
+			itemOptions[i][j].OrderItemID = orderItems[i].ID
+		}
+		orderItems[i].Options = itemOptions[i]
 	}
 
 	delivery := &models.Delivery{
@@ -243,6 +339,18 @@ func (s *OrderService) CreateOrder(ctx context.Context, req CreateOrderRequest) 
 		}
 		if err := s.orderItemRepo.CreateBatchTx(ctx, tx, orderItems); err != nil {
 			return fmt.Errorf("позиции заказа: %w", err)
+		}
+		// Сохраняем snapshot выбранных опций. ВНУТРИ транзакции — чтобы при сбое
+		// откатились вместе с позициями (никаких полу-заказов с потерянными опциями).
+		if s.optionsRepo != nil {
+			for i := range orderItems {
+				for j := range itemOptions[i] {
+					opt := itemOptions[i][j]
+					if err := s.optionsRepo.CreateOrderItemOptionTx(ctx, tx, &opt); err != nil {
+						return fmt.Errorf("опции позиции: %w", err)
+					}
+				}
+			}
 		}
 		if err := s.deliveryRepo.CreateTx(ctx, tx, delivery); err != nil {
 			return fmt.Errorf("доставка: %w", err)
@@ -325,6 +433,7 @@ func (s *OrderService) buildItemsText(ctx context.Context, orderID uuid.UUID) st
 	if err != nil || len(items) == 0 {
 		return ""
 	}
+	s.attachItemOptions(ctx, items)
 
 	lines := make([]string, 0, len(items))
 	for _, item := range items {
@@ -332,10 +441,37 @@ func (s *OrderService) buildItemsText(ctx context.Context, orderID uuid.UUID) st
 		if name == "" && item.ProductID != nil {
 			name = item.ProductID.String()[:8]
 		}
-		lines = append(lines, fmt.Sprintf("%s ×%d", name, item.Quantity))
+		line := fmt.Sprintf("%s ×%d", name, item.Quantity)
+		if len(item.Options) > 0 {
+			opts := make([]string, 0, len(item.Options))
+			for _, o := range item.Options {
+				opts = append(opts, fmt.Sprintf("%s: %s", o.GroupName, o.ValueName))
+			}
+			line += " (" + strings.Join(opts, ", ") + ")"
+		}
+		lines = append(lines, line)
 	}
 
 	return strings.Join(lines, ", ")
+}
+
+// attachItemOptions подгружает snapshot опций к каждому item. Безопасно — если
+// optionsRepo не подключён или возникла ошибка, items возвращаются без опций.
+func (s *OrderService) attachItemOptions(ctx context.Context, items []models.OrderItem) {
+	if s.optionsRepo == nil || len(items) == 0 {
+		return
+	}
+	ids := make([]uuid.UUID, len(items))
+	for i, it := range items {
+		ids[i] = it.ID
+	}
+	byItem, err := s.optionsRepo.GetOptionsForOrderItems(ctx, ids)
+	if err != nil {
+		return
+	}
+	for i := range items {
+		items[i].Options = byItem[items[i].ID]
+	}
 }
 
 // GetOrder получает заказ по ID с товарами.
@@ -349,6 +485,7 @@ func (s *OrderService) GetOrder(ctx context.Context, id uuid.UUID) (*models.Orde
 	if err != nil {
 		return nil, fmt.Errorf("не удалось получить товары заказа: %w", err)
 	}
+	s.attachItemOptions(ctx, items)
 
 	return &models.OrderWithItems{
 		Order: *order,

@@ -23,13 +23,17 @@ type UpdateOrderStatusRequest struct {
 }
 
 // PickerOrderItem представляет товар в заказе с названием продукта.
+// Options заполняется сервисом из snapshot'ов order_item_options — чтобы сборщик
+// видел выбор клиента (порция, острота и т.п.) даже если опции в карточке
+// товара потом меняли.
 type PickerOrderItem struct {
-	ID          uuid.UUID  `db:"id" json:"id"`
-	ProductID   *uuid.UUID `db:"product_id" json:"product_id"`
-	ProductName string     `db:"product_name" json:"product_name"`
-	ImageURL    *string    `db:"image_url" json:"image_url"`
-	Quantity    int        `db:"quantity" json:"quantity"`
-	Price       float64    `db:"price" json:"price"`
+	ID          uuid.UUID                `db:"id" json:"id"`
+	ProductID   *uuid.UUID               `db:"product_id" json:"product_id"`
+	ProductName string                   `db:"product_name" json:"product_name"`
+	ImageURL    *string                  `db:"image_url" json:"image_url"`
+	Quantity    int                      `db:"quantity" json:"quantity"`
+	Price       float64                  `db:"price" json:"price"`
+	Options     []models.OrderItemOption `json:"options,omitempty"`
 }
 
 // PickerOrderResponse представляет заказ с товарами для панели сборщика.

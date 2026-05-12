@@ -23,6 +23,19 @@ type Service struct {
 	logger            *zap.Logger
 	pusher            *push.Service
 	hub               *events.Hub
+	optionsRepo       OptionsRepo // nil = опции не подгружаются
+}
+
+// OptionsRepo — узкий интерфейс к опциям, чтобы пакет picker не импортировал
+// internal/options напрямую.
+type OptionsRepo interface {
+	GetOptionsForOrderItems(ctx context.Context, orderItemIDs []uuid.UUID) (map[uuid.UUID][]models.OrderItemOption, error)
+}
+
+// WithOptions подключает подгрузку опций к items пикера.
+func (p *Service) WithOptions(r OptionsRepo) *Service {
+	p.optionsRepo = r
+	return p
 }
 
 type UserRepository interface {
@@ -100,11 +113,29 @@ func (p *Service) GetOrder(ctx context.Context, orderID uuid.UUID, pickerID uuid
 	if err != nil {
 		return nil, fmt.Errorf("не удалось получить товары заказа: %w", err)
 	}
+	p.attachOptions(ctx, items)
 
 	return &PickerOrderResponse{
 		Order: *order,
 		Items: items,
 	}, nil
+}
+
+func (p *Service) attachOptions(ctx context.Context, items []PickerOrderItem) {
+	if p.optionsRepo == nil || len(items) == 0 {
+		return
+	}
+	ids := make([]uuid.UUID, len(items))
+	for i, it := range items {
+		ids[i] = it.ID
+	}
+	byItem, err := p.optionsRepo.GetOptionsForOrderItems(ctx, ids)
+	if err != nil {
+		return
+	}
+	for i := range items {
+		items[i].Options = byItem[items[i].ID]
+	}
 }
 
 func (p *Service) GetOrdersByUserID(ctx context.Context, userID uuid.UUID) ([]models.Order, error) {

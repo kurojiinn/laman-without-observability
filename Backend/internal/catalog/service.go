@@ -23,7 +23,15 @@ type CatalogService struct {
 	recipeRepo          RecipeRepository
 	scenarioRepo        ScenarioRepository
 	storeCatMetaRepo    StoreCategoryMetaRepository
+	optionsRepo         OptionsRepo   // nil = опции не подгружаются
 	rdb                 *redis.Client // optional: nil = без кеширования
+}
+
+// OptionsRepo — минимальный интерфейс к опциям товара. Объявлен здесь,
+// чтобы catalog не зависел от пакета options напрямую (Interface Segregation).
+type OptionsRepo interface {
+	GetGroupsByProduct(ctx context.Context, productID uuid.UUID) ([]models.ProductOptionGroup, error)
+	GetGroupsByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]models.ProductOptionGroup, error)
 }
 
 // TTL для кеша справочников. Подобраны исходя из частоты изменения данных:
@@ -66,6 +74,13 @@ func NewCatalogService(
 // все методы работают напрямую с репозиториями (полезно для тестов).
 func (s *CatalogService) WithCache(rdb *redis.Client) *CatalogService {
 	s.rdb = rdb
+	return s
+}
+
+// WithOptions подключает репозиторий опций товара. Без него GetProduct и
+// списки товаров отдаются без option_groups (обратно-совместимо).
+func (s *CatalogService) WithOptions(r OptionsRepo) *CatalogService {
+	s.optionsRepo = r
 	return s
 }
 
@@ -133,6 +148,7 @@ func (s *CatalogService) GetProductsWithFilters(
 }
 
 // GetStoreProducts получает товары конкретного магазина с пагинацией.
+// Если подключен optionsRepo, к каждому товару прикрепляются option_groups.
 func (s *CatalogService) GetStoreProducts(
 	ctx context.Context,
 	storeID uuid.UUID,
@@ -146,6 +162,7 @@ func (s *CatalogService) GetStoreProducts(
 	if err != nil {
 		return nil, 0, fmt.Errorf("не удалось получить товары магазина: %w", err)
 	}
+	s.attachOptions(ctx, products)
 	return products, total, nil
 }
 
@@ -202,13 +219,38 @@ func (s *CatalogService) GetStore(ctx context.Context, id uuid.UUID) (*models.St
 	return store, nil
 }
 
-// GetProduct получает товар по ID.
+// GetProduct получает товар по ID. Если подключен optionsRepo, дополняет option_groups.
 func (s *CatalogService) GetProduct(ctx context.Context, id uuid.UUID) (*models.Product, error) {
 	product, err := s.productRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось получить товар: %w", err)
 	}
+	if s.optionsRepo != nil {
+		groups, err := s.optionsRepo.GetGroupsByProduct(ctx, product.ID)
+		if err == nil {
+			product.OptionGroups = groups
+		}
+	}
 	return product, nil
+}
+
+// attachOptions добавляет option_groups в каждый product (батчем). Тихий помощник —
+// если опции не подключены или возникла ошибка, продукты возвращаются без них.
+func (s *CatalogService) attachOptions(ctx context.Context, products []models.Product) {
+	if s.optionsRepo == nil || len(products) == 0 {
+		return
+	}
+	ids := make([]uuid.UUID, len(products))
+	for i, p := range products {
+		ids[i] = p.ID
+	}
+	groupsMap, err := s.optionsRepo.GetGroupsByProductIDs(ctx, ids)
+	if err != nil {
+		return
+	}
+	for i := range products {
+		products[i].OptionGroups = groupsMap[products[i].ID]
+	}
 }
 
 // GetReviews возвращает все отзывы для магазина.

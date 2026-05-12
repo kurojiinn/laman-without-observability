@@ -16,6 +16,33 @@ type Category struct {
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
 
+// ProductOptionGroup — настраиваемая группа опций товара (например, "Порция" или "Острота").
+// Kind: "variant" — выбор влияет на цену (значения с price_delta); "flag" — просто метка без цены.
+type ProductOptionGroup struct {
+	ID         uuid.UUID            `db:"id" json:"id"`
+	ProductID  uuid.UUID            `db:"product_id" json:"product_id"`
+	Name       string               `db:"name" json:"name"`
+	Kind       string               `db:"kind" json:"kind"`
+	IsRequired bool                 `db:"is_required" json:"is_required"`
+	Position   int                  `db:"position" json:"position"`
+	CreatedAt  time.Time            `db:"created_at" json:"created_at"`
+	UpdatedAt  time.Time            `db:"updated_at" json:"updated_at"`
+	Values     []ProductOptionValue `json:"values"`
+}
+
+// ProductOptionValue — конкретное значение внутри группы ("6 шт", "Острый").
+// PriceDelta = nil означает, что значение не меняет цену.
+type ProductOptionValue struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	GroupID    uuid.UUID `db:"group_id" json:"group_id"`
+	Name       string    `db:"name" json:"name"`
+	PriceDelta *float64  `db:"price_delta" json:"price_delta,omitempty"`
+	IsDefault  bool      `db:"is_default" json:"is_default"`
+	Position   int       `db:"position" json:"position"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+}
+
 // Product представляет товар в каталоге.
 // CategoryID NULL для магазин-локальных товаров (где категоризация только через SubcategoryID магазина).
 type Product struct {
@@ -31,6 +58,8 @@ type Product struct {
 	IsAvailable   bool       `db:"is_available" json:"is_available"`
 	CreatedAt     time.Time  `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time  `db:"updated_at" json:"updated_at"`
+	// OptionGroups заполняется catalog'ом если есть, иначе пустой.
+	OptionGroups []ProductOptionGroup `json:"option_groups,omitempty"`
 }
 
 // Subcategory представляет подкатегорию товаров.

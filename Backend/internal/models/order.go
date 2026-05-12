@@ -64,14 +64,29 @@ const (
 )
 
 // OrderItem представляет товар в заказе.
+// Options содержит snapshot выбранных клиентом опций (порция, острота и т.п.)
+// — сохраняются в order_item_options, чтобы изменения в карточке товара не ломали историю.
 type OrderItem struct {
-	ID        uuid.UUID  `db:"id" json:"id"`
-	OrderID   uuid.UUID  `db:"order_id" json:"order_id"`
-	ProductID *uuid.UUID `db:"product_id" json:"product_id,omitempty"`
-	Name      string     `db:"product_name" json:"name"`
-	Quantity  int        `db:"quantity" json:"quantity"`
-	Price     float64    `db:"price" json:"price"`
-	CreatedAt time.Time  `db:"created_at" json:"created_at"`
+	ID        uuid.UUID         `db:"id" json:"id"`
+	OrderID   uuid.UUID         `db:"order_id" json:"order_id"`
+	ProductID *uuid.UUID        `db:"product_id" json:"product_id,omitempty"`
+	Name      string            `db:"product_name" json:"name"`
+	Quantity  int               `db:"quantity" json:"quantity"`
+	Price     float64           `db:"price" json:"price"`
+	CreatedAt time.Time         `db:"created_at" json:"created_at"`
+	Options   []OrderItemOption `json:"options,omitempty"`
+}
+
+// OrderItemOption — snapshot выбранной клиентом опции.
+type OrderItemOption struct {
+	ID          uuid.UUID  `db:"id" json:"id"`
+	OrderItemID uuid.UUID  `db:"order_item_id" json:"order_item_id"`
+	GroupID     *uuid.UUID `db:"group_id" json:"group_id,omitempty"`
+	ValueID     *uuid.UUID `db:"value_id" json:"value_id,omitempty"`
+	GroupName   string     `db:"group_name" json:"group_name"`
+	ValueName   string     `db:"value_name" json:"value_name"`
+	PriceDelta  *float64   `db:"price_delta" json:"price_delta,omitempty"`
+	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
 }
 
 // OrderWithItems представляет заказ с его товарами.
