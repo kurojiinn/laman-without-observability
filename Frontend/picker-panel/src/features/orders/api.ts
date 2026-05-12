@@ -2,6 +2,12 @@ import { z } from "zod";
 import { httpRequest } from "../../shared/api/http";
 import type { PickerOrder, OrderStatus } from "../../entities/order/model";
 
+const orderItemOptionSchema = z.object({
+  group_name: z.string(),
+  value_name: z.string(),
+  price_delta: z.number().nullable().optional(),
+});
+
 const orderItemSchema = z.object({
   id: z.string().uuid(),
   product_id: z.string().uuid().nullable().optional(),
@@ -9,6 +15,7 @@ const orderItemSchema = z.object({
   image_url: z.string().nullable().optional(),
   quantity: z.number(),
   price: z.number(),
+  options: z.array(orderItemOptionSchema).nullish().transform((v) => v ?? []),
 });
 
 const orderSchema = z.object({
@@ -72,6 +79,11 @@ function mapOrder(raw: z.infer<typeof orderSchema>): PickerOrder {
       imageUrl: item.image_url ?? null,
       quantity: item.quantity,
       price: item.price,
+      options: (item.options ?? []).map((o) => ({
+        groupName: o.group_name,
+        valueName: o.value_name,
+        priceDelta: o.price_delta ?? null,
+      })),
     })),
   };
 }

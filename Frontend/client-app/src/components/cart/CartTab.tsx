@@ -136,9 +136,11 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
       const payload: CreateOrderPayload = {
         delivery_address: address.trim(),
         payment_method: "CASH",
-        items: items.map(({ product, quantity }) => ({
+        items: items.map(({ product, quantity, selectedOptions }) => ({
           product_id: product.id,
           quantity,
+          // Передаём только value_id'ы — бэк сам подтянет snapshot.
+          selected_options: selectedOptions.length > 0 ? selectedOptions.map((o) => o.value_id) : undefined,
         })),
         comment: comment.trim() || undefined,
         customer_phone: phone.trim() || undefined,
@@ -330,8 +332,10 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
         </div>
 
         <div className="space-y-3">
-          {items.map(({ product, quantity }) => (
-            <div key={product.id} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-4 cursor-pointer" onClick={() => setSelectedProduct(product)}>
+          {items.map((item) => {
+            const { product, quantity, key, unitPrice, selectedOptions } = item;
+            return (
+            <div key={key} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-4 cursor-pointer" onClick={() => setSelectedProduct(product)}>
               <div className="w-14 h-14 bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden flex items-center justify-center">
                 {product.image_url ? (
                   <img src={resolveImageUrl(product.image_url, "thumb")} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
@@ -342,18 +346,23 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
 
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 line-clamp-1">{product.name}</p>
+                {selectedOptions.length > 0 && (
+                  <p className="text-[11px] text-gray-400 mt-0.5 truncate">
+                    {selectedOptions.map((o) => `${o.group_name}: ${o.value_name}`).join(" · ")}
+                  </p>
+                )}
                 <p className="text-sm text-gray-500 mt-0.5">
-                  {product.price.toLocaleString("ru-RU")} ₽ × {quantity}
+                  {unitPrice.toLocaleString("ru-RU")} ₽ × {quantity}
                 </p>
               </div>
 
               <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                <button type="button" onClick={() => updateQuantity(product.id, quantity - 1)}
+                <button type="button" onClick={() => updateQuantity(key, quantity - 1)}
                   className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center text-gray-600 hover:border-indigo-400 hover:text-indigo-600 transition-colors text-sm font-bold">
                   −
                 </button>
                 <span className="w-5 text-center text-sm font-semibold">{quantity}</span>
-                <button type="button" onClick={() => updateQuantity(product.id, quantity + 1)}
+                <button type="button" onClick={() => updateQuantity(key, quantity + 1)}
                   className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center text-gray-600 hover:border-indigo-400 hover:text-indigo-600 transition-colors text-sm font-bold">
                   +
                 </button>
@@ -361,15 +370,16 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
 
               <div className="text-right flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                 <p className="text-sm font-bold text-gray-900">
-                  {(product.price * quantity).toLocaleString("ru-RU")} ₽
+                  {(unitPrice * quantity).toLocaleString("ru-RU")} ₽
                 </p>
-                <button type="button" onClick={() => removeItem(product.id)}
+                <button type="button" onClick={() => removeItem(key)}
                   className="text-xs text-gray-300 hover:text-red-500 transition-colors mt-1">
                   удалить
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

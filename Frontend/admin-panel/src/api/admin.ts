@@ -84,6 +84,72 @@ export const restoreStore = async (user: string, password: string, storeId: stri
   await createAdminClient(user, password).post(`/stores/${storeId}/restore`);
 };
 
+// ─── Опции товара (variant/flag) ──────────────────────────────────────────────
+
+export type OptionValue = {
+  id: string;
+  group_id: string;
+  name: string;
+  price_delta: number | null;
+  is_default: boolean;
+  position: number;
+};
+
+export type OptionGroup = {
+  id: string;
+  product_id: string;
+  name: string;
+  kind: "variant" | "flag";
+  is_required: boolean;
+  position: number;
+  values: OptionValue[];
+};
+
+export const fetchProductOptionGroups = async (
+  user: string,
+  password: string,
+  productId: string
+): Promise<OptionGroup[]> => {
+  const { data } = await createAdminClient(user, password).get<OptionGroup[]>(
+    `/products/${productId}/option-groups`
+  );
+  return data ?? [];
+};
+
+export const createOptionGroup = async (
+  user: string,
+  password: string,
+  productId: string,
+  payload: { name: string; kind: "variant" | "flag"; is_required?: boolean }
+): Promise<OptionGroup> => {
+  const { data } = await createAdminClient(user, password).post<OptionGroup>(
+    `/products/${productId}/option-groups`,
+    payload
+  );
+  return data;
+};
+
+export const deleteOptionGroup = async (user: string, password: string, groupId: string) => {
+  await createAdminClient(user, password).delete(`/option-groups/${groupId}`);
+};
+
+export const createOptionValue = async (
+  user: string,
+  password: string,
+  groupId: string,
+  payload: { name: string; price_delta?: number | null; is_default?: boolean }
+): Promise<OptionValue> => {
+  const { data } = await createAdminClient(user, password).post<OptionValue>(
+    `/option-groups/${groupId}/values`,
+    payload
+  );
+  return data;
+};
+
+export const deleteOptionValue = async (user: string, password: string, valueId: string) => {
+  await createAdminClient(user, password).delete(`/option-values/${valueId}`);
+};
+
 // ─── Store subcategories (магазин-локальные категории) ────────────────────────
 
 export type StoreSubcategory = {

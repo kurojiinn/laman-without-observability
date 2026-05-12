@@ -269,7 +269,18 @@ export function OrderDetailsPage() {
                       <div style={{ width: 56, height: 56, background: "#f0f0f0", borderRadius: 6 }} />
                     )}
                   </td>
-                  <td>{item.productName}</td>
+                  <td>
+                    {item.productName}
+                    {item.options.length > 0 && (
+                      <div style={{ marginTop: 4, fontSize: 12, color: "#6b7280" }}>
+                        {item.options.map((o, idx) => (
+                          <div key={idx}>
+                            <strong>{o.groupName}:</strong> {o.valueName}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </td>
                   <td>{item.quantity}</td>
                   <td>{formatPrice(item.price)}</td>
                   <td>{formatPrice(item.price * item.quantity)}</td>

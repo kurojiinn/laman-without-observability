@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
-import { adminApi, resolveImageUrl, type Product } from "@/lib/api";
+import { adminApi, resolveImageUrl, type Product, type ProductOptionValue } from "@/lib/api";
 import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
@@ -20,13 +20,34 @@ interface Props {
 }
 
 export default function ProductModal({ product, storeName, onClose, onGoToStore, onProductUpdated }: Props) {
-  const { items, addItem, updateQuantity } = useCart();
+  const { addItem, updateQuantity } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
   const { isAuthenticated, openAuthModal, user } = useAuth();
   const isAdmin = user?.role === "ADMIN";
-  const cartItem = items.find((i) => i.product.id === product.id);
+  // В модалке считаем «новый» выбор для добавления — без матча с конкретной линией
+  // корзины (их может быть несколько с разными опциями).
+  const groups = product.option_groups ?? [];
 
-  const [qty, setQty] = useState(cartItem?.quantity ?? 1);
+  // selectedByGroup: groupId → выбранное значение. По умолчанию — is_default или первое.
+  const [selectedByGroup, setSelectedByGroup] = useState<Record<string, ProductOptionValue>>(() => {
+    const initial: Record<string, ProductOptionValue> = {};
+    for (const g of groups) {
+      if (g.values.length === 0) continue;
+      const def = g.values.find((v) => v.is_default) ?? g.values[0];
+      initial[g.id] = def;
+    }
+    return initial;
+  });
+
+  const selectedValues = Object.values(selectedByGroup);
+  const unitPrice = Math.max(
+    0,
+    product.price + selectedValues.reduce((s, v) => s + (v.price_delta ?? 0), 0),
+  );
+  // Required-группы без выбора блокируют добавление.
+  const missingRequired = groups.some((g) => g.is_required && !selectedByGroup[g.id]);
+
+  const [qty, setQty] = useState(1);
   const isFav = isFavorite(product.id);
 
   // Admin edit state
@@ -71,15 +92,19 @@ export default function ProductModal({ product, storeName, onClose, onGoToStore,
   }
 
   function handleAddToCart() {
-    if (cartItem) {
-      updateQuantity(product.id, qty);
-      onClose();
-    } else {
-      const added = addItem(product);
-      if (!added) return;
-      if (qty > 1) updateQuantity(product.id, qty);
-      onClose();
+    if (missingRequired) return;
+    const groupsCtx = groups.map((g) => ({ groupId: g.id, groupName: g.name }));
+    // Добавляем единожды для qty=1, потом подкручиваем количество по той же линии.
+    // addItem возвращает false при конфликте магазинов — тогда выходим.
+    const added = addItem(product, selectedValues, groupsCtx);
+    if (!added) return;
+    if (qty > 1) {
+      // Получаем «свежий» key выбранной линии тем же алгоритмом, что и в CartContext.
+      const sortedIds = selectedValues.map((v) => v.id).sort();
+      const key = [product.id, ...sortedIds].join("|");
+      updateQuantity(key, qty);
     }
+    onClose();
   }
 
   async function handleSaveEdit() {
@@ -115,7 +140,7 @@ export default function ProductModal({ product, storeName, onClose, onGoToStore,
     }
   }
 
-  const totalPrice = product.price * qty;
+  const totalPrice = unitPrice * qty;
 
   if (typeof document === "undefined") return null;
 
@@ -297,10 +322,48 @@ export default function ProductModal({ product, storeName, onClose, onGoToStore,
                 {(onGoToStore ? product.price : totalPrice).toLocaleString("ru-RU")} ₽
                 {!onGoToStore && qty > 1 && (
                   <span className="text-sm font-normal text-gray-400 ml-1.5">
-                    ({product.price.toLocaleString("ru-RU")} ₽ × {qty})
+                    ({unitPrice.toLocaleString("ru-RU")} ₽ × {qty})
                   </span>
                 )}
               </p>
+
+              {/* Опции товара (порция, острота и т.п.) — показываем только если они есть и не ADMIN. */}
+              {!onGoToStore && !isAdmin && groups.length > 0 && (
+                <div className="flex flex-col gap-3 mt-1">
+                  {groups.map((g) => (
+                    <div key={g.id}>
+                      <p className="text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">
+                        {g.name}
+                        {g.is_required && <span className="text-rose-400 ml-1">*</span>}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {g.values.map((v) => {
+                          const isSelected = selectedByGroup[g.id]?.id === v.id;
+                          const deltaLabel =
+                            g.kind === "variant" && v.price_delta != null && v.price_delta !== 0
+                              ? ` ${v.price_delta > 0 ? "+" : ""}${v.price_delta} ₽`
+                              : "";
+                          return (
+                            <button
+                              key={v.id}
+                              type="button"
+                              onClick={() => setSelectedByGroup((prev) => ({ ...prev, [g.id]: v }))}
+                              className={`px-3.5 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                                isSelected
+                                  ? "bg-indigo-600 text-white border-indigo-600"
+                                  : "bg-white text-gray-700 border-gray-200 hover:border-indigo-300"
+                              }`}
+                            >
+                              {v.name}
+                              {deltaLabel && <span className="text-xs ml-1 opacity-80">{deltaLabel}</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Quantity selector — только в контексте магазина и не ADMIN */}
               {!onGoToStore && !isAdmin && (
@@ -348,9 +411,10 @@ export default function ProductModal({ product, storeName, onClose, onGoToStore,
               ) : (
                 <button
                   onClick={handleAddToCart}
-                  className="mt-2 w-full py-4 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-base font-bold rounded-2xl transition-all shadow-sm"
+                  disabled={missingRequired}
+                  className="mt-2 w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed active:scale-[0.98] text-white text-base font-bold rounded-2xl transition-all shadow-sm"
                 >
-                  {cartItem ? "Обновить корзину" : `Добавить в корзину · ${totalPrice.toLocaleString("ru-RU")} ₽`}
+                  {missingRequired ? "Выберите опции" : `Добавить в корзину · ${totalPrice.toLocaleString("ru-RU")} ₽`}
                 </button>
               )}
             </>

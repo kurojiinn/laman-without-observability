@@ -21,6 +21,12 @@ export type OrderStatus =
   | "CANCELLED"
   | "NEEDS_CONFIRMATION";
 
+export type OrderItemOption = {
+  groupName: string;
+  valueName: string;
+  priceDelta: number | null;
+};
+
 export type OrderItem = {
   id: string;
   productId: string | null;
@@ -28,6 +34,7 @@ export type OrderItem = {
   imageUrl: string | null;
   quantity: number;
   price: number;
+  options: OrderItemOption[];
 };
 
 export type DeliveryType = "now" | "scheduled" | "express";

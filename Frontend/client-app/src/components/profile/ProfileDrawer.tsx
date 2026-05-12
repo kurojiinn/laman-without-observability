@@ -605,7 +605,14 @@ function OrderDetailModal({
       for (const item of withProduct) {
         const product = productMap.get(item.product_id!);
         if (product && product.is_available) {
-          newCart.push({ product, quantity: item.quantity });
+          // Повтор заказа не тянет за собой выбранные опции — добавляем как базовую линию.
+          newCart.push({
+            product,
+            quantity: item.quantity,
+            key: product.id,
+            selectedOptions: [],
+            unitPrice: product.price,
+          });
         }
       }
 

@@ -10,11 +10,25 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import type { Product } from "@/lib/api";
+import type { Product, ProductOptionValue } from "@/lib/api";
+
+export interface CartItemOption {
+  group_id: string;
+  group_name: string;
+  value_id: string;
+  value_name: string;
+  price_delta: number | null;
+}
 
 export interface CartItem {
   product: Product;
   quantity: number;
+  /** Уникальный ключ линии: productId + сортированные value_id опций.
+      Один и тот же товар с разными опциями = разные линии. */
+  key: string;
+  selectedOptions: CartItemOption[];
+  /** Базовая цена + сумма price_delta — пересчитывается при добавлении. */
+  unitPrice: number;
 }
 
 interface CartContextValue {
@@ -22,9 +36,9 @@ interface CartContextValue {
   totalCount: number;
   totalPrice: number;
   /** Возвращает true если товар добавлен, false если конфликт магазина */
-  addItem: (product: Product) => boolean;
-  removeItem: (productId: string) => void;
-  updateQuantity: (productId: string, qty: number) => void;
+  addItem: (product: Product, selectedValues?: ProductOptionValue[], groupsContext?: { groupId: string; groupName: string }[]) => boolean;
+  removeItem: (key: string) => void;
+  updateQuantity: (key: string, qty: number) => void;
   clear: () => void;
   /** Заменяет всю корзину (для повтора заказа) */
   replaceItems: (newItems: CartItem[]) => void;
@@ -41,7 +55,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) setItems(JSON.parse(saved));
+      if (!saved) return;
+      const raw = JSON.parse(saved) as Partial<CartItem>[];
+      // Миграция: в старых записях нет key/unitPrice/selectedOptions.
+      const migrated: CartItem[] = raw
+        .filter((i): i is Partial<CartItem> & { product: Product; quantity: number } => !!i.product && typeof i.quantity === "number")
+        .map((i) => ({
+          product: i.product as Product,
+          quantity: i.quantity as number,
+          key: i.key ?? (i.product as Product).id,
+          selectedOptions: i.selectedOptions ?? [],
+          unitPrice: i.unitPrice ?? (i.product as Product).price,
+        }));
+      setItems(migrated);
     } catch {}
   }, []);
 
@@ -49,43 +75,55 @@ export function CartProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }, [items]);
 
-  const addItem = useCallback((product: Product): boolean => {
-    // Если в корзине уже есть товары из другого магазина — отклоняем
+  const addItem = useCallback((
+    product: Product,
+    selectedValues: ProductOptionValue[] = [],
+    groupsContext: { groupId: string; groupName: string }[] = [],
+  ): boolean => {
+    // Если в корзине уже есть товары из другого магазина — отклоняем.
     if (items.length > 0 && items[0].product.store_id !== product.store_id) {
       setPendingProduct(product);
       return false;
     }
 
+    // Композитный ключ: товар + отсортированные value-id опций.
+    // Это позволяет одному product.id жить в разных линиях с разными опциями.
+    const sortedValueIds = [...selectedValues].map((v) => v.id).sort();
+    const key = [product.id, ...sortedValueIds].join("|");
+
+    // Snapshot опций — храним имена группы/значения и delta, чтобы цена/отображение
+    // в корзине не зависели от того, что админ потом изменит на бэке.
+    const groupNameById = new Map(groupsContext.map((g) => [g.groupId, g.groupName]));
+    const options: CartItemOption[] = selectedValues.map((v) => ({
+      group_id: v.group_id,
+      group_name: groupNameById.get(v.group_id) ?? "",
+      value_id: v.id,
+      value_name: v.name,
+      price_delta: v.price_delta,
+    }));
+    const deltaSum = selectedValues.reduce((s, v) => s + (v.price_delta ?? 0), 0);
+    const unitPrice = Math.max(0, product.price + deltaSum);
+
     setItems((prev) => {
-      const existing = prev.find((i) => i.product.id === product.id);
+      const existing = prev.find((i) => i.key === key);
       if (existing) {
-        return prev.map((i) =>
-          i.product.id === product.id
-            ? { ...i, quantity: i.quantity + 1 }
-            : i
-        );
+        return prev.map((i) => (i.key === key ? { ...i, quantity: i.quantity + 1 } : i));
       }
-      return [...prev, { product, quantity: 1 }];
+      return [...prev, { product, quantity: 1, key, selectedOptions: options, unitPrice }];
     });
-    // Короткий тост чтобы пользователь понимал что клик сработал.
-    // duration небольшая, иначе при быстром добавлении нескольких товаров стек заваливает экран.
     toast.success(`${product.name} в корзине`, { duration: 1800 });
     return true;
   }, [items]);
 
-  const removeItem = useCallback((productId: string) => {
-    setItems((prev) => prev.filter((i) => i.product.id !== productId));
+  const removeItem = useCallback((key: string) => {
+    setItems((prev) => prev.filter((i) => i.key !== key));
   }, []);
 
-  const updateQuantity = useCallback((productId: string, qty: number) => {
+  const updateQuantity = useCallback((key: string, qty: number) => {
     if (qty <= 0) {
-      setItems((prev) => prev.filter((i) => i.product.id !== productId));
+      setItems((prev) => prev.filter((i) => i.key !== key));
     } else {
-      setItems((prev) =>
-        prev.map((i) =>
-          i.product.id === productId ? { ...i, quantity: qty } : i
-        )
-      );
+      setItems((prev) => prev.map((i) => (i.key === key ? { ...i, quantity: qty } : i)));
     }
   }, []);
 
@@ -96,8 +134,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const totalCount = items.reduce((s, i) => s + i.quantity, 0);
+  // unitPrice уже учитывает опции; для старых линий из localStorage fallback на product.price.
   const totalPrice = items.reduce(
-    (s, i) => s + i.product.price * i.quantity,
+    (s, i) => s + (i.unitPrice ?? i.product.price) * i.quantity,
     0
   );
 
@@ -112,7 +151,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
         <StoreConflictModal
           onClose={() => setPendingProduct(null)}
           onClearCart={() => {
-            setItems([{ product: pendingProduct, quantity: 1 }]);
+            setItems([{
+              product: pendingProduct,
+              quantity: 1,
+              key: pendingProduct.id,
+              selectedOptions: [],
+              unitPrice: pendingProduct.price,
+            }]);
             setPendingProduct(null);
           }}
         />

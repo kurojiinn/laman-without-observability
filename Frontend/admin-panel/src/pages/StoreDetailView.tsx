@@ -13,6 +13,7 @@ import {
 } from "../api/admin";
 import type { StoreSubcategory } from "../api/admin";
 import { PageHeader, Card, Btn, Modal, Input, Select, ImageUploadZone } from "../components/Layout";
+import { ProductOptionsEditor } from "../components/ProductOptionsEditor";
 import type { Product, Store, StoreCategoryType } from "../types";
 import { STORE_CATEGORY_LABELS } from "../types";
 
@@ -530,6 +531,19 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
           <label htmlFor="store-detail-edit-avail" className="text-sm text-gray-600">Доступен к продаже</label>
         </div>
         {updateProductMut.isError && <p className="text-xs text-red-500">Ошибка сохранения</p>}
+
+        {/* Опции товара — становятся доступны только после сохранения базовой карточки. */}
+        {editProduct && (
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <p className="text-sm font-semibold text-gray-900 mb-2">Опции товара</p>
+            <ProductOptionsEditor
+              user={user}
+              password={password}
+              productId={editProduct.id}
+              basePrice={editProductData.price}
+            />
+          </div>
+        )}
       </Modal>
 
       {/* ── Модалка: удалить товар ── */}

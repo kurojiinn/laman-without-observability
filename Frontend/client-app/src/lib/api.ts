@@ -125,6 +125,25 @@ export interface Subcategory {
   name: string;
 }
 
+export interface ProductOptionValue {
+  id: string;
+  group_id: string;
+  name: string;
+  price_delta: number | null;
+  is_default: boolean;
+  position: number;
+}
+
+export interface ProductOptionGroup {
+  id: string;
+  product_id: string;
+  name: string;
+  kind: "variant" | "flag";
+  is_required: boolean;
+  position: number;
+  values: ProductOptionValue[];
+}
+
 export interface Product {
   id: string;
   category_id: string;
@@ -138,6 +157,7 @@ export interface Product {
   is_available: boolean;
   created_at: string;
   updated_at: string;
+  option_groups?: ProductOptionGroup[];
 }
 
 export interface Store {
@@ -326,7 +346,7 @@ export type OutOfStockAction = "REMOVE" | "REPLACE" | "CALL";
 export interface CreateOrderPayload {
   delivery_address: string;
   payment_method: "CASH" | "TRANSFER";
-  items: { product_id: string; quantity: number }[];
+  items: { product_id: string; quantity: number; selected_options?: string[] }[];
   comment?: string;
   customer_phone?: string;   // телефон для пикера (и авторизованные, и гости)
   out_of_stock_action?: OutOfStockAction;
