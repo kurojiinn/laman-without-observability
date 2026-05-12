@@ -65,22 +65,6 @@ export function StoresPage({ user, password }: Props) {
     queryFn: () => fetchAdminStores(user, password),
   });
 
-  // Если выбран магазин — рендерим детальный вид. Из него можно вернуться через onBack.
-  const selectedStore = selectedStoreId
-    ? (storesQ.data ?? []).find((s) => s.id === selectedStoreId) ?? null
-    : null;
-
-  if (selectedStore) {
-    return (
-      <StoreDetailView
-        user={user}
-        password={password}
-        store={selectedStore}
-        onBack={() => setSelectedStoreId(null)}
-      />
-    );
-  }
-
   function openEdit(store: Store) {
     setEditTarget(store);
     setEditForm({
@@ -172,6 +156,23 @@ export function StoresPage({ user, password }: Props) {
       qc.invalidateQueries({ queryKey: ["admin-stores"] });
     },
   });
+
+  // Все хуки объявлены выше. Early return допустим только после них —
+  // иначе React падает с ошибкой "Rendered fewer hooks than expected" (#300).
+  const selectedStore = selectedStoreId
+    ? (storesQ.data ?? []).find((s) => s.id === selectedStoreId) ?? null
+    : null;
+
+  if (selectedStore) {
+    return (
+      <StoreDetailView
+        user={user}
+        password={password}
+        store={selectedStore}
+        onBack={() => setSelectedStoreId(null)}
+      />
+    );
+  }
 
   return (
     <div className="p-6">
