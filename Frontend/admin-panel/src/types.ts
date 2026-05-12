@@ -21,6 +21,7 @@ export type Store = {
   category_type: StoreCategoryType;
   opens_at?: string | null;
   closes_at?: string | null;
+  is_active?: boolean;
 };
 
 export type Category = {

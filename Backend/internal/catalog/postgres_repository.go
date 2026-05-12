@@ -54,19 +54,23 @@ func NewPostgresSubcategoryRepository(db *database.DB) SubcategoryRepository {
 
 func (r *postgresSubcategoryRepository) GetByCategoryID(ctx context.Context, categoryID uuid.UUID) ([]models.Subcategory, error) {
 	var subcategories []models.Subcategory
-	query := `SELECT id, category_id, name, created_at, updated_at FROM subcategories WHERE category_id = $1 ORDER BY name`
+	query := `SELECT id, category_id, store_id, name, created_at, updated_at FROM subcategories WHERE category_id = $1 AND store_id IS NULL ORDER BY name`
 	err := r.db.SelectContext(ctx, &subcategories, query, categoryID)
 	return subcategories, err
 }
 
+// GetByStoreID — клиентский метод: возвращает подкатегории магазина (как привязанные к store_id,
+// так и глобальные, которые используются товарами этого магазина).
 func (r *postgresSubcategoryRepository) GetByStoreID(ctx context.Context, storeID uuid.UUID) ([]models.Subcategory, error) {
 	var subcategories []models.Subcategory
 	query := `
-SELECT DISTINCT s.id, s.category_id, s.name, s.created_at, s.updated_at
+SELECT id, category_id, store_id, name, created_at, updated_at FROM subcategories WHERE store_id = $1
+UNION
+SELECT DISTINCT s.id, s.category_id, s.store_id, s.name, s.created_at, s.updated_at
 FROM subcategories s
 JOIN products p ON p.subcategory_id = s.id
-WHERE p.store_id = $1
-ORDER BY s.name
+WHERE p.store_id = $1 AND s.store_id IS NULL
+ORDER BY name
 `
 	err := r.db.SelectContext(ctx, &subcategories, query, storeID)
 	return subcategories, err
@@ -237,10 +241,14 @@ func NewPostgresStoreRepository(db *database.DB) StoreRepository {
 	return &postgresStoreRepository{db: db}
 }
 
-func (r *postgresStoreRepository) GetAll(ctx context.Context, categoryType *models.StoreCategoryType, search *string) ([]models.Store, error) {
+func (r *postgresStoreRepository) GetAll(ctx context.Context, categoryType *models.StoreCategoryType, search *string, includeArchived bool) ([]models.Store, error) {
 	var stores []models.Store
-	query := `SELECT id, name, address, city, phone, description, image_url, rating, category_type, opens_at, closes_at, created_at, updated_at, lat, lng FROM stores WHERE 1=1`
+	query := `SELECT id, name, address, city, phone, description, image_url, rating, category_type, opens_at, closes_at, is_active, created_at, updated_at, lat, lng FROM stores WHERE 1=1`
 	args := []interface{}{}
+
+	if !includeArchived {
+		query += " AND is_active = TRUE"
+	}
 
 	if categoryType != nil {
 		query += fmt.Sprintf(" AND category_type = $%d", len(args)+1)
@@ -260,7 +268,7 @@ func (r *postgresStoreRepository) GetAll(ctx context.Context, categoryType *mode
 
 func (r *postgresStoreRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Store, error) {
 	var store models.Store
-	query := `SELECT id, name, address, city, phone, description, image_url, rating, category_type, opens_at, closes_at, created_at, updated_at, lat, lng FROM stores WHERE id = $1`
+	query := `SELECT id, name, address, city, phone, description, image_url, rating, category_type, opens_at, closes_at, is_active, created_at, updated_at, lat, lng FROM stores WHERE id = $1`
 	err := r.db.GetContext(ctx, &store, query, id)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("магазин не найден")
@@ -276,7 +284,7 @@ func (r *postgresStoreRepository) Update(ctx context.Context, id uuid.UUID, name
 UPDATE stores
 SET name=$1, address=$2, description=$3, opens_at=$4, closes_at=$5, updated_at=NOW()
 WHERE id=$6
-RETURNING id, name, address, city, phone, description, image_url, rating, category_type, opens_at, closes_at, created_at, updated_at, lat, lng`
+RETURNING id, name, address, city, phone, description, image_url, rating, category_type, opens_at, closes_at, is_active, created_at, updated_at, lat, lng`
 	var store models.Store
 	err := r.db.GetContext(ctx, &store, query, name, address, description, opensAt, closesAt, id)
 	if err == sql.ErrNoRows {
@@ -451,7 +459,7 @@ func (r *postgresRecipeRepository) GetAll(ctx context.Context) ([]models.RecipeW
 			index[r.Recipe.ID].Products = append(index[r.Recipe.ID].Products, models.RecipeIngredient{
 				Product: models.Product{
 					ID:            *r.ProductID,
-					CategoryID:    func() uuid.UUID { if r.ProductCategory != nil { return *r.ProductCategory }; return uuid.UUID{} }(),
+					CategoryID:    r.ProductCategory,
 					SubcategoryID: r.ProductSubcat,
 					StoreID:       *r.ProductStoreID,
 					Name:          *r.ProductName,

@@ -18,8 +18,15 @@ export const fetchDashboardStats = async (user: string, password: string) => {
 
 // ─── Stores ───────────────────────────────────────────────────────────────────
 
+// Публичный список магазинов (только активные) — для дропдаунов в админ-панели.
 export const fetchStores = async (): Promise<Store[]> => {
   const { data } = await publicClient.get<Store[]>("/stores");
+  return data ?? [];
+};
+
+// Список магазинов для админки, включая архивные.
+export const fetchAdminStores = async (user: string, password: string): Promise<Store[]> => {
+  const { data } = await createAdminClient(user, password).get<Store[]>("/stores");
   return data ?? [];
 };
 
@@ -57,9 +64,71 @@ export const uploadStoreImage = async (
   return data;
 };
 
+// DeleteStoreConflict — 409 от бэка, когда у магазина есть заказы/сборщики и физическое удаление невозможно.
+export type DeleteStoreConflict = {
+  code: "store_has_dependencies";
+  orders: number;
+  pickers: number;
+  hint?: string;
+};
+
 export const deleteStore = async (user: string, password: string, storeId: string) => {
   await createAdminClient(user, password).delete(`/stores/${storeId}`);
 };
+
+export const archiveStore = async (user: string, password: string, storeId: string) => {
+  await createAdminClient(user, password).post(`/stores/${storeId}/archive`);
+};
+
+export const restoreStore = async (user: string, password: string, storeId: string) => {
+  await createAdminClient(user, password).post(`/stores/${storeId}/restore`);
+};
+
+// ─── Store subcategories (магазин-локальные категории) ────────────────────────
+
+export type StoreSubcategory = {
+  id: string;
+  category_id?: string | null;
+  store_id?: string | null;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  products_count: number;
+};
+
+export const fetchStoreSubcategories = async (
+  user: string,
+  password: string,
+  storeId: string
+): Promise<StoreSubcategory[]> => {
+  const { data } = await createAdminClient(user, password).get<StoreSubcategory[]>(
+    `/stores/${storeId}/subcategories`
+  );
+  return data ?? [];
+};
+
+export const createStoreSubcategory = async (
+  user: string,
+  password: string,
+  storeId: string,
+  name: string
+): Promise<StoreSubcategory> => {
+  const { data } = await createAdminClient(user, password).post<StoreSubcategory>(
+    `/stores/${storeId}/subcategories`,
+    { name }
+  );
+  return data;
+};
+
+export const deleteStoreSubcategory = async (
+  user: string,
+  password: string,
+  storeId: string,
+  subId: string
+) => {
+  await createAdminClient(user, password).delete(`/stores/${storeId}/subcategories/${subId}`);
+};
+
 
 // ─── Products ─────────────────────────────────────────────────────────────────
 
@@ -162,7 +231,7 @@ export const createProduct = async (
   password: string,
   payload: {
     store_id: string;
-    category_id: string;
+    category_id?: string;
     subcategory_id?: string;
     name: string;
     description?: string;
@@ -174,7 +243,7 @@ export const createProduct = async (
 ) => {
   const form = new FormData();
   form.append("store_id", payload.store_id);
-  form.append("category_id", payload.category_id);
+  if (payload.category_id) form.append("category_id", payload.category_id);
   if (payload.subcategory_id) form.append("subcategory_id", payload.subcategory_id);
   form.append("name", payload.name);
   if (payload.description) form.append("description", payload.description);

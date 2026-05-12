@@ -18,9 +18,18 @@ type Repository interface {
 	GetDashboardStats(ctx context.Context) (*DashboardStats, error)
 	GetAllOrders(ctx context.Context) ([]models.Order, error)
 	CreateStore(ctx context.Context, store *models.Store) error
+	ListStores(ctx context.Context) ([]models.Store, error)
 	UpdateStore(ctx context.Context, id uuid.UUID, name, address, city, description string, categoryType models.StoreCategoryType) error
 	UpdateStoreImage(ctx context.Context, id uuid.UUID, imageURL string) error
 	DeleteStore(ctx context.Context, id uuid.UUID) error
+	ArchiveStore(ctx context.Context, id uuid.UUID) error
+	RestoreStore(ctx context.Context, id uuid.UUID) error
+	StoreHasDependencies(ctx context.Context, id uuid.UUID) (orders int, pickers int, err error)
+	// Магазин-локальные подкатегории
+	GetStoreSubcategories(ctx context.Context, storeID uuid.UUID) ([]models.Subcategory, error)
+	CreateStoreSubcategory(ctx context.Context, storeID uuid.UUID, name string) (*models.Subcategory, error)
+	DeleteStoreSubcategory(ctx context.Context, storeID, subID uuid.UUID) error
+	CountProductsInSubcategory(ctx context.Context, subID uuid.UUID) (int, error)
 	CreateProduct(ctx context.Context, product *models.Product) error
 	DeleteProduct(ctx context.Context, id uuid.UUID) error
 	UpdateProduct(ctx context.Context, id uuid.UUID, req *UpdateProductRequest) (*models.Product, error)
@@ -115,6 +124,18 @@ func (r *postgresRepository) GetAllOrders(ctx context.Context) ([]models.Order, 
 	return orders, err
 }
 
+// ListStores возвращает все магазины, включая архивные (is_active=false).
+// Для admin-панели.
+func (r *postgresRepository) ListStores(ctx context.Context) ([]models.Store, error) {
+	var stores []models.Store
+	query := `SELECT id, name, address, city, phone, description, image_url, rating, category_type,
+	                 opens_at, closes_at, is_active, created_at, updated_at, lat, lng
+	          FROM stores
+	          ORDER BY is_active DESC, name`
+	err := r.db.SelectContext(ctx, &stores, query)
+	return stores, err
+}
+
 // CreateStore сохраняет новый магазин.
 func (r *postgresRepository) CreateStore(ctx context.Context, store *models.Store) error {
 	query := `
@@ -151,6 +172,8 @@ func (r *postgresRepository) UpdateStoreImage(ctx context.Context, id uuid.UUID,
 }
 
 // DeleteStore удаляет магазин и его товары в транзакции.
+// Падает при наличии зависимостей (orders.store_id, order_items.product_id, users.store_id с FK).
+// Для архивации с историей использовать ArchiveStore.
 func (r *postgresRepository) DeleteStore(ctx context.Context, id uuid.UUID) error {
 	return r.db.WithTx(ctx, func(tx *sqlx.Tx) error {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM products WHERE store_id = $1`, id); err != nil {
@@ -167,6 +190,112 @@ func (r *postgresRepository) DeleteStore(ctx context.Context, id uuid.UUID) erro
 		}
 		return nil
 	})
+}
+
+// ArchiveStore помечает магазин как неактивный (soft delete).
+// История заказов и привязки picker'ов сохраняются.
+func (r *postgresRepository) ArchiveStore(ctx context.Context, id uuid.UUID) error {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE stores SET is_active = FALSE, updated_at = NOW() WHERE id = $1`,
+		id,
+	)
+	if err != nil {
+		return err
+	}
+	affected, _ := res.RowsAffected()
+	if affected == 0 {
+		return fmt.Errorf("магазин не найден")
+	}
+	return nil
+}
+
+// RestoreStore возвращает магазин в активное состояние.
+func (r *postgresRepository) RestoreStore(ctx context.Context, id uuid.UUID) error {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE stores SET is_active = TRUE, updated_at = NOW() WHERE id = $1`,
+		id,
+	)
+	if err != nil {
+		return err
+	}
+	affected, _ := res.RowsAffected()
+	if affected == 0 {
+		return fmt.Errorf("магазин не найден")
+	}
+	return nil
+}
+
+// GetStoreSubcategories возвращает только подкатегории, привязанные к этому магазину (store_id = $1).
+// Глобальные (store_id IS NULL) не возвращает — они управляются через CategoriesPage.
+func (r *postgresRepository) GetStoreSubcategories(ctx context.Context, storeID uuid.UUID) ([]models.Subcategory, error) {
+	var subs []models.Subcategory
+	err := r.db.SelectContext(ctx, &subs,
+		`SELECT id, category_id, store_id, name, created_at, updated_at
+		 FROM subcategories WHERE store_id = $1 ORDER BY name`,
+		storeID,
+	)
+	return subs, err
+}
+
+// CreateStoreSubcategory создаёт подкатегорию, привязанную к магазину (category_id = NULL).
+func (r *postgresRepository) CreateStoreSubcategory(ctx context.Context, storeID uuid.UUID, name string) (*models.Subcategory, error) {
+	id := uuid.New()
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO subcategories (id, category_id, store_id, name, created_at, updated_at)
+		 VALUES ($1, NULL, $2, $3, NOW(), NOW())`,
+		id, storeID, name,
+	)
+	if err != nil {
+		return nil, err
+	}
+	var sub models.Subcategory
+	err = r.db.GetContext(ctx, &sub,
+		`SELECT id, category_id, store_id, name, created_at, updated_at FROM subcategories WHERE id = $1`,
+		id,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &sub, nil
+}
+
+// DeleteStoreSubcategory удаляет подкатегорию магазина. Товары, ссылавшиеся на неё, остаются
+// (subcategory_id уйдёт в NULL по FK ON DELETE SET NULL).
+// Проверяет, что подкатегория действительно принадлежит этому магазину, чтобы случайно не удалить глобальную.
+func (r *postgresRepository) DeleteStoreSubcategory(ctx context.Context, storeID, subID uuid.UUID) error {
+	res, err := r.db.ExecContext(ctx,
+		`DELETE FROM subcategories WHERE id = $1 AND store_id = $2`,
+		subID, storeID,
+	)
+	if err != nil {
+		return err
+	}
+	affected, _ := res.RowsAffected()
+	if affected == 0 {
+		return fmt.Errorf("подкатегория не найдена в этом магазине")
+	}
+	return nil
+}
+
+// CountProductsInSubcategory нужен фронту, чтобы предупредить пользователя
+// «удаление подкатегории отвяжет N товаров» перед DELETE.
+func (r *postgresRepository) CountProductsInSubcategory(ctx context.Context, subID uuid.UUID) (int, error) {
+	var n int
+	err := r.db.GetContext(ctx, &n, `SELECT COUNT(*) FROM products WHERE subcategory_id = $1`, subID)
+	return n, err
+}
+
+// StoreHasDependencies возвращает количество заказов и сборщиков, привязанных к магазину.
+// Используется чтобы выбрать между hard delete и архивацией.
+func (r *postgresRepository) StoreHasDependencies(ctx context.Context, id uuid.UUID) (int, int, error) {
+	var orders, pickers int
+	if err := r.db.GetContext(ctx, &orders, `SELECT COUNT(*) FROM orders WHERE store_id = $1`, id); err != nil {
+		return 0, 0, err
+	}
+	if err := r.db.GetContext(ctx, &pickers, `SELECT COUNT(*) FROM users WHERE store_id = $1 AND role = 'PICKER'`, id); err != nil {
+		return 0, 0, err
+	}
+	return orders, pickers, nil
 }
 
 // CreateProduct сохраняет новый товар.

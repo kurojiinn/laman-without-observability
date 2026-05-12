@@ -307,6 +307,10 @@ func (h *Handler) GetStore(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
+	if !store.IsActive {
+		c.JSON(http.StatusNotFound, gin.H{"error": "магазин не найден"})
+		return
+	}
 
 	h.logger.Info("Магазин отдан", zap.String("store_id", id.String()), zap.Duration("duration", time.Since(start)))
 	c.JSON(http.StatusOK, store)

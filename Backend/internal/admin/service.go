@@ -56,6 +56,11 @@ func (s *Service) GetDashboardStats(ctx context.Context) (*DashboardStats, error
 	return stats, err
 }
 
+// ListStores возвращает все магазины, включая архивные.
+func (s *Service) ListStores(ctx context.Context) ([]models.Store, error) {
+	return s.repo.ListStores(ctx)
+}
+
 // CreateStore создает магазин.
 func (s *Service) CreateStore(ctx context.Context, req *CreateStoreRequest) (*models.Store, error) {
 	store := newStoreFromRequest(req)
@@ -108,13 +113,79 @@ func (s *Service) UpdateStoreImage(ctx context.Context, id uuid.UUID, imageURL s
 	return nil
 }
 
+// ErrStoreHasDependencies возвращается, когда магазин нельзя удалить физически,
+// потому что по нему есть заказы или к нему привязаны сборщики.
+// В этом случае клиент должен предложить архивацию.
+type ErrStoreHasDependencies struct {
+	Orders  int
+	Pickers int
+}
+
+func (e *ErrStoreHasDependencies) Error() string {
+	return fmt.Sprintf("у магазина есть зависимости: orders=%d pickers=%d", e.Orders, e.Pickers)
+}
+
 // DeleteStore удаляет магазин и связанные товары.
+// Если есть заказы или сборщики — возвращает *ErrStoreHasDependencies и не пытается удалять.
 func (s *Service) DeleteStore(ctx context.Context, id uuid.UUID) error {
+	orders, pickers, err := s.repo.StoreHasDependencies(ctx, id)
+	if err != nil {
+		return err
+	}
+	if orders > 0 || pickers > 0 {
+		return &ErrStoreHasDependencies{Orders: orders, Pickers: pickers}
+	}
 	if err := s.repo.DeleteStore(ctx, id); err != nil {
 		return err
 	}
 	s.invalidateStoresCache(ctx)
 	return nil
+}
+
+// ArchiveStore помечает магазин архивным — он исчезает из клиентского каталога,
+// но история заказов и сборщики сохраняются.
+func (s *Service) ArchiveStore(ctx context.Context, id uuid.UUID) error {
+	if err := s.repo.ArchiveStore(ctx, id); err != nil {
+		return err
+	}
+	s.invalidateStoresCache(ctx)
+	return nil
+}
+
+// RestoreStore возвращает архивный магазин в активное состояние.
+func (s *Service) RestoreStore(ctx context.Context, id uuid.UUID) error {
+	if err := s.repo.RestoreStore(ctx, id); err != nil {
+		return err
+	}
+	s.invalidateStoresCache(ctx)
+	return nil
+}
+
+// GetStoreSubcategories — подкатегории, привязанные к магазину.
+func (s *Service) GetStoreSubcategories(ctx context.Context, storeID uuid.UUID) ([]models.Subcategory, error) {
+	return s.repo.GetStoreSubcategories(ctx, storeID)
+}
+
+// CreateStoreSubcategory создаёт подкатегорию внутри магазина.
+func (s *Service) CreateStoreSubcategory(ctx context.Context, storeID uuid.UUID, name string) (*models.Subcategory, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("название обязательно")
+	}
+	if len(name) > 100 {
+		return nil, fmt.Errorf("название слишком длинное")
+	}
+	return s.repo.CreateStoreSubcategory(ctx, storeID, name)
+}
+
+// DeleteStoreSubcategory удаляет подкатегорию магазина (товары останутся, ссылка обнулится).
+func (s *Service) DeleteStoreSubcategory(ctx context.Context, storeID, subID uuid.UUID) error {
+	return s.repo.DeleteStoreSubcategory(ctx, storeID, subID)
+}
+
+// CountProductsInSubcategory нужен для предупреждения «отвяжем N товаров».
+func (s *Service) CountProductsInSubcategory(ctx context.Context, subID uuid.UUID) (int, error) {
+	return s.repo.CountProductsInSubcategory(ctx, subID)
 }
 
 // DeleteProduct удаляет товар по ID.

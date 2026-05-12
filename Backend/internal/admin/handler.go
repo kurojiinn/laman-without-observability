@@ -3,6 +3,7 @@ package admin
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -91,10 +92,17 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.Han
 	{
 		admin.GET("/dashboard/stats", h.GetDashboardStats)
 		admin.GET("/orders", h.GetAllOrders)
+		admin.GET("/stores", h.ListStores)
 		admin.POST("/stores", h.CreateStore)
 		admin.PATCH("/stores/:id", h.UpdateStore)
 		admin.PATCH("/stores/:id/image", h.UpdateStoreImage)
 		admin.DELETE("/stores/:id", h.DeleteStore)
+		admin.POST("/stores/:id/archive", h.ArchiveStore)
+		admin.POST("/stores/:id/restore", h.RestoreStore)
+		// Магазин-локальные подкатегории
+		admin.GET("/stores/:id/subcategories", h.ListStoreSubcategories)
+		admin.POST("/stores/:id/subcategories", h.CreateStoreSubcategory)
+		admin.DELETE("/stores/:id/subcategories/:subId", h.DeleteStoreSubcategory)
 		admin.GET("/products", h.GetProducts)
 		admin.POST("/products", h.CreateProduct)
 		admin.PATCH("/products/:id", h.UpdateProduct)
@@ -164,10 +172,10 @@ type CreateStoreRequest struct {
 }
 
 // CreateProductRequest описывает payload для создания товара.
-// Используется как внутренний DTO, независимо от формата входящего запроса.
+// CategoryID опционален: для магазин-локальных категорий товар может не иметь глобальной категории.
 type CreateProductRequest struct {
 	StoreID       uuid.UUID  `json:"store_id"`
-	CategoryID    uuid.UUID  `json:"category_id"`
+	CategoryID    *uuid.UUID `json:"category_id,omitempty"`
 	SubcategoryID *uuid.UUID `json:"subcategory_id,omitempty"`
 	Name          string     `json:"name"`
 	Description   *string    `json:"description,omitempty"`
@@ -242,8 +250,8 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 		return
 	}
 
-	if req.Name == "" || req.StoreID == uuid.Nil || req.CategoryID == uuid.Nil {
-		h.respondError(c, http.StatusBadRequest, "name, store_id и category_id обязательны", "")
+	if req.Name == "" || req.StoreID == uuid.Nil {
+		h.respondError(c, http.StatusBadRequest, "name и store_id обязательны", "")
 		return
 	}
 	if req.Price <= 0 {
@@ -311,6 +319,20 @@ func (h *Handler) UpdateStoreImage(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"image_url": imageURL})
 }
 
+// ListStores возвращает все магазины (включая архивные) для админ-панели.
+// GET /api/v1/admin/stores
+func (h *Handler) ListStores(c *gin.Context) {
+	stores, err := h.service.ListStores(c.Request.Context())
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось получить магазины", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, stores)
+}
+
+// DeleteStore физически удаляет магазин, только если у него нет заказов и сборщиков.
+// При наличии зависимостей возвращает 409 с числами — фронт предлагает архивацию.
+// DELETE /api/v1/admin/stores/:id
 func (h *Handler) DeleteStore(c *gin.Context) {
 	storeID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -319,10 +341,120 @@ func (h *Handler) DeleteStore(c *gin.Context) {
 	}
 
 	if err := h.service.DeleteStore(c.Request.Context(), storeID); err != nil {
+		var depErr *ErrStoreHasDependencies
+		if errors.As(err, &depErr) {
+			c.JSON(http.StatusConflict, gin.H{
+				"error":   "магазин нельзя удалить: есть зависимости",
+				"code":    "store_has_dependencies",
+				"orders":  depErr.Orders,
+				"pickers": depErr.Pickers,
+				"hint":    "используйте архивацию вместо удаления",
+			})
+			return
+		}
 		h.respondError(c, http.StatusBadRequest, "не удалось удалить магазин", err.Error())
 		return
 	}
 
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// ArchiveStore помечает магазин архивным (soft delete).
+// POST /api/v1/admin/stores/:id/archive
+func (h *Handler) ArchiveStore(c *gin.Context) {
+	storeID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID магазина", "")
+		return
+	}
+	if err := h.service.ArchiveStore(c.Request.Context(), storeID); err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось архивировать магазин", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// ListStoreSubcategories возвращает подкатегории магазина.
+// GET /api/v1/admin/stores/:id/subcategories
+func (h *Handler) ListStoreSubcategories(c *gin.Context) {
+	storeID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID магазина", "")
+		return
+	}
+	subs, err := h.service.GetStoreSubcategories(c.Request.Context(), storeID)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось получить категории", err.Error())
+		return
+	}
+	// Доп. поле products_count чтобы фронт мог показать "× N товаров" в списке.
+	type subWithCount struct {
+		models.Subcategory
+		ProductsCount int `json:"products_count"`
+	}
+	result := make([]subWithCount, 0, len(subs))
+	for _, sub := range subs {
+		count, _ := h.service.CountProductsInSubcategory(c.Request.Context(), sub.ID)
+		result = append(result, subWithCount{Subcategory: sub, ProductsCount: count})
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+// CreateStoreSubcategory создаёт магазин-локальную подкатегорию.
+// POST /api/v1/admin/stores/:id/subcategories  Body: {name}
+func (h *Handler) CreateStoreSubcategory(c *gin.Context) {
+	storeID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID магазина", "")
+		return
+	}
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(c, http.StatusBadRequest, "некорректные данные", err.Error())
+		return
+	}
+	sub, err := h.service.CreateStoreSubcategory(c.Request.Context(), storeID, req.Name)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "не удалось создать категорию", err.Error())
+		return
+	}
+	c.JSON(http.StatusCreated, sub)
+}
+
+// DeleteStoreSubcategory удаляет подкатегорию магазина (товары остаются, ссылка обнулится).
+// DELETE /api/v1/admin/stores/:id/subcategories/:subId
+func (h *Handler) DeleteStoreSubcategory(c *gin.Context) {
+	storeID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID магазина", "")
+		return
+	}
+	subID, err := uuid.Parse(c.Param("subId"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID категории", "")
+		return
+	}
+	if err := h.service.DeleteStoreSubcategory(c.Request.Context(), storeID, subID); err != nil {
+		h.respondError(c, http.StatusBadRequest, "не удалось удалить категорию", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// RestoreStore возвращает архивный магазин в активное состояние.
+// POST /api/v1/admin/stores/:id/restore
+func (h *Handler) RestoreStore(c *gin.Context) {
+	storeID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID магазина", "")
+		return
+	}
+	if err := h.service.RestoreStore(c.Request.Context(), storeID); err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось восстановить магазин", err.Error())
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
@@ -532,13 +664,17 @@ func (h *Handler) buildCreateProductRequestFromForm(ctx context.Context, c *gin.
 	if err != nil {
 		return req, fmt.Errorf("некорректный store_id")
 	}
-	categoryID, err := uuid.Parse(c.PostForm("category_id"))
-	if err != nil {
-		return req, fmt.Errorf("некорректный category_id")
+	req.StoreID = storeID
+
+	// category_id опционален: магазин-локальные товары могут быть без глобальной категории.
+	if catStr := strings.TrimSpace(c.PostForm("category_id")); catStr != "" {
+		catID, err := uuid.Parse(catStr)
+		if err != nil {
+			return req, fmt.Errorf("некорректный category_id")
+		}
+		req.CategoryID = &catID
 	}
 
-	req.StoreID = storeID
-	req.CategoryID = categoryID
 	req.Name = strings.TrimSpace(c.PostForm("name"))
 	if req.Name == "" {
 		return req, fmt.Errorf("name обязателен")

@@ -31,6 +31,38 @@ func (m *adminRepoMock) DeleteStore(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (m *adminRepoMock) ArchiveStore(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+
+func (m *adminRepoMock) RestoreStore(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+
+func (m *adminRepoMock) StoreHasDependencies(ctx context.Context, id uuid.UUID) (int, int, error) {
+	return 0, 0, nil
+}
+
+func (m *adminRepoMock) ListStores(ctx context.Context) ([]models.Store, error) {
+	return []models.Store{}, nil
+}
+
+func (m *adminRepoMock) GetStoreSubcategories(ctx context.Context, storeID uuid.UUID) ([]models.Subcategory, error) {
+	return []models.Subcategory{}, nil
+}
+
+func (m *adminRepoMock) CreateStoreSubcategory(ctx context.Context, storeID uuid.UUID, name string) (*models.Subcategory, error) {
+	return &models.Subcategory{}, nil
+}
+
+func (m *adminRepoMock) DeleteStoreSubcategory(ctx context.Context, storeID, subID uuid.UUID) error {
+	return nil
+}
+
+func (m *adminRepoMock) CountProductsInSubcategory(ctx context.Context, subID uuid.UUID) (int, error) {
+	return 0, nil
+}
+
 func (m *adminRepoMock) CreateProduct(ctx context.Context, product *models.Product) error {
 	return nil
 }

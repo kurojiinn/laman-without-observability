@@ -17,9 +17,10 @@ type Category struct {
 }
 
 // Product представляет товар в каталоге.
+// CategoryID NULL для магазин-локальных товаров (где категоризация только через SubcategoryID магазина).
 type Product struct {
 	ID            uuid.UUID  `db:"id" json:"id"`
-	CategoryID    uuid.UUID  `db:"category_id" json:"category_id"`
+	CategoryID    *uuid.UUID `db:"category_id" json:"category_id,omitempty"`
 	SubcategoryID *uuid.UUID `db:"subcategory_id" json:"subcategory_id,omitempty"`
 	StoreID       uuid.UUID  `db:"store_id" json:"store_id"`
 	Name          string     `db:"name" json:"name"`
@@ -33,12 +34,15 @@ type Product struct {
 }
 
 // Subcategory представляет подкатегорию товаров.
+// CategoryID — глобальная категория-родитель (Продукты/Аптека/…); NULL для магазин-локальных.
+// StoreID заполнен, если подкатегория создана внутри конкретного магазина (например, "Пицца" в ресторане).
 type Subcategory struct {
-	ID         uuid.UUID `db:"id" json:"id"`
-	CategoryID uuid.UUID `db:"category_id" json:"category_id"`
-	Name       string    `db:"name" json:"name"`
-	CreatedAt  time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	ID         uuid.UUID  `db:"id" json:"id"`
+	CategoryID *uuid.UUID `db:"category_id" json:"category_id,omitempty"`
+	StoreID    *uuid.UUID `db:"store_id" json:"store_id,omitempty"`
+	Name       string     `db:"name" json:"name"`
+	CreatedAt  time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt  time.Time  `db:"updated_at" json:"updated_at"`
 }
 
 // Store представляет магазин, где можно приобрести товары.
@@ -54,6 +58,7 @@ type Store struct {
 	CategoryType StoreCategoryType `db:"category_type" json:"category_type"`
 	OpensAt      *string           `db:"opens_at" json:"opens_at,omitempty"`
 	ClosesAt     *string           `db:"closes_at" json:"closes_at,omitempty"`
+	IsActive     bool              `db:"is_active" json:"is_active"`
 	CreatedAt    time.Time         `db:"created_at" json:"created_at"`
 	UpdatedAt    time.Time         `db:"updated_at" json:"updated_at"`
 	Lat          *float64          `db:"lat" json:"lat,omitempty"`

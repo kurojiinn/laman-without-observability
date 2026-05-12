@@ -1,9 +1,20 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createStore, deleteStore, fetchStores, updateStore, uploadStoreImage } from "../api/admin";
+import axios from "axios";
+import {
+  archiveStore,
+  createStore,
+  deleteStore,
+  fetchAdminStores,
+  restoreStore,
+  updateStore,
+  uploadStoreImage,
+} from "../api/admin";
+import type { DeleteStoreConflict } from "../api/admin";
 import { PageHeader, Card, Btn, Modal, Input, Select, ImageUploadZone } from "../components/Layout";
 import type { Store, StoreCategoryType } from "../types";
 import { STORE_CATEGORY_LABELS } from "../types";
+import { StoreDetailView } from "./StoreDetailView";
 
 interface Props { user: string; password: string; }
 
@@ -26,6 +37,9 @@ function resolveImg(url: string | null | undefined) {
 export function StoresPage({ user, password }: Props) {
   const qc = useQueryClient();
 
+  // Выбранный магазин для детального просмотра. Если задан — рендерим StoreDetailView.
+  const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
+
   // ── Создание ──
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({
@@ -41,10 +55,31 @@ export function StoresPage({ user, password }: Props) {
   const [editImageFile, setEditImageFile] = useState<File | null>(null);
   const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
 
-  // ── Удаление ──
+  // ── Удаление / Архивация ──
   const [deleteTarget, setDeleteTarget] = useState<Store | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [archiveSuggestion, setArchiveSuggestion] = useState<DeleteStoreConflict | null>(null);
 
-  const storesQ = useQuery({ queryKey: ["stores"], queryFn: fetchStores });
+  const storesQ = useQuery({
+    queryKey: ["admin-stores"],
+    queryFn: () => fetchAdminStores(user, password),
+  });
+
+  // Если выбран магазин — рендерим детальный вид. Из него можно вернуться через onBack.
+  const selectedStore = selectedStoreId
+    ? (storesQ.data ?? []).find((s) => s.id === selectedStoreId) ?? null
+    : null;
+
+  if (selectedStore) {
+    return (
+      <StoreDetailView
+        user={user}
+        password={password}
+        store={selectedStore}
+        onBack={() => setSelectedStoreId(null)}
+      />
+    );
+  }
 
   function openEdit(store: Store) {
     setEditTarget(store);
@@ -69,6 +104,7 @@ export function StoresPage({ user, password }: Props) {
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["stores"] });
+      qc.invalidateQueries({ queryKey: ["admin-stores"] });
       setCreateOpen(false);
       setForm({ name: "", address: "", city: "Ойсхар", category_type: "FOOD", description: "" });
     },
@@ -89,6 +125,7 @@ export function StoresPage({ user, password }: Props) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["stores"] });
+      qc.invalidateQueries({ queryKey: ["admin-stores"] });
       setEditTarget(null);
       setEditImageFile(null);
       setEditImagePreview(null);
@@ -99,7 +136,40 @@ export function StoresPage({ user, password }: Props) {
     mutationFn: (id: string) => deleteStore(user, password, id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["stores"] });
+      qc.invalidateQueries({ queryKey: ["admin-stores"] });
       setDeleteTarget(null);
+      setDeleteError(null);
+      setArchiveSuggestion(null);
+    },
+    onError: (err) => {
+      // 409 → бэк говорит «нельзя удалить, есть зависимости»; предлагаем архивацию.
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        const body = err.response.data as DeleteStoreConflict;
+        if (body?.code === "store_has_dependencies") {
+          setArchiveSuggestion(body);
+          return;
+        }
+      }
+      setDeleteError("Не удалось удалить магазин");
+    },
+  });
+
+  const archiveMut = useMutation({
+    mutationFn: (id: string) => archiveStore(user, password, id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["stores"] });
+      qc.invalidateQueries({ queryKey: ["admin-stores"] });
+      setDeleteTarget(null);
+      setArchiveSuggestion(null);
+      setDeleteError(null);
+    },
+  });
+
+  const restoreMut = useMutation({
+    mutationFn: (id: string) => restoreStore(user, password, id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["stores"] });
+      qc.invalidateQueries({ queryKey: ["admin-stores"] });
     },
   });
 
@@ -128,8 +198,18 @@ export function StoresPage({ user, password }: Props) {
           </div>
         ) : (
           <div className="divide-y divide-gray-50">
-            {storesQ.data.map((store) => (
-              <div key={store.id} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 transition-colors">
+            {storesQ.data.map((store) => {
+              const archived = store.is_active === false;
+              return (
+              <div
+                key={store.id}
+                onClick={() => setSelectedStoreId(store.id)}
+                role="button"
+                tabIndex={0}
+                className={`flex items-center gap-4 px-5 py-3 cursor-pointer transition-colors ${
+                  archived ? "bg-gray-50 opacity-60 hover:opacity-100" : "hover:bg-gray-50"
+                }`}
+              >
                 {/* Фото */}
                 <div className="w-12 h-12 rounded-xl flex-shrink-0 overflow-hidden bg-gray-100">
                   {store.image_url ? (
@@ -143,7 +223,14 @@ export function StoresPage({ user, password }: Props) {
 
                 {/* Инфо */}
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 text-sm">{store.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-gray-900 text-sm truncate">{store.name}</p>
+                    {archived && (
+                      <span className="text-[10px] uppercase tracking-wide bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                        В архиве
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-400 truncate">{store.address} · {store.city ?? "—"}</p>
                   {store.description && (
                     <p className="text-xs text-gray-400 truncate mt-0.5">{store.description}</p>
@@ -166,12 +253,24 @@ export function StoresPage({ user, password }: Props) {
                 </div>
 
                 {/* Кнопки */}
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                   <Btn variant="secondary" size="sm" onClick={() => openEdit(store)}>Изменить</Btn>
-                  <Btn variant="danger" size="sm" onClick={() => setDeleteTarget(store)}>Удалить</Btn>
+                  {archived ? (
+                    <Btn
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => restoreMut.mutate(store.id)}
+                      disabled={restoreMut.isPending}
+                    >
+                      Восстановить
+                    </Btn>
+                  ) : (
+                    <Btn variant="danger" size="sm" onClick={() => { setDeleteTarget(store); setDeleteError(null); setArchiveSuggestion(null); }}>Удалить</Btn>
+                  )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>
@@ -256,29 +355,77 @@ export function StoresPage({ user, password }: Props) {
         {editMut.isError && <p className="text-xs text-red-500">Ошибка сохранения</p>}
       </Modal>
 
-      {/* ── Модалка: удалить ── */}
+      {/* ── Модалка: удалить / архивировать ── */}
       <Modal
         open={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        title="Удалить магазин?"
+        onClose={() => { setDeleteTarget(null); setDeleteError(null); setArchiveSuggestion(null); }}
+        title={archiveSuggestion ? "Магазин нельзя удалить" : "Удалить магазин?"}
         footer={
-          <>
-            <Btn variant="secondary" onClick={() => setDeleteTarget(null)} className="flex-1">Отмена</Btn>
-            <Btn
-              variant="danger"
-              onClick={() => deleteTarget && deleteMut.mutate(deleteTarget.id)}
-              disabled={deleteMut.isPending}
-              className="flex-1"
-            >
-              {deleteMut.isPending ? "Удаление..." : "Удалить"}
-            </Btn>
-          </>
+          archiveSuggestion ? (
+            <>
+              <Btn
+                variant="secondary"
+                onClick={() => { setDeleteTarget(null); setArchiveSuggestion(null); }}
+                className="flex-1"
+              >
+                Отмена
+              </Btn>
+              <Btn
+                onClick={() => deleteTarget && archiveMut.mutate(deleteTarget.id)}
+                disabled={archiveMut.isPending}
+                className="flex-1"
+              >
+                {archiveMut.isPending ? "Архивация..." : "Архивировать"}
+              </Btn>
+            </>
+          ) : (
+            <>
+              <Btn variant="secondary" onClick={() => setDeleteTarget(null)} className="flex-1">Отмена</Btn>
+              <Btn
+                variant="secondary"
+                onClick={() => deleteTarget && archiveMut.mutate(deleteTarget.id)}
+                disabled={archiveMut.isPending}
+                className="flex-1"
+              >
+                {archiveMut.isPending ? "..." : "Архивировать"}
+              </Btn>
+              <Btn
+                variant="danger"
+                onClick={() => deleteTarget && deleteMut.mutate(deleteTarget.id)}
+                disabled={deleteMut.isPending}
+                className="flex-1"
+              >
+                {deleteMut.isPending ? "Удаление..." : "Удалить"}
+              </Btn>
+            </>
+          )
         }
       >
-        <p className="text-sm text-gray-600">
-          Вы уверены, что хотите удалить <strong>«{deleteTarget?.name}»</strong>? Все товары магазина будут удалены.
-        </p>
-        {deleteMut.isError && <p className="text-xs text-red-500">Ошибка удаления</p>}
+        {archiveSuggestion ? (
+          <div className="space-y-2 text-sm text-gray-600">
+            <p>
+              У магазина <strong>«{deleteTarget?.name}»</strong> есть привязанные данные, поэтому его нельзя физически удалить:
+            </p>
+            <ul className="list-disc pl-5 space-y-0.5">
+              {archiveSuggestion.orders > 0 && <li>Заказов: <strong>{archiveSuggestion.orders}</strong></li>}
+              {archiveSuggestion.pickers > 0 && <li>Сборщиков: <strong>{archiveSuggestion.pickers}</strong></li>}
+            </ul>
+            <p>
+              Архивация скроет магазин из клиентского каталога, но сохранит историю заказов и привязки сборщиков.
+              Магазин всегда можно восстановить.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2 text-sm text-gray-600">
+            <p>
+              Удалить <strong>«{deleteTarget?.name}»</strong>? Все товары магазина будут удалены безвозвратно.
+            </p>
+            <p className="text-xs text-gray-400">
+              Если у магазина есть история заказов или сборщики — система предложит архивацию.
+            </p>
+          </div>
+        )}
+        {deleteError && <p className="text-xs text-red-500 mt-2">{deleteError}</p>}
       </Modal>
     </div>
   );

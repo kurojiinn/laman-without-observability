@@ -169,13 +169,24 @@ func (s *CatalogService) GetStoreSubcategories(ctx context.Context, storeID uuid
 
 // GetStores получает магазины с фильтрацией по типу и поиску.
 // Кеширует только версию без поиска — search-варианты слишком разные.
+// Архивные магазины (is_active=false) скрыты от клиентов.
 func (s *CatalogService) GetStores(ctx context.Context, categoryType *models.StoreCategoryType, search *string) ([]models.Store, error) {
 	if search == nil && categoryType == nil {
 		return cache.GetOrSet(ctx, s.rdb, cache.KeyStores+":all", cacheTTLShort, func() ([]models.Store, error) {
-			return s.storeRepo.GetAll(ctx, nil, nil)
+			return s.storeRepo.GetAll(ctx, nil, nil, false)
 		})
 	}
-	stores, err := s.storeRepo.GetAll(ctx, categoryType, search)
+	stores, err := s.storeRepo.GetAll(ctx, categoryType, search, false)
+	if err != nil {
+		return nil, fmt.Errorf("не удалось получить магазины: %w", err)
+	}
+	return stores, nil
+}
+
+// GetAllStoresIncludingArchived возвращает магазины с архивными — для admin-панели.
+// Не кеширует, т.к. админ-данные меняются часто и не должны протухать.
+func (s *CatalogService) GetAllStoresIncludingArchived(ctx context.Context) ([]models.Store, error) {
+	stores, err := s.storeRepo.GetAll(ctx, nil, nil, true)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось получить магазины: %w", err)
 	}

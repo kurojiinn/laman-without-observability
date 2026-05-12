@@ -63,8 +63,8 @@ type ScenarioRepository interface {
 
 // StoreRepository определяет интерфейс для доступа к данным магазинов.
 type StoreRepository interface {
-	// GetAll получает все магазины.
-	GetAll(ctx context.Context, categoryType *models.StoreCategoryType, search *string) ([]models.Store, error)
+	// GetAll получает магазины. includeArchived=true возвращает и архивные (is_active=false).
+	GetAll(ctx context.Context, categoryType *models.StoreCategoryType, search *string, includeArchived bool) ([]models.Store, error)
 
 	// GetByID получает магазин по ID.
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Store, error)
