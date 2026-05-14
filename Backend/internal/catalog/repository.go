@@ -22,6 +22,10 @@ type SubcategoryRepository interface {
 
 	// GetByStoreID получает подкатегории товаров конкретного магазина.
 	GetByStoreID(ctx context.Context, storeID uuid.UUID) ([]models.Subcategory, error)
+
+	// GetAllGlobal получает все глобальные подкатегории (category_id IS NOT NULL),
+	// отсортированные по category_id — для построения дерева категорий.
+	GetAllGlobal(ctx context.Context) ([]models.Subcategory, error)
 }
 
 // ProductRepository определяет интерфейс для доступа к данным товаров.
@@ -31,7 +35,9 @@ type ProductRepository interface {
 	GetAll(ctx context.Context, categoryID *uuid.UUID, subcategoryID *uuid.UUID, search *string, availableOnly bool, page *models.Page) ([]models.Product, int, error)
 
 	// GetByStoreID возвращает товары магазина + total с учётом фильтров и сортировки.
-	GetByStoreID(ctx context.Context, storeID uuid.UUID, subcategoryID *uuid.UUID, search *string, availableOnly bool, sort string, page *models.Page) ([]models.Product, int, error)
+	// categoryID != nil — фильтр по всем подкатегориям этой категории.
+	// subcategoryID != nil — фильтр по конкретной подкатегории.
+	GetByStoreID(ctx context.Context, storeID uuid.UUID, categoryID *uuid.UUID, subcategoryID *uuid.UUID, search *string, availableOnly bool, sort string, page *models.Page) ([]models.Product, int, error)
 
 	// GetByID получает товар по ID.
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Product, error)

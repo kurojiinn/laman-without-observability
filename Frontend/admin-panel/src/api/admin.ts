@@ -7,6 +7,7 @@ import type {
   Recipe,
   RecipeWithProducts,
   Store,
+  Subcategory,
 } from "../types";
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
@@ -308,6 +309,42 @@ export const deleteCategory = async (user: string, password: string, categoryId:
   await createAdminClient(user, password).delete(`/categories/${categoryId}`);
 };
 
+// ─── Подкатегории товаров (глобальные, привязаны к категории) ──────────────────
+
+// Публичный список подкатегорий категории — для зависимых дропдаунов в форме товара.
+export const fetchSubcategories = async (categoryId: string): Promise<Subcategory[]> => {
+  const { data } = await publicClient.get<Subcategory[]>(
+    `/catalog/subcategories?category_id=${categoryId}`
+  );
+  return data ?? [];
+};
+
+export const createSubcategory = async (
+  user: string,
+  password: string,
+  categoryId: string,
+  name: string
+): Promise<Subcategory> => {
+  const { data } = await createAdminClient(user, password).post<Subcategory>(
+    `/categories/${categoryId}/subcategories`,
+    { name }
+  );
+  return data;
+};
+
+export const updateSubcategory = async (
+  user: string,
+  password: string,
+  subcategoryId: string,
+  name: string
+): Promise<void> => {
+  await createAdminClient(user, password).patch(`/subcategories/${subcategoryId}`, { name });
+};
+
+export const deleteSubcategory = async (user: string, password: string, subcategoryId: string) => {
+  await createAdminClient(user, password).delete(`/subcategories/${subcategoryId}`);
+};
+
 export const fetchProducts = async (user: string, password: string, storeId: string): Promise<Product[]> => {
   const { data } = await createAdminClient(user, password).get<Product[]>(`/products?store_id=${storeId}`);
   return data ?? [];
@@ -348,13 +385,24 @@ export const updateProduct = async (
   user: string,
   password: string,
   productId: string,
-  payload: { name?: string; price?: number; description?: string; is_available?: boolean; image?: File | null }
+  payload: {
+    name?: string;
+    price?: number;
+    description?: string;
+    is_available?: boolean;
+    category_id?: string;
+    // subcategory_id: непустая строка — привязка, "" — явный сброс в NULL.
+    subcategory_id?: string;
+    image?: File | null;
+  }
 ) => {
   const form = new FormData();
   if (payload.name !== undefined) form.append("name", payload.name);
   if (payload.price !== undefined) form.append("price", String(payload.price));
   if (payload.description !== undefined) form.append("description", payload.description);
   if (payload.is_available !== undefined) form.append("is_available", String(payload.is_available));
+  if (payload.category_id) form.append("category_id", payload.category_id);
+  if (payload.subcategory_id !== undefined) form.append("subcategory_id", payload.subcategory_id);
   if (payload.image) form.append("image", payload.image);
   const { data } = await createAdminClient(user, password).patch<Product>(`/products/${productId}`, form, {
     headers: { "Content-Type": "multipart/form-data" },

@@ -110,6 +110,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 		stores.GET("", h.GetStores)
 		stores.GET("/:id", h.GetStore)
 		stores.GET("/:id/subcategories", h.GetStoreSubcategories)
+		stores.GET("/:id/category-tree", h.GetStoreCategoryTree)
 		stores.GET("/:id/products", h.GetStoreProducts)
 		stores.GET("/:id/reviews", h.GetStoreReviews)
 		stores.GET("/:id/can-review", h.CanReview)
@@ -346,6 +347,29 @@ func (h *Handler) GetStoreSubcategories(c *gin.Context) {
 	c.JSON(http.StatusOK, subcategories)
 }
 
+// GetStoreCategoryTree обрабатывает GET /stores/:id/category-tree
+func (h *Handler) GetStoreCategoryTree(c *gin.Context) {
+	ctx, span := observability.StartSpan(c.Request.Context(), "catalog.get_store_category_tree")
+	defer span.End()
+
+	storeID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID магазина"})
+		return
+	}
+
+	tree, err := h.catalogService.GetStoreCategoryTree(ctx, storeID)
+	if err != nil {
+		h.logger.Error("Не удалось получить дерево категорий магазина",
+			zap.String("store_id", storeID.String()),
+			zap.Error(err),
+		)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, tree)
+}
+
 // GetStoreProducts обрабатывает GET /stores/:id/products
 func (h *Handler) GetStoreProducts(c *gin.Context) {
 	ctx, span := observability.StartSpan(c.Request.Context(), "catalog.get_store_products")
@@ -356,6 +380,16 @@ func (h *Handler) GetStoreProducts(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID магазина"})
 		return
+	}
+
+	var categoryID *uuid.UUID
+	if catIDStr := c.Query("category_id"); catIDStr != "" {
+		if catID, err := uuid.Parse(catIDStr); err == nil {
+			categoryID = &catID
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "неверный category_id"})
+			return
+		}
 	}
 
 	var subcategoryID *uuid.UUID
@@ -377,7 +411,7 @@ func (h *Handler) GetStoreProducts(c *gin.Context) {
 	page := parsePage(c)
 	sort := c.Query("sort")
 
-	products, total, err := h.catalogService.GetStoreProducts(ctx, storeID, subcategoryID, search, availableOnly, sort, &page)
+	products, total, err := h.catalogService.GetStoreProducts(ctx, storeID, categoryID, subcategoryID, search, availableOnly, sort, &page)
 	if err != nil {
 		h.logger.Error("Не удалось получить товары магазина",
 			zap.String("store_id", storeID.String()),

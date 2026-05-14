@@ -6,14 +6,28 @@ import (
 	"github.com/google/uuid"
 )
 
-// Category представляет категорию товара.
+// Category представляет категорию товара (главный уровень иерархии).
+// Children — глобальные подкатегории этой категории. Заполняется catalog/admin
+// сервисами при отдаче дерева; db:"-" — поле не маппится из БД (отдельный запрос).
 type Category struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	Name        string    `db:"name" json:"name"`
-	Description *string   `db:"description" json:"description,omitempty"`
-	ImageURL    *string   `db:"image_url" json:"image_url,omitempty"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	ID          uuid.UUID     `db:"id" json:"id"`
+	Name        string        `db:"name" json:"name"`
+	Description *string       `db:"description" json:"description,omitempty"`
+	ImageURL    *string       `db:"image_url" json:"image_url,omitempty"`
+	CreatedAt   time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time     `db:"updated_at" json:"updated_at"`
+	Children    []Subcategory `db:"-" json:"children"`
+}
+
+// CategoryNode — узел дерева категорий магазина (GET /stores/:id/category-tree).
+// Kind: "category" — глобальная категория (id ссылается на categories), у неё
+// могут быть дети; "subcategory" — подкатегория (id ссылается на subcategories),
+// детей нет. Магазин-локальные подкатегории отдаются как childless узлы kind=subcategory.
+type CategoryNode struct {
+	ID       uuid.UUID      `json:"id"`
+	Name     string         `json:"name"`
+	Kind     string         `json:"kind"`
+	Children []CategoryNode `json:"children"`
 }
 
 // ProductOptionGroup — настраиваемая группа опций товара (например, "Порция" или "Острота").

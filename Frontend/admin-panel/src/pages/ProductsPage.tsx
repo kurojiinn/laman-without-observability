@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  createProduct, deleteProduct, fetchCategories,
+  createProduct, deleteProduct, fetchCategories, fetchSubcategories,
   fetchStores, importProducts, searchStoreProducts, updateProduct,
 } from "../api/admin";
 import { PageHeader, Card, Btn, Modal, Input, Select, ImageUploadZone } from "../components/Layout";
@@ -39,12 +39,24 @@ export function ProductsPage({ user, password }: Props) {
   const [formImage, setFormImage] = useState<File | null>(null);
   const [formPreview, setFormPreview] = useState<string | null>(null);
 
-  const [editData, setEditData] = useState({ name: "", price: 0, description: "", is_available: true });
+  const [editData, setEditData] = useState({ name: "", price: 0, description: "", is_available: true, category_id: "", subcategory_id: "" });
   const [editImage, setEditImage] = useState<File | null>(null);
   const [editPreview, setEditPreview] = useState<string | null>(null);
 
   const storesQ = useQuery({ queryKey: ["stores"], queryFn: fetchStores });
   const catsQ = useQuery({ queryKey: ["categories"], queryFn: fetchCategories });
+
+  // Зависимые подкатегории: грузятся для выбранной категории в каждой из форм.
+  const createSubsQ = useQuery({
+    queryKey: ["subcategories", form.category_id],
+    queryFn: () => fetchSubcategories(form.category_id),
+    enabled: !!form.category_id,
+  });
+  const editSubsQ = useQuery({
+    queryKey: ["subcategories", editData.category_id],
+    queryFn: () => fetchSubcategories(editData.category_id),
+    enabled: !!editProduct && !!editData.category_id,
+  });
 
   const productsQ = useQuery({
     queryKey: ["products-search", storeId, searchQuery],
@@ -78,6 +90,9 @@ export function ProductsPage({ user, password }: Props) {
       price: editData.price,
       description: editData.description.trim() || undefined,
       is_available: editData.is_available,
+      category_id: editData.category_id || undefined,
+      // Всегда шлём subcategory_id: "" — явный сброс привязки в NULL.
+      subcategory_id: editData.subcategory_id,
       image: editImage,
     }),
     onSuccess: () => {
@@ -99,9 +114,21 @@ export function ProductsPage({ user, password }: Props) {
   const storeOptions = (storesQ.data ?? []).map((s) => ({ value: s.id, label: s.name }));
   const catOptions = (catsQ.data ?? []).map((c) => ({ value: c.id, label: c.name }));
 
+  // Подкатегории выбранной категории. Если они есть — выбор подкатегории обязателен.
+  const createSubs = createSubsQ.data ?? [];
+  const createSubOptions = createSubs.map((s) => ({ value: s.id, label: s.name }));
+  const createSubRequired = !!form.category_id && createSubs.length > 0;
+
+  const editSubs = editSubsQ.data ?? [];
+  const editSubOptions = editSubs.map((s) => ({ value: s.id, label: s.name }));
+  const editSubRequired = !!editData.category_id && editSubs.length > 0;
+
   function openEdit(p: Product) {
     setEditProduct(p);
-    setEditData({ name: p.name, price: p.price, description: p.description ?? "", is_available: p.is_available });
+    setEditData({
+      name: p.name, price: p.price, description: p.description ?? "", is_available: p.is_available,
+      category_id: p.category_id ?? "", subcategory_id: p.subcategory_id ?? "",
+    });
     setEditImage(null);
     setEditPreview(resolveImg(p.image_url));
   }
@@ -244,7 +271,7 @@ export function ProductsPage({ user, password }: Props) {
             <Btn variant="secondary" onClick={() => setCreateOpen(false)} className="flex-1">Отмена</Btn>
             <Btn
               onClick={() => createMut.mutate()}
-              disabled={createMut.isPending || !form.name.trim() || !form.price || !form.category_id}
+              disabled={createMut.isPending || !form.name.trim() || !form.price || !form.category_id || (createSubRequired && !form.subcategory_id)}
               className="flex-1"
             >
               {createMut.isPending ? "Сохранение..." : "Создать"}
@@ -259,8 +286,25 @@ export function ProductsPage({ user, password }: Props) {
           <Input label="Цена (₽) *" type="number" value={form.price} onChange={(v) => setForm((p) => ({ ...p, price: v }))} placeholder="0" />
           <Input label="Вес (кг)" type="number" value={form.weight} onChange={(v) => setForm((p) => ({ ...p, weight: v }))} placeholder="0.5" />
           <div className="col-span-2">
-            <Select label="Категория *" value={form.category_id} onChange={(v) => setForm((p) => ({ ...p, category_id: v }))} options={catOptions} placeholder="— выберите —" />
+            <Select
+              label="Категория *"
+              value={form.category_id}
+              onChange={(v) => setForm((p) => ({ ...p, category_id: v, subcategory_id: "" }))}
+              options={catOptions}
+              placeholder="— выберите —"
+            />
           </div>
+          {form.category_id && createSubs.length > 0 && (
+            <div className="col-span-2">
+              <Select
+                label="Подкатегория *"
+                value={form.subcategory_id}
+                onChange={(v) => setForm((p) => ({ ...p, subcategory_id: v }))}
+                options={createSubOptions}
+                placeholder="— выберите —"
+              />
+            </div>
+          )}
           <div className="col-span-2">
             <label className="block text-xs font-medium text-gray-500 mb-1">Описание</label>
             <textarea value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400 resize-none" style={{ fontSize: 16 }} />
@@ -285,7 +329,7 @@ export function ProductsPage({ user, password }: Props) {
         footer={
           <>
             <Btn variant="secondary" onClick={() => { setEditProduct(null); setEditImage(null); setEditPreview(null); }} className="flex-1">Отмена</Btn>
-            <Btn onClick={() => updateMut.mutate()} disabled={updateMut.isPending} className="flex-1">
+            <Btn onClick={() => updateMut.mutate()} disabled={updateMut.isPending || (editSubRequired && !editData.subcategory_id)} className="flex-1">
               {updateMut.isPending ? "Сохранение..." : "Сохранить"}
             </Btn>
           </>
@@ -293,6 +337,22 @@ export function ProductsPage({ user, password }: Props) {
       >
         <Input label="Название" value={editData.name} onChange={(v) => setEditData((p) => ({ ...p, name: v }))} />
         <Input label="Цена (₽)" type="number" value={editData.price} onChange={(v) => setEditData((p) => ({ ...p, price: Number(v) }))} />
+        <Select
+          label="Категория"
+          value={editData.category_id}
+          onChange={(v) => setEditData((p) => ({ ...p, category_id: v, subcategory_id: "" }))}
+          options={catOptions}
+          placeholder="— выберите —"
+        />
+        {editData.category_id && editSubs.length > 0 && (
+          <Select
+            label="Подкатегория *"
+            value={editData.subcategory_id}
+            onChange={(v) => setEditData((p) => ({ ...p, subcategory_id: v }))}
+            options={editSubOptions}
+            placeholder="— выберите —"
+          />
+        )}
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Описание</label>
           <textarea value={editData.description} onChange={(e) => setEditData((p) => ({ ...p, description: e.target.value }))} rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400 resize-none" style={{ fontSize: 16 }} />

@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { adminApi, catalogApi, reviewsApi, isStoreOpen, resolveImageUrl, type Store, type Product, type Review, type Subcategory } from "@/lib/api";
+import { adminApi, catalogApi, reviewsApi, isStoreOpen, resolveImageUrl, type Store, type Product, type Review, type CategoryNode } from "@/lib/api";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import ProductModal from "@/components/ui/ProductModal";
@@ -55,8 +55,11 @@ export default function StoreDetailView({
   const [activeTab, setActiveTab] = useState<"products" | "reviews">("products");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
-  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string | null>(null);
+  // Двухуровневый фильтр: ряд 1 — главные категории (+ «Все товары»),
+  // ряд 2 — подкатегории выбранной главной категории.
+  const [categoryTree, setCategoryTree] = useState<CategoryNode[]>([]);
+  const [selectedL1, setSelectedL1] = useState<CategoryNode | null>(null); // null = «Все товары»
+  const [selectedL2Id, setSelectedL2Id] = useState<string | null>(null);   // null = все подкатегории L1
   const [localSort, setLocalSort] = useState("");
   const sort = sortProp !== undefined ? sortProp : localSort;
   const handleSortChange = onSortChange ?? setLocalSort;
@@ -88,21 +91,26 @@ export default function StoreDetailView({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [sortOpen]);
 
-  // Загружаем подкатегории магазина
+  // Загружаем дерево категорий магазина. По умолчанию — «Все товары».
   useEffect(() => {
-    setSubcategories([]);
-    setSelectedSubcategoryId(null);
-    catalogApi.getStoreSubcategories(store.id)
-      .then((data) => {
-        const list = Array.isArray(data) ? data : [];
-        setSubcategories(list);
-        const drinksId = list.find((s) => s.name === "Напитки")?.id;
-        setSelectedSubcategoryId(drinksId ?? list[0]?.id ?? null);
-      })
+    setCategoryTree([]);
+    setSelectedL1(null);
+    setSelectedL2Id(null);
+    catalogApi.getStoreCategoryTree(store.id)
+      .then((data) => setCategoryTree(Array.isArray(data) ? data : []))
       .catch(() => {});
   }, [store.id]);
 
-  // Первая загрузка / смена подкатегории / смена поиска
+  // Параметры фильтра товаров из выбранных категорий. Поиск переопределяет фильтр.
+  const filterParams = useMemo<{ category_id?: string; subcategory_id?: string }>(() => {
+    if (search) return {};
+    if (!selectedL1) return {};                                  // «Все товары»
+    if (selectedL1.kind === "subcategory") return { subcategory_id: selectedL1.id };
+    if (selectedL2Id) return { subcategory_id: selectedL2Id };    // конкретная подкатегория
+    return { category_id: selectedL1.id };                       // вся главная категория
+  }, [search, selectedL1, selectedL2Id]);
+
+  // Первая загрузка / смена фильтра / смена поиска
   useEffect(() => {
     setProducts([]);
     setHasMore(true);
@@ -111,7 +119,7 @@ export default function StoreDetailView({
 
     catalogApi
       .getStoreProducts(store.id, {
-        subcategory_id: search ? undefined : (selectedSubcategoryId ?? undefined),
+        ...filterParams,
         search: search || undefined,
         sort: sort || undefined,
         limit: PAGE_SIZE,
@@ -124,14 +132,14 @@ export default function StoreDetailView({
       })
       .catch(() => setProducts([]))
       .finally(() => setProductsLoading(false));
-  }, [store.id, selectedSubcategoryId, search, sort]);
+  }, [store.id, filterParams, search, sort]);
 
   const loadMore = useCallback(() => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     catalogApi
       .getStoreProducts(store.id, {
-        subcategory_id: search ? undefined : (selectedSubcategoryId ?? undefined),
+        ...filterParams,
         search: search || undefined,
         sort: sort || undefined,
         limit: PAGE_SIZE,
@@ -144,7 +152,7 @@ export default function StoreDetailView({
       })
       .catch(() => {})
       .finally(() => setLoadingMore(false));
-  }, [store.id, selectedSubcategoryId, search, sort, loadingMore, hasMore]);
+  }, [store.id, filterParams, search, sort, loadingMore, hasMore]);
 
   // IntersectionObserver — следит за sentinel-div внизу списка
   useEffect(() => {
@@ -353,23 +361,54 @@ export default function StoreDetailView({
 
       {activeTab === "products" && (
         <>
-          {/* Фильтр по подкатегориям. data-no-swipe — чтобы горизонтальный скролл
-              чипсов не воспринимался как свайп-выход из магазина. */}
-          {subcategories.length > 0 && (
-            <div data-no-swipe className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 mb-4 -mx-4 px-4">
-              {subcategories.map((sc) => (
-                <button
-                  key={sc.id}
-                  onClick={() => setSelectedSubcategoryId(sc.id)}
-                  className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                    selectedSubcategoryId === sc.id
-                      ? "bg-indigo-600 text-white"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  }`}
-                >
-                  {sc.name}
-                </button>
-              ))}
+          {/* Двухуровневый фильтр категорий. data-no-swipe — чтобы горизонтальный
+              скролл чипсов не воспринимался как свайп-выход из магазина. */}
+          {categoryTree.length > 0 && (
+            <div className="mb-4">
+              {/* Ряд 1 — главные категории */}
+              <div data-no-swipe className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4">
+                <CategoryChip
+                  label="Все товары"
+                  active={selectedL1 === null}
+                  onClick={() => { setSelectedL1(null); setSelectedL2Id(null); }}
+                />
+                {categoryTree.map((node) => (
+                  <CategoryChip
+                    key={node.id}
+                    label={node.name}
+                    active={selectedL1?.id === node.id}
+                    onClick={() => { setSelectedL1(node); setSelectedL2Id(null); }}
+                  />
+                ))}
+              </div>
+
+              {/* Ряд 2 — подкатегории выбранной категории. Появляется плавно
+                  сверху вниз через max-height. Категория без детей — ряд скрыт. */}
+              <div
+                className={`overflow-hidden transition-[max-height] duration-300 ease-out ${
+                  selectedL1?.kind === "category" && selectedL1.children.length > 0
+                    ? "max-h-20"
+                    : "max-h-0"
+                }`}
+              >
+                <div data-no-swipe className="flex gap-2 overflow-x-auto scrollbar-hide pt-2 -mx-4 px-4">
+                  <CategoryChip
+                    label="Все"
+                    level={2}
+                    active={selectedL2Id === null}
+                    onClick={() => setSelectedL2Id(null)}
+                  />
+                  {selectedL1?.children.map((child) => (
+                    <CategoryChip
+                      key={child.id}
+                      label={child.name}
+                      level={2}
+                      active={selectedL2Id === child.id}
+                      onClick={() => setSelectedL2Id(child.id)}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
@@ -487,6 +526,38 @@ export default function StoreDetailView({
       )}
     </div>
     </div>
+  );
+}
+
+// ─── Category Chip ─────────────────────────────────────────────────────────────
+// Чип фильтра категорий. Цвета заданы по ТЗ (вне палитры Tailwind) — inline-стилями.
+// level 1 — главные категории, level 2 — подкатегории (чуть меньше).
+
+function CategoryChip({
+  label,
+  active,
+  onClick,
+  level = 1,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  level?: 1 | 2;
+}) {
+  const activeBg = level === 2 ? "#152A32" : "#4B5EFC";
+  const sizeClass = level === 2 ? "px-3 py-1 text-xs" : "px-3.5 py-1.5 text-sm";
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-shrink-0 rounded-full font-medium transition-colors ${sizeClass}`}
+      style={
+        active
+          ? { backgroundColor: activeBg, color: "#ffffff" }
+          : { backgroundColor: "#121430", color: "#9ca3af" }
+      }
+    >
+      {label}
+    </button>
   );
 }
 

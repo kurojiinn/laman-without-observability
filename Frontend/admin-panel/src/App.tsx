@@ -10,6 +10,7 @@ import { RecipesPage } from "./pages/RecipesPage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { ScenariosPage } from "./pages/ScenariosPage";
 import { CategoriesPage } from "./pages/CategoriesPage";
+import { ProductCategoriesPage } from "./pages/ProductCategoriesPage";
 import { PickersPage } from "./pages/PickersPage";
 
 function AdminApp() {
@@ -102,6 +103,7 @@ function AdminApp() {
       {page === "orders" && <OrdersPage user={creds.user} password={creds.password} />}
       {page === "scenarios" && <ScenariosPage user={creds.user} password={creds.password} />}
       {page === "categories" && <CategoriesPage user={creds.user} password={creds.password} />}
+      {page === "product-categories" && <ProductCategoriesPage user={creds.user} password={creds.password} />}
       {page === "pickers" && <PickersPage user={creds.user} password={creds.password} />}
     </Layout>
   );

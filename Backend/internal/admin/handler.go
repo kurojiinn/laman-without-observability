@@ -129,12 +129,15 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.Han
 		admin.GET("/featured", h.GetFeatured)
 		admin.POST("/featured", h.AddFeatured)
 		admin.DELETE("/featured/:id", h.DeleteFeatured)
-		// Категории
+		// Категории и подкатегории товаров
 		admin.GET("/categories", h.AdminGetCategories)
 		admin.POST("/categories", h.AdminCreateCategory)
 		admin.PATCH("/categories/:id", h.AdminUpdateCategory)
 		admin.PATCH("/categories/:id/image", h.AdminUpdateCategoryImage)
 		admin.DELETE("/categories/:id", h.AdminDeleteCategory)
+		admin.POST("/categories/:id/subcategories", h.AdminCreateSubcategory)
+		admin.PATCH("/subcategories/:id", h.AdminUpdateSubcategory)
+		admin.DELETE("/subcategories/:id", h.AdminDeleteSubcategory)
 		// Сборщики
 		admin.GET("/pickers", h.GetPickers)
 		admin.POST("/pickers", h.CreatePicker)
@@ -529,6 +532,17 @@ func (h *Handler) UpdateProduct(c *gin.Context) {
 	if catStr := c.PostForm("category_id"); catStr != "" {
 		if catID, err := uuid.Parse(catStr); err == nil {
 			req.CategoryID = &catID
+		}
+	}
+	// subcategory_id: непустой UUID — привязка к подкатегории; пустая строка ""
+	// (поле передано, но пустое) — явный сброс привязки через uuid.Nil.
+	if _, ok := c.GetPostForm("subcategory_id"); ok {
+		subStr := c.PostForm("subcategory_id")
+		if subStr == "" {
+			nilID := uuid.Nil
+			req.SubcategoryID = &nilID
+		} else if subID, err := uuid.Parse(subStr); err == nil {
+			req.SubcategoryID = &subID
 		}
 	}
 
@@ -1086,6 +1100,66 @@ func (h *Handler) AdminDeleteCategory(c *gin.Context) {
 	}
 	if err := h.service.DeleteCategory(c.Request.Context(), catID); err != nil {
 		h.respondError(c, http.StatusInternalServerError, "не удалось удалить категорию", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// AdminCreateSubcategory создаёт глобальную подкатегорию внутри категории.
+// POST /api/v1/admin/categories/:id/subcategories  Body: {name}
+func (h *Handler) AdminCreateSubcategory(c *gin.Context) {
+	categoryID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID категории", "")
+		return
+	}
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(c, http.StatusBadRequest, "некорректные данные", err.Error())
+		return
+	}
+	sub, err := h.service.CreateSubcategory(c.Request.Context(), categoryID, req.Name)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "не удалось создать подкатегорию", err.Error())
+		return
+	}
+	c.JSON(http.StatusCreated, sub)
+}
+
+// AdminUpdateSubcategory переименовывает глобальную подкатегорию.
+// PATCH /api/v1/admin/subcategories/:id  Body: {name}
+func (h *Handler) AdminUpdateSubcategory(c *gin.Context) {
+	subID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID подкатегории", "")
+		return
+	}
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(c, http.StatusBadRequest, "некорректные данные", err.Error())
+		return
+	}
+	if err := h.service.UpdateSubcategoryName(c.Request.Context(), subID, req.Name); err != nil {
+		h.respondError(c, http.StatusBadRequest, "не удалось обновить подкатегорию", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// AdminDeleteSubcategory удаляет глобальную подкатегорию (товары остаются, ссылка обнулится).
+// DELETE /api/v1/admin/subcategories/:id
+func (h *Handler) AdminDeleteSubcategory(c *gin.Context) {
+	subID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID подкатегории", "")
+		return
+	}
+	if err := h.service.DeleteSubcategory(c.Request.Context(), subID); err != nil {
+		h.respondError(c, http.StatusBadRequest, "не удалось удалить подкатегорию", err.Error())
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})

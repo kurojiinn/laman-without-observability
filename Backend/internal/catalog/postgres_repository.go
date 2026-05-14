@@ -76,6 +76,16 @@ ORDER BY name
 	return subcategories, err
 }
 
+// GetAllGlobal возвращает все глобальные подкатегории (привязанные к категории,
+// не к магазину). Отсортированы по category_id, name — удобно группировать в дерево.
+func (r *postgresSubcategoryRepository) GetAllGlobal(ctx context.Context) ([]models.Subcategory, error) {
+	var subcategories []models.Subcategory
+	query := `SELECT id, category_id, store_id, name, created_at, updated_at
+FROM subcategories WHERE category_id IS NOT NULL ORDER BY category_id, name`
+	err := r.db.SelectContext(ctx, &subcategories, query)
+	return subcategories, err
+}
+
 // postgresProductRepository реализует ProductRepository используя PostgreSQL.
 type postgresProductRepository struct {
 	db *database.DB
@@ -124,11 +134,16 @@ func (r *postgresProductRepository) GetAll(ctx context.Context, categoryID *uuid
 	return products, total, err
 }
 
-func (r *postgresProductRepository) GetByStoreID(ctx context.Context, storeID uuid.UUID, subcategoryID *uuid.UUID, search *string, availableOnly bool, sort string, page *models.Page) ([]models.Product, int, error) {
+func (r *postgresProductRepository) GetByStoreID(ctx context.Context, storeID uuid.UUID, categoryID *uuid.UUID, subcategoryID *uuid.UUID, search *string, availableOnly bool, sort string, page *models.Page) ([]models.Product, int, error) {
 	var products []models.Product
 	whereClauses := "WHERE store_id = $1"
 	args := []interface{}{storeID}
 
+	// Фильтр по родительской категории — все товары её дочерних подкатегорий.
+	if categoryID != nil {
+		whereClauses += fmt.Sprintf(" AND subcategory_id IN (SELECT id FROM subcategories WHERE category_id = $%d)", len(args)+1)
+		args = append(args, *categoryID)
+	}
 	if subcategoryID != nil {
 		whereClauses += fmt.Sprintf(" AND subcategory_id = $%d", len(args)+1)
 		args = append(args, *subcategoryID)

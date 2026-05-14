@@ -125,6 +125,16 @@ export interface Subcategory {
   name: string;
 }
 
+// Узел дерева категорий магазина (GET /stores/:id/category-tree).
+// kind="category" — главная категория, может иметь children.
+// kind="subcategory" — подкатегория (в т.ч. магазин-локальная), children всегда [].
+export interface CategoryNode {
+  id: string;
+  name: string;
+  kind: "category" | "subcategory";
+  children: CategoryNode[];
+}
+
 export interface ProductOptionValue {
   id: string;
   group_id: string;
@@ -267,10 +277,14 @@ export const catalogApi = {
   getStoreSubcategories: (storeId: string) =>
     api.get<Subcategory[]>(`/v1/stores/${storeId}/subcategories`),
 
-  getStoreProducts: (storeId: string, params?: { search?: string; subcategory_id?: string; sort?: string; limit?: number; offset?: number }) => {
+  getStoreCategoryTree: (storeId: string) =>
+    api.get<CategoryNode[]>(`/v1/stores/${storeId}/category-tree`),
+
+  getStoreProducts: (storeId: string, params?: { search?: string; category_id?: string; subcategory_id?: string; sort?: string; limit?: number; offset?: number }) => {
     const q = new URLSearchParams();
     q.set("available_only", "true");
     if (params?.search) q.set("search", params.search);
+    if (params?.category_id) q.set("category_id", params.category_id);
     if (params?.subcategory_id) q.set("subcategory_id", params.subcategory_id);
     if (params?.sort) q.set("sort", params.sort);
     if (params?.limit !== undefined) q.set("limit", String(params.limit));

@@ -260,9 +260,41 @@ type ImportResult struct {
 	Inserted int
 }
 
-// GetCategories возвращает все категории.
+// invalidateCategoriesCache сбрасывает кеш дерева категорий в Redis.
+// Вызывается после любой мутации categories/subcategories, иначе клиент
+// до 10 минут видит старое дерево.
+func (s *Service) invalidateCategoriesCache(ctx context.Context) {
+	if s.rdb == nil {
+		return
+	}
+	cache.Invalidate(ctx, s.rdb, cache.KeyCategories)
+}
+
+// GetCategories возвращает дерево категорий: каждая категория с её
+// глобальными подкатегориями в поле Children.
 func (s *Service) GetCategories(ctx context.Context) ([]models.Category, error) {
-	return s.repo.GetCategories(ctx)
+	categories, err := s.repo.GetCategories(ctx)
+	if err != nil {
+		return nil, err
+	}
+	subcategories, err := s.repo.GetGlobalSubcategories(ctx)
+	if err != nil {
+		return nil, err
+	}
+	childrenByCategory := make(map[uuid.UUID][]models.Subcategory, len(categories))
+	for _, sub := range subcategories {
+		if sub.CategoryID != nil {
+			childrenByCategory[*sub.CategoryID] = append(childrenByCategory[*sub.CategoryID], sub)
+		}
+	}
+	for i := range categories {
+		children := childrenByCategory[categories[i].ID]
+		if children == nil {
+			children = []models.Subcategory{}
+		}
+		categories[i].Children = children
+	}
+	return categories, nil
 }
 
 // CreateCategory создаёт новую категорию.
@@ -275,22 +307,77 @@ func (s *Service) CreateCategory(ctx context.Context, name string, imageURL *str
 	if err := s.repo.CreateCategory(ctx, cat); err != nil {
 		return nil, err
 	}
+	s.invalidateCategoriesCache(ctx)
 	return cat, nil
 }
 
 // UpdateCategoryImage обновляет изображение категории.
 func (s *Service) UpdateCategoryImage(ctx context.Context, id uuid.UUID, imageURL string) error {
-	return s.repo.UpdateCategoryImage(ctx, id, imageURL)
+	if err := s.repo.UpdateCategoryImage(ctx, id, imageURL); err != nil {
+		return err
+	}
+	s.invalidateCategoriesCache(ctx)
+	return nil
 }
 
 // UpdateCategoryName обновляет название категории.
 func (s *Service) UpdateCategoryName(ctx context.Context, id uuid.UUID, name string) error {
-	return s.repo.UpdateCategoryName(ctx, id, name)
+	if err := s.repo.UpdateCategoryName(ctx, id, name); err != nil {
+		return err
+	}
+	s.invalidateCategoriesCache(ctx)
+	return nil
 }
 
 // DeleteCategory удаляет категорию без удаления товаров.
 func (s *Service) DeleteCategory(ctx context.Context, id uuid.UUID) error {
-	return s.repo.DeleteCategory(ctx, id)
+	if err := s.repo.DeleteCategory(ctx, id); err != nil {
+		return err
+	}
+	s.invalidateCategoriesCache(ctx)
+	return nil
+}
+
+// CreateSubcategory создаёт глобальную подкатегорию внутри категории.
+func (s *Service) CreateSubcategory(ctx context.Context, categoryID uuid.UUID, name string) (*models.Subcategory, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("название обязательно")
+	}
+	if len(name) > 100 {
+		return nil, fmt.Errorf("название слишком длинное")
+	}
+	sub, err := s.repo.CreateGlobalSubcategory(ctx, categoryID, name)
+	if err != nil {
+		return nil, err
+	}
+	s.invalidateCategoriesCache(ctx)
+	return sub, nil
+}
+
+// UpdateSubcategoryName переименовывает глобальную подкатегорию.
+func (s *Service) UpdateSubcategoryName(ctx context.Context, id uuid.UUID, name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("название обязательно")
+	}
+	if len(name) > 100 {
+		return fmt.Errorf("название слишком длинное")
+	}
+	if err := s.repo.UpdateSubcategoryName(ctx, id, name); err != nil {
+		return err
+	}
+	s.invalidateCategoriesCache(ctx)
+	return nil
+}
+
+// DeleteSubcategory удаляет глобальную подкатегорию (товары остаются, ссылка обнулится).
+func (s *Service) DeleteSubcategory(ctx context.Context, id uuid.UUID) error {
+	if err := s.repo.DeleteSubcategory(ctx, id); err != nil {
+		return err
+	}
+	s.invalidateCategoriesCache(ctx)
+	return nil
 }
 
 // ImportProducts выполняет массовый импорт товаров из Excel/CSV.

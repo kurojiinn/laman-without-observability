@@ -27,11 +27,21 @@ export type Store = {
   is_active?: boolean;
 };
 
+// Подкатегория. Глобальная — привязана к category_id; магазин-локальная — к store_id.
+export type Subcategory = {
+  id: string;
+  category_id?: string | null;
+  store_id?: string | null;
+  name: string;
+};
+
 export type Category = {
   id: string;
   name: string;
   description?: string | null;
   image_url?: string | null;
+  // children — глобальные подкатегории (приходят с GET /admin/categories).
+  children?: Subcategory[];
 };
 
 export type Product = {

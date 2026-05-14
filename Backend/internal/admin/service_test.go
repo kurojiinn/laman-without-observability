@@ -129,6 +129,22 @@ func (m *adminRepoMock) UpdateCategoryName(ctx context.Context, id uuid.UUID, na
 	return nil
 }
 
+func (m *adminRepoMock) GetGlobalSubcategories(ctx context.Context) ([]models.Subcategory, error) {
+	return nil, nil
+}
+
+func (m *adminRepoMock) CreateGlobalSubcategory(ctx context.Context, categoryID uuid.UUID, name string) (*models.Subcategory, error) {
+	return &models.Subcategory{ID: uuid.New(), CategoryID: &categoryID, Name: name}, nil
+}
+
+func (m *adminRepoMock) UpdateSubcategoryName(ctx context.Context, id uuid.UUID, name string) error {
+	return nil
+}
+
+func (m *adminRepoMock) DeleteSubcategory(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+
 func (m *adminRepoMock) GetOrderUserID(ctx context.Context, id uuid.UUID) (*uuid.UUID, error) {
 	u := uuid.New()
 	return &u, nil

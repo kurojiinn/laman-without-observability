@@ -48,6 +48,11 @@ type Repository interface {
 	UpdateCategoryImage(ctx context.Context, id uuid.UUID, imageURL string) error
 	UpdateCategoryName(ctx context.Context, id uuid.UUID, name string) error
 	DeleteCategory(ctx context.Context, id uuid.UUID) error
+	// Глобальные подкатегории (привязаны к категории, не к магазину)
+	GetGlobalSubcategories(ctx context.Context) ([]models.Subcategory, error)
+	CreateGlobalSubcategory(ctx context.Context, categoryID uuid.UUID, name string) (*models.Subcategory, error)
+	UpdateSubcategoryName(ctx context.Context, id uuid.UUID, name string) error
+	DeleteSubcategory(ctx context.Context, id uuid.UUID) error
 	// Сборщики
 	CreatePicker(ctx context.Context, user *models.User) error
 	GetPickers(ctx context.Context) ([]PickerInfo, error)
@@ -448,12 +453,13 @@ func newProductFromRequest(req *CreateProductRequest) *models.Product {
 
 // UpdateProductRequest — поля для частичного обновления товара.
 type UpdateProductRequest struct {
-	Name        *string    `json:"name"`
-	Price       *float64   `json:"price"`
-	Description *string    `json:"description"`
-	ImageURL    *string    `json:"image_url"`
-	IsAvailable *bool      `json:"is_available"`
-	CategoryID  *uuid.UUID `json:"category_id"`
+	Name          *string    `json:"name"`
+	Price         *float64   `json:"price"`
+	Description   *string    `json:"description"`
+	ImageURL      *string    `json:"image_url"`
+	IsAvailable   *bool      `json:"is_available"`
+	CategoryID    *uuid.UUID `json:"category_id"`
+	SubcategoryID *uuid.UUID `json:"subcategory_id"`
 }
 
 // GetProductsByStore возвращает все товары магазина.
@@ -505,6 +511,16 @@ func (r *postgresRepository) UpdateProduct(ctx context.Context, id uuid.UUID, re
 		setClauses = append(setClauses, fmt.Sprintf("category_id = $%d", argIdx))
 		args = append(args, *req.CategoryID)
 		argIdx++
+	}
+	if req.SubcategoryID != nil {
+		// uuid.Nil — явный сброс привязки к подкатегории (товар в главной категории).
+		if *req.SubcategoryID == uuid.Nil {
+			setClauses = append(setClauses, "subcategory_id = NULL")
+		} else {
+			setClauses = append(setClauses, fmt.Sprintf("subcategory_id = $%d", argIdx))
+			args = append(args, *req.SubcategoryID)
+			argIdx++
+		}
 	}
 
 	args = append(args, id)
@@ -593,9 +609,71 @@ func (r *postgresRepository) UpdateCategoryName(ctx context.Context, id uuid.UUI
 }
 
 // DeleteCategory удаляет категорию (без удаления товаров).
+// Дочерние подкатегории удаляются каскадно (FK ON DELETE CASCADE).
 func (r *postgresRepository) DeleteCategory(ctx context.Context, id uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM categories WHERE id = $1`, id)
 	return err
+}
+
+// GetGlobalSubcategories возвращает все глобальные подкатегории (category_id IS NOT NULL).
+func (r *postgresRepository) GetGlobalSubcategories(ctx context.Context) ([]models.Subcategory, error) {
+	var subs []models.Subcategory
+	err := r.db.SelectContext(ctx, &subs,
+		`SELECT id, category_id, store_id, name, created_at, updated_at
+		 FROM subcategories WHERE category_id IS NOT NULL ORDER BY category_id, name`)
+	return subs, err
+}
+
+// CreateGlobalSubcategory создаёт подкатегорию, привязанную к категории (store_id = NULL).
+func (r *postgresRepository) CreateGlobalSubcategory(ctx context.Context, categoryID uuid.UUID, name string) (*models.Subcategory, error) {
+	id := uuid.New()
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO subcategories (id, category_id, store_id, name, created_at, updated_at)
+		 VALUES ($1, $2, NULL, $3, NOW(), NOW())`,
+		id, categoryID, name,
+	)
+	if err != nil {
+		return nil, err
+	}
+	var sub models.Subcategory
+	err = r.db.GetContext(ctx, &sub,
+		`SELECT id, category_id, store_id, name, created_at, updated_at FROM subcategories WHERE id = $1`,
+		id,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &sub, nil
+}
+
+// UpdateSubcategoryName переименовывает глобальную подкатегорию.
+// Защита через store_id IS NULL — магазин-локальные не трогаем.
+func (r *postgresRepository) UpdateSubcategoryName(ctx context.Context, id uuid.UUID, name string) error {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE subcategories SET name = $1, updated_at = NOW() WHERE id = $2 AND store_id IS NULL`,
+		name, id,
+	)
+	if err != nil {
+		return err
+	}
+	if affected, _ := res.RowsAffected(); affected == 0 {
+		return fmt.Errorf("подкатегория не найдена")
+	}
+	return nil
+}
+
+// DeleteSubcategory удаляет глобальную подкатегорию. Товары остаются —
+// subcategory_id обнуляется по FK ON DELETE SET NULL.
+func (r *postgresRepository) DeleteSubcategory(ctx context.Context, id uuid.UUID) error {
+	res, err := r.db.ExecContext(ctx,
+		`DELETE FROM subcategories WHERE id = $1 AND store_id IS NULL`, id)
+	if err != nil {
+		return err
+	}
+	if affected, _ := res.RowsAffected(); affected == 0 {
+		return fmt.Errorf("подкатегория не найдена")
+	}
+	return nil
 }
 
 // CreatePicker создаёт пользователя с ролью PICKER, привязанного к магазину.

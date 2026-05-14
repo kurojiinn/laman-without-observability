@@ -130,15 +130,75 @@ func (s *CatalogService) DeleteStoreCategory(ctx context.Context, id string) err
 	return nil
 }
 
-// GetCategories получает все категории.
+// GetCategories получает дерево категорий: каждая категория с её глобальными
+// подкатегориями в поле Children.
 func (s *CatalogService) GetCategories(ctx context.Context) ([]models.Category, error) {
 	return cache.GetOrSet(ctx, s.rdb, cache.KeyCategories, cacheTTLMedium, func() ([]models.Category, error) {
 		categories, err := s.categoryRepo.GetAll(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("не удалось получить категории: %w", err)
 		}
+		subcategories, err := s.subcategoryRepo.GetAllGlobal(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("не удалось получить подкатегории: %w", err)
+		}
+		childrenByCategory := make(map[uuid.UUID][]models.Subcategory, len(categories))
+		for _, sub := range subcategories {
+			if sub.CategoryID != nil {
+				childrenByCategory[*sub.CategoryID] = append(childrenByCategory[*sub.CategoryID], sub)
+			}
+		}
+		for i := range categories {
+			children := childrenByCategory[categories[i].ID]
+			if children == nil {
+				children = []models.Subcategory{}
+			}
+			categories[i].Children = children
+		}
 		return categories, nil
 	})
+}
+
+// GetStoreCategoryTree строит двухуровневое дерево категорий для магазина.
+// Глобальные подкатегории товаров магазина группируются под своими категориями;
+// магазин-локальные подкатегории отдаются отдельными узлами без детей.
+func (s *CatalogService) GetStoreCategoryTree(ctx context.Context, storeID uuid.UUID) ([]models.CategoryNode, error) {
+	subcategories, err := s.subcategoryRepo.GetByStoreID(ctx, storeID)
+	if err != nil {
+		return nil, fmt.Errorf("не удалось получить подкатегории магазина: %w", err)
+	}
+
+	// Глобальные подкатегории группируем по родительской категории.
+	childrenByCategory := make(map[uuid.UUID][]models.CategoryNode)
+	categoryOrder := make([]uuid.UUID, 0)
+	localNodes := make([]models.CategoryNode, 0)
+	for _, sub := range subcategories {
+		node := models.CategoryNode{ID: sub.ID, Name: sub.Name, Kind: "subcategory", Children: []models.CategoryNode{}}
+		if sub.CategoryID == nil {
+			localNodes = append(localNodes, node)
+			continue
+		}
+		if _, seen := childrenByCategory[*sub.CategoryID]; !seen {
+			categoryOrder = append(categoryOrder, *sub.CategoryID)
+		}
+		childrenByCategory[*sub.CategoryID] = append(childrenByCategory[*sub.CategoryID], node)
+	}
+
+	tree := make([]models.CategoryNode, 0, len(categoryOrder)+len(localNodes))
+	for _, catID := range categoryOrder {
+		cat, err := s.categoryRepo.GetByID(ctx, catID)
+		if err != nil {
+			continue // категория удалена — пропускаем её подкатегории
+		}
+		tree = append(tree, models.CategoryNode{
+			ID:       cat.ID,
+			Name:     cat.Name,
+			Kind:     "category",
+			Children: childrenByCategory[catID],
+		})
+	}
+	tree = append(tree, localNodes...)
+	return tree, nil
 }
 
 // GetProducts получает товары с опциональными фильтрами (без пагинации).
@@ -169,17 +229,19 @@ func (s *CatalogService) GetProductsWithFilters(
 }
 
 // GetStoreProducts получает товары конкретного магазина с пагинацией.
+// categoryID != nil — фильтр по всем подкатегориям этой категории.
 // Если подключен optionsRepo, к каждому товару прикрепляются option_groups.
 func (s *CatalogService) GetStoreProducts(
 	ctx context.Context,
 	storeID uuid.UUID,
+	categoryID *uuid.UUID,
 	subcategoryID *uuid.UUID,
 	search *string,
 	availableOnly bool,
 	sort string,
 	page *models.Page,
 ) ([]models.Product, int, error) {
-	products, total, err := s.productRepo.GetByStoreID(ctx, storeID, subcategoryID, search, availableOnly, sort, page)
+	products, total, err := s.productRepo.GetByStoreID(ctx, storeID, categoryID, subcategoryID, search, availableOnly, sort, page)
 	if err != nil {
 		return nil, 0, fmt.Errorf("не удалось получить товары магазина: %w", err)
 	}
