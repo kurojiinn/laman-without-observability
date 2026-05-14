@@ -55,10 +55,12 @@ export default function StoreDetailView({
   const [activeTab, setActiveTab] = useState<"products" | "reviews">("products");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-  // Двухуровневый фильтр: ряд 1 — главные категории (+ «Все товары»),
-  // ряд 2 — подкатегории выбранной главной категории.
+  // Двухуровневый фильтр: ряд 1 — главные категории, ряд 2 — подкатегории
+  // выбранной главной категории. По умолчанию выбрана первая категория —
+  // отдельного пункта «Все товары» нет, чтобы не грузить весь каталог сразу.
   const [categoryTree, setCategoryTree] = useState<CategoryNode[]>([]);
-  const [selectedL1, setSelectedL1] = useState<CategoryNode | null>(null); // null = «Все товары»
+  const [categoryReady, setCategoryReady] = useState(false); // дерево загружено (или пустое)
+  const [selectedL1, setSelectedL1] = useState<CategoryNode | null>(null);
   const [selectedL2Id, setSelectedL2Id] = useState<string | null>(null);   // null = все подкатегории L1
   const [localSort, setLocalSort] = useState("");
   const sort = sortProp !== undefined ? sortProp : localSort;
@@ -91,14 +93,20 @@ export default function StoreDetailView({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [sortOpen]);
 
-  // Загружаем дерево категорий магазина. По умолчанию — «Все товары».
+  // Загружаем дерево категорий магазина. По умолчанию выбираем первую категорию.
   useEffect(() => {
     setCategoryTree([]);
+    setCategoryReady(false);
     setSelectedL1(null);
     setSelectedL2Id(null);
     catalogApi.getStoreCategoryTree(store.id)
-      .then((data) => setCategoryTree(Array.isArray(data) ? data : []))
-      .catch(() => {});
+      .then((data) => {
+        const list = Array.isArray(data) ? data : [];
+        setCategoryTree(list);
+        setSelectedL1(list[0] ?? null);
+      })
+      .catch(() => {})
+      .finally(() => setCategoryReady(true));
   }, [store.id]);
 
   // Параметр фильтра товаров из выбранной категории. Поиск переопределяет фильтр.
@@ -106,13 +114,16 @@ export default function StoreDetailView({
   // дочерние подкатегории, поэтому достаточно передать id выбранного узла.
   const filterParams = useMemo<{ subcategory_id?: string }>(() => {
     if (search) return {};
-    if (!selectedL1) return {};                                // «Все товары»
+    if (!selectedL1) return {};                                // нет категорий у магазина
     if (selectedL2Id) return { subcategory_id: selectedL2Id };  // конкретная подкатегория
     return { subcategory_id: selectedL1.id };                  // категория целиком
   }, [search, selectedL1, selectedL2Id]);
 
-  // Первая загрузка / смена фильтра / смена поиска
+  // Первая загрузка / смена фильтра / смена поиска.
+  // Ждём загрузки дерева категорий, чтобы не подтянуть весь каталог до выбора
+  // категории по умолчанию.
   useEffect(() => {
+    if (!categoryReady) return;
     setProducts([]);
     setHasMore(true);
     offsetRef.current = 0;
@@ -133,7 +144,7 @@ export default function StoreDetailView({
       })
       .catch(() => setProducts([]))
       .finally(() => setProductsLoading(false));
-  }, [store.id, filterParams, search, sort]);
+  }, [store.id, categoryReady, filterParams, search, sort]);
 
   const loadMore = useCallback(() => {
     if (loadingMore || !hasMore) return;
@@ -368,11 +379,6 @@ export default function StoreDetailView({
             <div className="mb-4">
               {/* Ряд 1 — главные категории */}
               <div data-no-swipe className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4">
-                <CategoryChip
-                  label="Все товары"
-                  active={selectedL1 === null}
-                  onClick={() => { setSelectedL1(null); setSelectedL2Id(null); }}
-                />
                 {categoryTree.map((node) => (
                   <CategoryChip
                     key={node.id}
