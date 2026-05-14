@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { adminApi, catalogApi, reviewsApi, isStoreOpen, resolveImageUrl, type Store, type Product, type Review, type CategoryNode } from "@/lib/api";
 import { useCart } from "@/context/CartContext";
@@ -374,13 +374,16 @@ export default function StoreDetailView({
       {activeTab === "products" && (
         <>
           {/* Двухуровневый фильтр категорий. data-no-swipe — чтобы горизонтальный
-              скролл чипсов не воспринимался как свайп-выход из магазина. */}
+              скролл не воспринимался как свайп-выход из магазина. */}
           {categoryTree.length > 0 && (
-            <div className="mb-4">
-              {/* Ряд 1 — главные категории */}
-              <div data-no-swipe className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4">
+            <div className="mb-5">
+              {/* ── Категории — крупные карточки-навигация ── */}
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-2.5">
+                Категории
+              </p>
+              <div data-no-swipe className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4">
                 {categoryTree.map((node) => (
-                  <CategoryChip
+                  <CategoryCard
                     key={node.id}
                     label={node.name}
                     active={selectedL1?.id === node.id}
@@ -389,17 +392,19 @@ export default function StoreDetailView({
                 ))}
               </div>
 
-              {/* Ряд 2 — подкатегории выбранной категории. Появляется плавно
-                  сверху вниз через max-height. Категория без детей — ряд скрыт. */}
+              {/* ── Подкатегории — компактные фильтр-пилюли. Появляются плавно
+                  сверху вниз через max-height. Категория без детей — блок скрыт. ── */}
               <div
                 className={`overflow-hidden transition-[max-height] duration-300 ease-out ${
-                  selectedL1 && selectedL1.children.length > 0 ? "max-h-20" : "max-h-0"
+                  selectedL1 && selectedL1.children.length > 0 ? "max-h-32" : "max-h-0"
                 }`}
               >
-                <div data-no-swipe className="flex gap-2 overflow-x-auto scrollbar-hide pt-2 -mx-4 px-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mt-5 mb-2.5">
+                  Подкатегории
+                </p>
+                <div data-no-swipe className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4">
                   <CategoryChip
                     label="Все"
-                    level={2}
                     active={selectedL2Id === null}
                     onClick={() => setSelectedL2Id(null)}
                   />
@@ -407,7 +412,6 @@ export default function StoreDetailView({
                     <CategoryChip
                       key={child.id}
                       label={child.name}
-                      level={2}
                       active={selectedL2Id === child.id}
                       onClick={() => setSelectedL2Id(child.id)}
                     />
@@ -538,32 +542,107 @@ export default function StoreDetailView({
 // Чип фильтра категорий. Цвета заданы по ТЗ (вне палитры Tailwind) — inline-стилями.
 // level 1 — главные категории, level 2 — подкатегории (чуть меньше).
 
-function CategoryChip({
+// CategoryCard — L1 «категория»: крупная карточка-навигация. Glassmorphism в
+// неактивном состоянии, фиолетовый неон-градиент с свечением в активном.
+function CategoryCard({
   label,
   active,
   onClick,
-  level = 1,
 }: {
   label: string;
   active: boolean;
   onClick: () => void;
-  level?: 1 | 2;
 }) {
-  const activeBg = level === 2 ? "#152A32" : "#4B5EFC";
-  const sizeClass = level === 2 ? "px-3 py-1 text-xs" : "px-3.5 py-1.5 text-sm";
   return (
     <button
       onClick={onClick}
-      className={`flex-shrink-0 rounded-full font-medium transition-colors ${sizeClass}`}
-      style={
+      className={`flex-shrink-0 w-[92px] h-[92px] rounded-3xl flex flex-col items-center justify-center gap-1.5 px-2 transition-all duration-200 active:scale-[0.96] ${
         active
-          ? { backgroundColor: activeBg, color: "#ffffff" }
-          : { backgroundColor: "#121430", color: "#9ca3af" }
-      }
+          ? "bg-gradient-to-br from-[#7C3AED] to-[#4B5EFC] border border-[#9B7CFF]/60 shadow-[0_0_24px_rgba(124,77,255,0.55)]"
+          : "bg-white/[0.04] border border-white/10 backdrop-blur-md hover:bg-white/[0.07]"
+      }`}
+    >
+      <span className={`w-7 h-7 ${active ? "text-white" : "text-[#9B8CFF]"}`}>
+        {categoryGlyph(label)}
+      </span>
+      <span
+        className={`text-[11px] font-semibold leading-tight text-center line-clamp-2 ${
+          active ? "text-white" : "text-gray-300"
+        }`}
+      >
+        {label}
+      </span>
+    </button>
+  );
+}
+
+// CategoryChip — L2 «подкатегория»: компактная фильтр-пилюля. Залитый
+// фиолетовый с мягким свечением в активном, тёмная стеклянная в неактивном.
+function CategoryChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
+        active
+          ? "bg-[#7C3AED] text-white shadow-[0_0_16px_rgba(124,77,255,0.45)]"
+          : "bg-white/[0.04] text-gray-400 border border-white/10 hover:bg-white/[0.07]"
+      }`}
     >
       {label}
     </button>
   );
+}
+
+// Минимальная линейная иконка для категории по ключевому слову в названии.
+// Категории динамические (приходят из API) — фиксированного маппинга нет,
+// поэтому матчим по подстроке, с аккуратным фоллбэком-ярлыком.
+function Glyph({ children }: { children: ReactNode }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="w-full h-full"
+    >
+      {children}
+    </svg>
+  );
+}
+
+function categoryGlyph(name: string) {
+  const n = name.toLowerCase();
+  if (/молоч|сыр|яйц|творог/.test(n))
+    return <Glyph><path d="M8 2h8M9 2v3.5L6 9v11a2 2 0 002 2h8a2 2 0 002-2V9l-3-3.5V2" /></Glyph>;
+  if (/овощ|фрукт|зелен|ягод/.test(n))
+    return <Glyph><path d="M12 11a6 6 0 016 6 6 6 0 01-12 0 6 6 0 016-6z" /><path d="M12 11V6a4 4 0 014-4" /></Glyph>;
+  if (/мяс|колбас|птиц|рыб|курин/.test(n))
+    return <Glyph><path d="M15 3a6 6 0 016 6c0 4-3 6-6 7l-5 4a3 3 0 11-4-4l4-5c1-3 3-6 7-6z" /></Glyph>;
+  if (/напит|вода|сок|чай|кофе|лимонад/.test(n))
+    return <Glyph><path d="M6 3h12l-1 16a2 2 0 01-2 2H9a2 2 0 01-2-2L6 3z" /><path d="M6.5 9h11" /></Glyph>;
+  if (/хлеб|выпеч|бул|батон/.test(n))
+    return <Glyph><path d="M4 11a4 4 0 014-4h8a4 4 0 014 4c0 1.2-1 2-2 2v5a1 1 0 01-1 1H7a1 1 0 01-1-1v-5c-1 0-2-.8-2-2z" /></Glyph>;
+  if (/сладк|конд|десерт|шоколад|конфет/.test(n))
+    return <Glyph><path d="M12 21C7 17 4 14 4 10a4 4 0 018-1 4 4 0 018 1c0 4-3 7-8 11z" /></Glyph>;
+  if (/быт|хим|чист|гигиен|уборк/.test(n))
+    return <Glyph><path d="M9 3h6v4l2 3v9a2 2 0 01-2 2H9a2 2 0 01-2-2v-9l2-3V3z" /><path d="M7 13h10" /></Glyph>;
+  if (/дет|игруш|малыш/.test(n))
+    return <Glyph><circle cx="12" cy="7" r="3" /><path d="M5 21v-2a7 7 0 0114 0v2" /></Glyph>;
+  if (/зам|морож/.test(n))
+    return <Glyph><path d="M12 2v20M4 7l16 10M20 7L4 17" /></Glyph>;
+  if (/бакал|круп|макарон|мук/.test(n))
+    return <Glyph><path d="M6 8h12l-1.5 12a1 1 0 01-1 1H8.5a1 1 0 01-1-1L6 8z" /><path d="M9 8V5a3 3 0 016 0v3" /></Glyph>;
+  return <Glyph><path d="M3 12V5a2 2 0 012-2h7l9 9-9 9-9-9z" /><circle cx="7.5" cy="7.5" r="1.5" /></Glyph>;
 }
 
 // ─── Store Product Card ────────────────────────────────────────────────────────
