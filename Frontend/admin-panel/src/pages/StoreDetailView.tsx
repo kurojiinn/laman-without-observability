@@ -9,6 +9,7 @@ import {
   fetchStoreCategoryMeta,
   fetchStoreSubcategories,
   updateProduct,
+  updateStoreSubcategory,
   uploadStoreImage,
   updateStore,
 } from "../api/admin";
@@ -42,9 +43,15 @@ function resolveImg(url: string | null | undefined) {
 export function StoreDetailView({ user, password, store, onBack }: Props) {
   const qc = useQueryClient();
 
-  // ── Подкатегории ──
-  const [createSubOpen, setCreateSubOpen] = useState(false);
+  // ── Категории магазина (двухуровневые) ──
+  const [createCatOpen, setCreateCatOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  // Родитель для создаваемой подкатегории (категория верхнего уровня).
+  const [createSubParent, setCreateSubParent] = useState<StoreSubcategory | null>(null);
   const [newSubName, setNewSubName] = useState("");
+  // Переименование — работает и для категории, и для подкатегории.
+  const [renameTarget, setRenameTarget] = useState<StoreSubcategory | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const [deleteSubTarget, setDeleteSubTarget] = useState<StoreSubcategory | null>(null);
 
   // ── Редактирование магазина ──
@@ -59,14 +66,15 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
   const [editImageFile, setEditImageFile] = useState<File | null>(null);
   const [editImagePreview, setEditImagePreview] = useState<string | null>(resolveImg(store.image_url));
 
-  // ── Создание товара ──
+  // ── Создание товара ── l1_id — категория, l2_id — подкатегория (если у l1 есть дети) ──
   const [createProductOpen, setCreateProductOpen] = useState(false);
   const [productForm, setProductForm] = useState({
     name: "",
     price: "",
     weight: "",
     description: "",
-    subcategory_id: "",
+    l1_id: "",
+    l2_id: "",
     is_available: true,
   });
   const [productImage, setProductImage] = useState<File | null>(null);
@@ -74,7 +82,9 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
 
   // ── Редактирование товара ──
   const [editProduct, setEditProduct] = useState<Product | null>(null);
-  const [editProductData, setEditProductData] = useState({ name: "", price: 0, description: "", is_available: true });
+  const [editProductData, setEditProductData] = useState({
+    name: "", price: 0, description: "", is_available: true, l1_id: "", l2_id: "",
+  });
   const [editProductImage, setEditProductImage] = useState<File | null>(null);
   const [editProductPreview, setEditProductPreview] = useState<string | null>(null);
 
@@ -102,16 +112,49 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
     store.category_type ??
     "Без категории";
 
-  const subOptions = (subsQ.data ?? []).map((s) => ({ value: s.id, label: s.name }));
-  // Подкатегории, в которые сгруппированы товары — для отображения секциями.
-  const subsById = new Map((subsQ.data ?? []).map((s) => [s.id, s]));
+  // ── Дерево категорий магазина из плоского списка ──
+  const subs = subsQ.data ?? [];
+  const subsById = new Map(subs.map((s) => [s.id, s]));
+  const topCats = subs.filter((s) => !s.parent_id);
+  const childrenOf = (parentId: string) => subs.filter((s) => s.parent_id === parentId);
+  const hasChildren = (id: string) => subs.some((s) => s.parent_id === id);
 
-  const createSubMut = useMutation({
-    mutationFn: () => createStoreSubcategory(user, password, store.id, newSubName.trim()),
+  // Опции для зависимых выпадающих списков формы товара.
+  const l1Options = topCats.map((s) => ({ value: s.id, label: s.name }));
+  const createL2Options = childrenOf(productForm.l1_id).map((s) => ({ value: s.id, label: s.name }));
+  const editL2Options = childrenOf(editProductData.l1_id).map((s) => ({ value: s.id, label: s.name }));
+
+  // Итоговый subcategory_id товара: подкатегория, если у категории есть дети, иначе сама категория.
+  function leafSubId(l1Id: string, l2Id: string): string {
+    if (!l1Id) return "";
+    return hasChildren(l1Id) ? l2Id : l1Id;
+  }
+
+  const createCatMut = useMutation({
+    mutationFn: () => createStoreSubcategory(user, password, store.id, newCatName.trim(), null),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["store-subcategories", store.id] });
-      setCreateSubOpen(false);
+      setCreateCatOpen(false);
+      setNewCatName("");
+    },
+  });
+
+  const createSubMut = useMutation({
+    mutationFn: () => createStoreSubcategory(user, password, store.id, newSubName.trim(), createSubParent!.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["store-subcategories", store.id] });
+      setCreateSubParent(null);
       setNewSubName("");
+    },
+  });
+
+  const renameSubMut = useMutation({
+    mutationFn: () => updateStoreSubcategory(user, password, store.id, renameTarget!.id, renameValue.trim()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["store-subcategories", store.id] });
+      qc.invalidateQueries({ queryKey: ["store-products", store.id] });
+      setRenameTarget(null);
+      setRenameValue("");
     },
   });
 
@@ -147,8 +190,8 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
   const createProductMut = useMutation({
     mutationFn: () => createProduct(user, password, {
       store_id: store.id,
-      // category_id не передаём — товар привязан к store-local subcategory
-      subcategory_id: productForm.subcategory_id || undefined,
+      // category_id не передаём — товар привязан к категории магазина (subcategory_id)
+      subcategory_id: leafSubId(productForm.l1_id, productForm.l2_id) || undefined,
       name: productForm.name.trim(),
       price: Number(productForm.price),
       weight: productForm.weight ? Number(productForm.weight) : undefined,
@@ -160,7 +203,7 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
       qc.invalidateQueries({ queryKey: ["store-products", store.id] });
       qc.invalidateQueries({ queryKey: ["store-subcategories", store.id] });
       setCreateProductOpen(false);
-      setProductForm({ name: "", price: "", weight: "", description: "", subcategory_id: "", is_available: true });
+      setProductForm({ name: "", price: "", weight: "", description: "", l1_id: "", l2_id: "", is_available: true });
       setProductImage(null);
       setProductPreview(null);
     },
@@ -172,10 +215,13 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
       price: editProductData.price,
       description: editProductData.description.trim() || undefined,
       is_available: editProductData.is_available,
+      // Всегда шлём subcategory_id: "" — явный сброс привязки.
+      subcategory_id: leafSubId(editProductData.l1_id, editProductData.l2_id),
       image: editProductImage,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["store-products", store.id] });
+      qc.invalidateQueries({ queryKey: ["store-subcategories", store.id] });
       setEditProduct(null);
       setEditProductImage(null);
       setEditProductPreview(null);
@@ -193,12 +239,27 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
 
   function openEditProduct(p: Product) {
     setEditProduct(p);
-    setEditProductData({ name: p.name, price: p.price, description: p.description ?? "", is_available: p.is_available });
+    // Восстанавливаем выбор категории/подкатегории из subcategory_id товара.
+    let l1 = "";
+    let l2 = "";
+    if (p.subcategory_id) {
+      const sub = subsById.get(p.subcategory_id);
+      if (sub?.parent_id) {
+        l1 = sub.parent_id;
+        l2 = sub.id;
+      } else if (sub) {
+        l1 = sub.id;
+      }
+    }
+    setEditProductData({
+      name: p.name, price: p.price, description: p.description ?? "", is_available: p.is_available,
+      l1_id: l1, l2_id: l2,
+    });
     setEditProductImage(null);
     setEditProductPreview(resolveImg(p.image_url));
   }
 
-  // Группировка товаров по подкатегориям
+  // Группировка товаров по подкатегориям (лист = подкатегория или бездетная категория).
   const products = productsQ.data ?? [];
   const productsBySub = new Map<string, Product[]>();
   const productsWithoutSub: Product[] = [];
@@ -211,6 +272,22 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
       productsWithoutSub.push(p);
     }
   }
+  // Порядок секций: для каждой категории — её подкатегории, либо сама категория если детей нет.
+  const productSections: { id: string; label: string }[] = [];
+  for (const cat of topCats) {
+    const kids = childrenOf(cat.id);
+    if (kids.length > 0) {
+      for (const kid of kids) productSections.push({ id: kid.id, label: `${cat.name} › ${kid.name}` });
+      // Товары, привязанные к самой категории (без подкатегории).
+      if (productsBySub.has(cat.id)) productSections.push({ id: cat.id, label: `${cat.name} · без подкатегории` });
+    } else {
+      productSections.push({ id: cat.id, label: cat.name });
+    }
+  }
+
+  const createL2Required = !!productForm.l1_id && hasChildren(productForm.l1_id);
+  const editL2Required = !!editProductData.l1_id && hasChildren(editProductData.l1_id);
+  const deleteSubChildCount = deleteSubTarget ? childrenOf(deleteSubTarget.id).length : 0;
 
   return (
     <div className="p-6">
@@ -257,30 +334,65 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
         </div>
       </Card>
 
-      {/* Подкатегории магазина */}
+      {/* Категории магазина (двухуровневые) */}
       <PageHeader
         title="Категории внутри магазина"
-        subtitle="Например: напитки, мясо, пиццы, коктейли"
-        action={<Btn onClick={() => setCreateSubOpen(true)}>+ Добавить категорию</Btn>}
+        subtitle="Категория и её подкатегории. Например: «От горла» → «Сиропы», «Таблетки»"
+        action={<Btn onClick={() => setCreateCatOpen(true)}>+ Добавить категорию</Btn>}
       />
       <Card className="mb-6">
         {subsQ.isLoading ? (
           <div className="px-5 py-8 text-center text-gray-400 text-sm">Загрузка...</div>
-        ) : (subsQ.data ?? []).length === 0 ? (
+        ) : topCats.length === 0 ? (
           <div className="px-5 py-8 text-center text-gray-400">
-            <p className="text-sm">Категорий пока нет. Добавьте первую — например «Напитки».</p>
+            <p className="text-sm">Категорий пока нет. Добавьте первую — например «От горла».</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-50">
-            {subsQ.data!.map((sub) => (
-              <div key={sub.id} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50">
-                <div>
-                  <p className="font-semibold text-sm text-gray-900">{sub.name}</p>
-                  <p className="text-xs text-gray-400">Товаров: {sub.products_count}</p>
+            {topCats.map((cat) => {
+              const kids = childrenOf(cat.id);
+              return (
+                <div key={cat.id} className="px-5 py-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-sm text-gray-900">{cat.name}</p>
+                      <p className="text-xs text-gray-400">
+                        Товаров: {cat.products_count}
+                        {kids.length > 0 && ` · подкатегорий: ${kids.length}`}
+                      </p>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <Btn variant="ghost" size="sm" onClick={() => { setCreateSubParent(cat); setNewSubName(""); }}>
+                        + Подкатегория
+                      </Btn>
+                      <Btn variant="secondary" size="sm" onClick={() => { setRenameTarget(cat); setRenameValue(cat.name); }}>
+                        Изменить
+                      </Btn>
+                      <Btn variant="danger" size="sm" onClick={() => setDeleteSubTarget(cat)}>Удалить</Btn>
+                    </div>
+                  </div>
+                  {kids.length > 0 && (
+                    <div className="mt-2 pl-4 border-l-2 border-gray-100 space-y-1">
+                      {kids.map((sub) => (
+                        <div key={sub.id} className="flex items-center justify-between py-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-300">└</span>
+                            <span className="text-sm text-gray-700">{sub.name}</span>
+                            <span className="text-xs text-gray-400">· {sub.products_count} тов.</span>
+                          </div>
+                          <div className="flex gap-1.5">
+                            <Btn variant="secondary" size="sm" onClick={() => { setRenameTarget(sub); setRenameValue(sub.name); }}>
+                              Изменить
+                            </Btn>
+                            <Btn variant="danger" size="sm" onClick={() => setDeleteSubTarget(sub)}>Удалить</Btn>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <Btn variant="danger" size="sm" onClick={() => setDeleteSubTarget(sub)}>Удалить</Btn>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>
@@ -303,13 +415,13 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
           </div>
         ) : (
           <div className="divide-y divide-gray-50">
-            {(subsQ.data ?? []).map((sub) =>
-              productsBySub.has(sub.id) ? (
-                <div key={sub.id}>
+            {productSections.map((section) =>
+              productsBySub.has(section.id) ? (
+                <div key={section.id}>
                   <div className="px-5 py-2 bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    {sub.name}
+                    {section.label}
                   </div>
-                  {productsBySub.get(sub.id)!.map((p) => (
+                  {productsBySub.get(section.id)!.map((p) => (
                     <ProductRow key={p.id} product={p} onEdit={() => openEditProduct(p)} onDelete={() => setDeleteProductTarget(p)} />
                   ))}
                 </div>
@@ -331,12 +443,39 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
 
       {/* ── Модалка: создать категорию ── */}
       <Modal
-        open={createSubOpen}
-        onClose={() => { setCreateSubOpen(false); setNewSubName(""); }}
+        open={createCatOpen}
+        onClose={() => { setCreateCatOpen(false); setNewCatName(""); }}
         title="Новая категория"
         footer={
           <>
-            <Btn variant="secondary" onClick={() => { setCreateSubOpen(false); setNewSubName(""); }} className="flex-1">Отмена</Btn>
+            <Btn variant="secondary" onClick={() => { setCreateCatOpen(false); setNewCatName(""); }} className="flex-1">Отмена</Btn>
+            <Btn
+              onClick={() => createCatMut.mutate()}
+              disabled={createCatMut.isPending || !newCatName.trim()}
+              className="flex-1"
+            >
+              {createCatMut.isPending ? "Сохранение..." : "Создать"}
+            </Btn>
+          </>
+        }
+      >
+        <Input
+          label="Название *"
+          value={newCatName}
+          onChange={setNewCatName}
+          placeholder="Например: От горла, Напитки, Пиццы"
+        />
+        {createCatMut.isError && <p className="text-xs text-red-500 mt-2">Ошибка создания</p>}
+      </Modal>
+
+      {/* ── Модалка: создать подкатегорию ── */}
+      <Modal
+        open={!!createSubParent}
+        onClose={() => { setCreateSubParent(null); setNewSubName(""); }}
+        title={`Подкатегория в «${createSubParent?.name ?? ""}»`}
+        footer={
+          <>
+            <Btn variant="secondary" onClick={() => { setCreateSubParent(null); setNewSubName(""); }} className="flex-1">Отмена</Btn>
             <Btn
               onClick={() => createSubMut.mutate()}
               disabled={createSubMut.isPending || !newSubName.trim()}
@@ -351,16 +490,38 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
           label="Название *"
           value={newSubName}
           onChange={setNewSubName}
-          placeholder="Например: Пиццы, Напитки, Десерты"
+          placeholder="Например: Сиропы, Таблетки"
         />
         {createSubMut.isError && <p className="text-xs text-red-500 mt-2">Ошибка создания</p>}
       </Modal>
 
-      {/* ── Модалка: удалить категорию ── */}
+      {/* ── Модалка: переименовать категорию/подкатегорию ── */}
+      <Modal
+        open={!!renameTarget}
+        onClose={() => { setRenameTarget(null); setRenameValue(""); }}
+        title={renameTarget?.parent_id ? "Переименовать подкатегорию" : "Переименовать категорию"}
+        footer={
+          <>
+            <Btn variant="secondary" onClick={() => { setRenameTarget(null); setRenameValue(""); }} className="flex-1">Отмена</Btn>
+            <Btn
+              onClick={() => renameSubMut.mutate()}
+              disabled={renameSubMut.isPending || !renameValue.trim()}
+              className="flex-1"
+            >
+              {renameSubMut.isPending ? "Сохранение..." : "Сохранить"}
+            </Btn>
+          </>
+        }
+      >
+        <Input label="Название *" value={renameValue} onChange={setRenameValue} />
+        {renameSubMut.isError && <p className="text-xs text-red-500 mt-2">Ошибка сохранения</p>}
+      </Modal>
+
+      {/* ── Модалка: удалить категорию/подкатегорию ── */}
       <Modal
         open={!!deleteSubTarget}
         onClose={() => setDeleteSubTarget(null)}
-        title="Удалить категорию?"
+        title={deleteSubTarget?.parent_id ? "Удалить подкатегорию?" : "Удалить категорию?"}
         footer={
           <>
             <Btn variant="secondary" onClick={() => setDeleteSubTarget(null)} className="flex-1">Отмена</Btn>
@@ -376,11 +537,18 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
         }
       >
         <p className="text-sm text-gray-600">
-          Удалить категорию <strong>«{deleteSubTarget?.name}»</strong>?
+          Удалить {deleteSubTarget?.parent_id ? "подкатегорию" : "категорию"}{" "}
+          <strong>«{deleteSubTarget?.name}»</strong>?
         </p>
+        {deleteSubChildCount > 0 && (
+          <p className="text-xs text-amber-600 mt-2">
+            ⚠️ Внутри <strong>{deleteSubChildCount}</strong>{" "}
+            {deleteSubChildCount === 1 ? "подкатегория" : "подкатегорий"} — они тоже будут удалены.
+          </p>
+        )}
         {deleteSubTarget && deleteSubTarget.products_count > 0 && (
           <p className="text-xs text-amber-600 mt-2">
-            ⚠️ В этой категории <strong>{deleteSubTarget.products_count}</strong>{" "}
+            ⚠️ Здесь <strong>{deleteSubTarget.products_count}</strong>{" "}
             {deleteSubTarget.products_count === 1 ? "товар" : "товаров"}. Они останутся в магазине,
             но окажутся «Без категории».
           </p>
@@ -442,7 +610,10 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
             <Btn variant="secondary" onClick={() => setCreateProductOpen(false)} className="flex-1">Отмена</Btn>
             <Btn
               onClick={() => createProductMut.mutate()}
-              disabled={createProductMut.isPending || !productForm.name.trim() || !productForm.price}
+              disabled={
+                createProductMut.isPending || !productForm.name.trim() || !productForm.price ||
+                (createL2Required && !productForm.l2_id)
+              }
               className="flex-1"
             >
               {createProductMut.isPending ? "Сохранение..." : "Создать"}
@@ -459,12 +630,23 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
           <div className="col-span-2">
             <Select
               label="Категория"
-              value={productForm.subcategory_id}
-              onChange={(v) => setProductForm((p) => ({ ...p, subcategory_id: v }))}
-              options={subOptions}
-              placeholder={subOptions.length ? "— без категории —" : "Сначала создайте категории выше"}
+              value={productForm.l1_id}
+              onChange={(v) => setProductForm((p) => ({ ...p, l1_id: v, l2_id: "" }))}
+              options={l1Options}
+              placeholder={l1Options.length ? "— без категории —" : "Сначала создайте категории выше"}
             />
           </div>
+          {productForm.l1_id && createL2Options.length > 0 && (
+            <div className="col-span-2">
+              <Select
+                label="Подкатегория *"
+                value={productForm.l2_id}
+                onChange={(v) => setProductForm((p) => ({ ...p, l2_id: v }))}
+                options={createL2Options}
+                placeholder="— выберите —"
+              />
+            </div>
+          )}
           <div className="col-span-2">
             <label className="block text-xs font-medium text-gray-500 mb-1">Описание</label>
             <textarea
@@ -505,7 +687,11 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
         footer={
           <>
             <Btn variant="secondary" onClick={() => { setEditProduct(null); setEditProductImage(null); setEditProductPreview(null); }} className="flex-1">Отмена</Btn>
-            <Btn onClick={() => updateProductMut.mutate()} disabled={updateProductMut.isPending} className="flex-1">
+            <Btn
+              onClick={() => updateProductMut.mutate()}
+              disabled={updateProductMut.isPending || (editL2Required && !editProductData.l2_id)}
+              className="flex-1"
+            >
               {updateProductMut.isPending ? "Сохранение..." : "Сохранить"}
             </Btn>
           </>
@@ -513,6 +699,22 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
       >
         <Input label="Название" value={editProductData.name} onChange={(v) => setEditProductData((p) => ({ ...p, name: v }))} />
         <Input label="Цена (₽)" type="number" value={editProductData.price} onChange={(v) => setEditProductData((p) => ({ ...p, price: Number(v) }))} />
+        <Select
+          label="Категория"
+          value={editProductData.l1_id}
+          onChange={(v) => setEditProductData((p) => ({ ...p, l1_id: v, l2_id: "" }))}
+          options={l1Options}
+          placeholder="— без категории —"
+        />
+        {editProductData.l1_id && editL2Options.length > 0 && (
+          <Select
+            label="Подкатегория *"
+            value={editProductData.l2_id}
+            onChange={(v) => setEditProductData((p) => ({ ...p, l2_id: v }))}
+            options={editL2Options}
+            placeholder="— выберите —"
+          />
+        )}
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Описание</label>
           <textarea

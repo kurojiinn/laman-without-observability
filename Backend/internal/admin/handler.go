@@ -118,6 +118,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.Han
 		// Магазин-локальные подкатегории
 		admin.GET("/stores/:id/subcategories", h.ListStoreSubcategories)
 		admin.POST("/stores/:id/subcategories", h.CreateStoreSubcategory)
+		admin.PATCH("/stores/:id/subcategories/:subId", h.UpdateStoreSubcategory)
 		admin.DELETE("/stores/:id/subcategories/:subId", h.DeleteStoreSubcategory)
 		admin.GET("/products", h.GetProducts)
 		admin.POST("/products", h.CreateProduct)
@@ -425,12 +426,51 @@ func (h *Handler) ListStoreSubcategories(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// CreateStoreSubcategory создаёт магазин-локальную подкатегорию.
-// POST /api/v1/admin/stores/:id/subcategories  Body: {name}
+// CreateStoreSubcategory создаёт категорию или подкатегорию магазина.
+// POST /api/v1/admin/stores/:id/subcategories  Body: {name, parent_id?}
+// parent_id задан — создаётся подкатегория второго уровня.
 func (h *Handler) CreateStoreSubcategory(c *gin.Context) {
 	storeID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, "неверный ID магазина", "")
+		return
+	}
+	var req struct {
+		Name     string  `json:"name"`
+		ParentID *string `json:"parent_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(c, http.StatusBadRequest, "некорректные данные", err.Error())
+		return
+	}
+	var parentID *uuid.UUID
+	if req.ParentID != nil && *req.ParentID != "" {
+		pid, err := uuid.Parse(*req.ParentID)
+		if err != nil {
+			h.respondError(c, http.StatusBadRequest, "неверный parent_id", "")
+			return
+		}
+		parentID = &pid
+	}
+	sub, err := h.service.CreateStoreSubcategory(c.Request.Context(), storeID, req.Name, parentID)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "не удалось создать категорию", err.Error())
+		return
+	}
+	c.JSON(http.StatusCreated, sub)
+}
+
+// UpdateStoreSubcategory переименовывает категорию/подкатегорию магазина.
+// PATCH /api/v1/admin/stores/:id/subcategories/:subId  Body: {name}
+func (h *Handler) UpdateStoreSubcategory(c *gin.Context) {
+	storeID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID магазина", "")
+		return
+	}
+	subID, err := uuid.Parse(c.Param("subId"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID категории", "")
 		return
 	}
 	var req struct {
@@ -440,12 +480,11 @@ func (h *Handler) CreateStoreSubcategory(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, "некорректные данные", err.Error())
 		return
 	}
-	sub, err := h.service.CreateStoreSubcategory(c.Request.Context(), storeID, req.Name)
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, "не удалось создать категорию", err.Error())
+	if err := h.service.UpdateStoreSubcategory(c.Request.Context(), storeID, subID, req.Name); err != nil {
+		h.respondError(c, http.StatusBadRequest, "не удалось обновить категорию", err.Error())
 		return
 	}
-	c.JSON(http.StatusCreated, sub)
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
 // DeleteStoreSubcategory удаляет подкатегорию магазина (товары остаются, ссылка обнулится).

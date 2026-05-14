@@ -101,13 +101,14 @@ export default function StoreDetailView({
       .catch(() => {});
   }, [store.id]);
 
-  // Параметры фильтра товаров из выбранных категорий. Поиск переопределяет фильтр.
-  const filterParams = useMemo<{ category_id?: string; subcategory_id?: string }>(() => {
+  // Параметр фильтра товаров из выбранной категории. Поиск переопределяет фильтр.
+  // Бэкенд по subcategory_id сам разворачивает категорию верхнего уровня в её
+  // дочерние подкатегории, поэтому достаточно передать id выбранного узла.
+  const filterParams = useMemo<{ subcategory_id?: string }>(() => {
     if (search) return {};
-    if (!selectedL1) return {};                                  // «Все товары»
-    if (selectedL1.kind === "subcategory") return { subcategory_id: selectedL1.id };
-    if (selectedL2Id) return { subcategory_id: selectedL2Id };    // конкретная подкатегория
-    return { category_id: selectedL1.id };                       // вся главная категория
+    if (!selectedL1) return {};                                // «Все товары»
+    if (selectedL2Id) return { subcategory_id: selectedL2Id };  // конкретная подкатегория
+    return { subcategory_id: selectedL1.id };                  // категория целиком
   }, [search, selectedL1, selectedL2Id]);
 
   // Первая загрузка / смена фильтра / смена поиска
@@ -386,9 +387,7 @@ export default function StoreDetailView({
                   сверху вниз через max-height. Категория без детей — ряд скрыт. */}
               <div
                 className={`overflow-hidden transition-[max-height] duration-300 ease-out ${
-                  selectedL1?.kind === "category" && selectedL1.children.length > 0
-                    ? "max-h-20"
-                    : "max-h-0"
+                  selectedL1 && selectedL1.children.length > 0 ? "max-h-20" : "max-h-0"
                 }`}
               >
                 <div data-no-swipe className="flex gap-2 overflow-x-auto scrollbar-hide pt-2 -mx-4 px-4">

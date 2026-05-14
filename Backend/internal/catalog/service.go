@@ -159,45 +159,37 @@ func (s *CatalogService) GetCategories(ctx context.Context) ([]models.Category, 
 	})
 }
 
-// GetStoreCategoryTree строит двухуровневое дерево категорий для магазина.
-// Глобальные подкатегории товаров магазина группируются под своими категориями;
-// магазин-локальные подкатегории отдаются отдельными узлами без детей.
+// GetStoreCategoryTree строит двухуровневое дерево категорий магазина.
+// Узлы верхнего уровня — подкатегории магазина с parent_id IS NULL,
+// их дети — подкатегории с parent_id, указывающим на узел верхнего уровня.
 func (s *CatalogService) GetStoreCategoryTree(ctx context.Context, storeID uuid.UUID) ([]models.CategoryNode, error) {
 	subcategories, err := s.subcategoryRepo.GetByStoreID(ctx, storeID)
 	if err != nil {
-		return nil, fmt.Errorf("не удалось получить подкатегории магазина: %w", err)
+		return nil, fmt.Errorf("не удалось получить категории магазина: %w", err)
 	}
 
-	// Глобальные подкатегории группируем по родительской категории.
-	childrenByCategory := make(map[uuid.UUID][]models.CategoryNode)
-	categoryOrder := make([]uuid.UUID, 0)
-	localNodes := make([]models.CategoryNode, 0)
+	childrenByParent := make(map[uuid.UUID][]models.CategoryNode)
 	for _, sub := range subcategories {
-		node := models.CategoryNode{ID: sub.ID, Name: sub.Name, Kind: "subcategory", Children: []models.CategoryNode{}}
-		if sub.CategoryID == nil {
-			localNodes = append(localNodes, node)
+		if sub.ParentID != nil {
+			childrenByParent[*sub.ParentID] = append(childrenByParent[*sub.ParentID], models.CategoryNode{
+				ID:       sub.ID,
+				Name:     sub.Name,
+				Children: []models.CategoryNode{},
+			})
+		}
+	}
+
+	tree := make([]models.CategoryNode, 0)
+	for _, sub := range subcategories {
+		if sub.ParentID != nil {
 			continue
 		}
-		if _, seen := childrenByCategory[*sub.CategoryID]; !seen {
-			categoryOrder = append(categoryOrder, *sub.CategoryID)
+		children := childrenByParent[sub.ID]
+		if children == nil {
+			children = []models.CategoryNode{}
 		}
-		childrenByCategory[*sub.CategoryID] = append(childrenByCategory[*sub.CategoryID], node)
+		tree = append(tree, models.CategoryNode{ID: sub.ID, Name: sub.Name, Children: children})
 	}
-
-	tree := make([]models.CategoryNode, 0, len(categoryOrder)+len(localNodes))
-	for _, catID := range categoryOrder {
-		cat, err := s.categoryRepo.GetByID(ctx, catID)
-		if err != nil {
-			continue // категория удалена — пропускаем её подкатегории
-		}
-		tree = append(tree, models.CategoryNode{
-			ID:       cat.ID,
-			Name:     cat.Name,
-			Kind:     "category",
-			Children: childrenByCategory[catID],
-		})
-	}
-	tree = append(tree, localNodes...)
 	return tree, nil
 }
 

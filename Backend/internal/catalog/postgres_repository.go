@@ -64,9 +64,9 @@ func (r *postgresSubcategoryRepository) GetByCategoryID(ctx context.Context, cat
 func (r *postgresSubcategoryRepository) GetByStoreID(ctx context.Context, storeID uuid.UUID) ([]models.Subcategory, error) {
 	var subcategories []models.Subcategory
 	query := `
-SELECT id, category_id, store_id, name, created_at, updated_at FROM subcategories WHERE store_id = $1
+SELECT id, category_id, store_id, parent_id, name, created_at, updated_at FROM subcategories WHERE store_id = $1
 UNION
-SELECT DISTINCT s.id, s.category_id, s.store_id, s.name, s.created_at, s.updated_at
+SELECT DISTINCT s.id, s.category_id, s.store_id, s.parent_id, s.name, s.created_at, s.updated_at
 FROM subcategories s
 JOIN products p ON p.subcategory_id = s.id
 WHERE p.store_id = $1 AND s.store_id IS NULL
@@ -139,13 +139,16 @@ func (r *postgresProductRepository) GetByStoreID(ctx context.Context, storeID uu
 	whereClauses := "WHERE store_id = $1"
 	args := []interface{}{storeID}
 
-	// Фильтр по родительской категории — все товары её дочерних подкатегорий.
+	// Фильтр по глобальной категории — товары всех её глобальных подкатегорий.
 	if categoryID != nil {
 		whereClauses += fmt.Sprintf(" AND subcategory_id IN (SELECT id FROM subcategories WHERE category_id = $%d)", len(args)+1)
 		args = append(args, *categoryID)
 	}
+	// Фильтр по подкатегории магазина. Если переданный id — категория верхнего
+	// уровня с детьми, включаем и товары её дочерних подкатегорий.
 	if subcategoryID != nil {
-		whereClauses += fmt.Sprintf(" AND subcategory_id = $%d", len(args)+1)
+		idx := len(args) + 1
+		whereClauses += fmt.Sprintf(" AND (subcategory_id = $%d OR subcategory_id IN (SELECT id FROM subcategories WHERE parent_id = $%d))", idx, idx)
 		args = append(args, *subcategoryID)
 	}
 	if search != nil && *search != "" {

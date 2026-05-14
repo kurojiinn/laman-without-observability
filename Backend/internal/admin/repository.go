@@ -25,9 +25,11 @@ type Repository interface {
 	ArchiveStore(ctx context.Context, id uuid.UUID) error
 	RestoreStore(ctx context.Context, id uuid.UUID) error
 	StoreHasDependencies(ctx context.Context, id uuid.UUID) (orders int, pickers int, err error)
-	// Магазин-локальные подкатегории
+	// Магазин-локальные подкатегории (двухуровневые: parent_id IS NULL — категория,
+	// parent_id указывает на родителя — подкатегория)
 	GetStoreSubcategories(ctx context.Context, storeID uuid.UUID) ([]models.Subcategory, error)
-	CreateStoreSubcategory(ctx context.Context, storeID uuid.UUID, name string) (*models.Subcategory, error)
+	CreateStoreSubcategory(ctx context.Context, storeID uuid.UUID, name string, parentID *uuid.UUID) (*models.Subcategory, error)
+	UpdateStoreSubcategory(ctx context.Context, storeID, subID uuid.UUID, name string) error
 	DeleteStoreSubcategory(ctx context.Context, storeID, subID uuid.UUID) error
 	CountProductsInSubcategory(ctx context.Context, subID uuid.UUID) (int, error)
 	CreateProduct(ctx context.Context, product *models.Product) error
@@ -240,33 +242,50 @@ func (r *postgresRepository) RestoreStore(ctx context.Context, id uuid.UUID) err
 func (r *postgresRepository) GetStoreSubcategories(ctx context.Context, storeID uuid.UUID) ([]models.Subcategory, error) {
 	var subs []models.Subcategory
 	err := r.db.SelectContext(ctx, &subs,
-		`SELECT id, category_id, store_id, name, created_at, updated_at
+		`SELECT id, category_id, store_id, parent_id, name, created_at, updated_at
 		 FROM subcategories WHERE store_id = $1 ORDER BY name`,
 		storeID,
 	)
 	return subs, err
 }
 
-// CreateStoreSubcategory создаёт подкатегорию, привязанную к магазину (category_id = NULL).
-func (r *postgresRepository) CreateStoreSubcategory(ctx context.Context, storeID uuid.UUID, name string) (*models.Subcategory, error) {
+// CreateStoreSubcategory создаёт категорию/подкатегорию магазина (category_id = NULL).
+// parentID != nil — это подкатегория второго уровня внутри категории parentID.
+func (r *postgresRepository) CreateStoreSubcategory(ctx context.Context, storeID uuid.UUID, name string, parentID *uuid.UUID) (*models.Subcategory, error) {
 	id := uuid.New()
 	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO subcategories (id, category_id, store_id, name, created_at, updated_at)
-		 VALUES ($1, NULL, $2, $3, NOW(), NOW())`,
-		id, storeID, name,
+		`INSERT INTO subcategories (id, category_id, store_id, parent_id, name, created_at, updated_at)
+		 VALUES ($1, NULL, $2, $3, $4, NOW(), NOW())`,
+		id, storeID, parentID, name,
 	)
 	if err != nil {
 		return nil, err
 	}
 	var sub models.Subcategory
 	err = r.db.GetContext(ctx, &sub,
-		`SELECT id, category_id, store_id, name, created_at, updated_at FROM subcategories WHERE id = $1`,
+		`SELECT id, category_id, store_id, parent_id, name, created_at, updated_at FROM subcategories WHERE id = $1`,
 		id,
 	)
 	if err != nil {
 		return nil, err
 	}
 	return &sub, nil
+}
+
+// UpdateStoreSubcategory переименовывает категорию/подкатегорию магазина.
+// Проверка store_id — чтобы случайно не задеть чужую или глобальную.
+func (r *postgresRepository) UpdateStoreSubcategory(ctx context.Context, storeID, subID uuid.UUID, name string) error {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE subcategories SET name = $1, updated_at = NOW() WHERE id = $2 AND store_id = $3`,
+		name, subID, storeID,
+	)
+	if err != nil {
+		return err
+	}
+	if affected, _ := res.RowsAffected(); affected == 0 {
+		return fmt.Errorf("категория не найдена в этом магазине")
+	}
+	return nil
 }
 
 // DeleteStoreSubcategory удаляет подкатегорию магазина. Товары, ссылавшиеся на неё, остаются

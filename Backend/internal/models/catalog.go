@@ -19,14 +19,14 @@ type Category struct {
 	Children    []Subcategory `db:"-" json:"children"`
 }
 
-// CategoryNode — узел дерева категорий магазина (GET /stores/:id/category-tree).
-// Kind: "category" — глобальная категория (id ссылается на categories), у неё
-// могут быть дети; "subcategory" — подкатегория (id ссылается на subcategories),
-// детей нет. Магазин-локальные подкатегории отдаются как childless узлы kind=subcategory.
+// CategoryNode — узел двухуровневого дерева категорий магазина
+// (GET /stores/:id/category-tree). Все узлы — это записи subcategories.
+// Узел верхнего уровня (parent_id IS NULL) может иметь children; узел второго
+// уровня — лист. ID любого узла можно передать как subcategory_id в фильтр
+// товаров — бэкенд развернёт его в дочерние подкатегории при необходимости.
 type CategoryNode struct {
 	ID       uuid.UUID      `json:"id"`
 	Name     string         `json:"name"`
-	Kind     string         `json:"kind"`
 	Children []CategoryNode `json:"children"`
 }
 
@@ -79,10 +79,13 @@ type Product struct {
 // Subcategory представляет подкатегорию товаров.
 // CategoryID — глобальная категория-родитель (Продукты/Аптека/…); NULL для магазин-локальных.
 // StoreID заполнен, если подкатегория создана внутри конкретного магазина (например, "Пицца" в ресторане).
+// ParentID — для двухуровневых категорий магазина: подкатегория ссылается на
+// родительскую категорию того же магазина. NULL — категория верхнего уровня.
 type Subcategory struct {
 	ID         uuid.UUID  `db:"id" json:"id"`
 	CategoryID *uuid.UUID `db:"category_id" json:"category_id,omitempty"`
 	StoreID    *uuid.UUID `db:"store_id" json:"store_id,omitempty"`
+	ParentID   *uuid.UUID `db:"parent_id" json:"parent_id,omitempty"`
 	Name       string     `db:"name" json:"name"`
 	CreatedAt  time.Time  `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time  `db:"updated_at" json:"updated_at"`

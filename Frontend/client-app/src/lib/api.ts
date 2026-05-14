@@ -125,13 +125,13 @@ export interface Subcategory {
   name: string;
 }
 
-// Узел дерева категорий магазина (GET /stores/:id/category-tree).
-// kind="category" — главная категория, может иметь children.
-// kind="subcategory" — подкатегория (в т.ч. магазин-локальная), children всегда [].
+// Узел двухуровневого дерева категорий магазина (GET /stores/:id/category-tree).
+// Узел верхнего уровня может иметь children; узел второго уровня — лист.
+// id любого узла можно передать как subcategory_id в getStoreProducts —
+// бэкенд развернёт его в дочерние подкатегории при необходимости.
 export interface CategoryNode {
   id: string;
   name: string;
-  kind: "category" | "subcategory";
   children: CategoryNode[];
 }
 

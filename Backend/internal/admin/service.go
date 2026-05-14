@@ -194,8 +194,9 @@ func (s *Service) GetStoreSubcategories(ctx context.Context, storeID uuid.UUID) 
 	return s.repo.GetStoreSubcategories(ctx, storeID)
 }
 
-// CreateStoreSubcategory создаёт подкатегорию внутри магазина.
-func (s *Service) CreateStoreSubcategory(ctx context.Context, storeID uuid.UUID, name string) (*models.Subcategory, error) {
+// CreateStoreSubcategory создаёт категорию или подкатегорию магазина.
+// parentID != nil — подкатегория второго уровня внутри категории parentID.
+func (s *Service) CreateStoreSubcategory(ctx context.Context, storeID uuid.UUID, name string, parentID *uuid.UUID) (*models.Subcategory, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, fmt.Errorf("название обязательно")
@@ -203,10 +204,24 @@ func (s *Service) CreateStoreSubcategory(ctx context.Context, storeID uuid.UUID,
 	if len(name) > 100 {
 		return nil, fmt.Errorf("название слишком длинное")
 	}
-	return s.repo.CreateStoreSubcategory(ctx, storeID, name)
+	return s.repo.CreateStoreSubcategory(ctx, storeID, name, parentID)
 }
 
-// DeleteStoreSubcategory удаляет подкатегорию магазина (товары останутся, ссылка обнулится).
+// UpdateStoreSubcategory переименовывает категорию/подкатегорию магазина.
+func (s *Service) UpdateStoreSubcategory(ctx context.Context, storeID, subID uuid.UUID, name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("название обязательно")
+	}
+	if len(name) > 100 {
+		return fmt.Errorf("название слишком длинное")
+	}
+	return s.repo.UpdateStoreSubcategory(ctx, storeID, subID, name)
+}
+
+// DeleteStoreSubcategory удаляет категорию/подкатегорию магазина.
+// При удалении категории её подкатегории удаляются каскадно; товары остаются,
+// но теряют привязку (subcategory_id → NULL).
 func (s *Service) DeleteStoreSubcategory(ctx context.Context, storeID, subID uuid.UUID) error {
 	return s.repo.DeleteStoreSubcategory(ctx, storeID, subID)
 }
@@ -423,7 +438,7 @@ func (s *Service) ImportProducts(ctx context.Context, filePath string, originalN
 				return &id, nil
 			}
 		}
-		created, err := s.repo.CreateStoreSubcategory(ctx, storeID, name)
+		created, err := s.repo.CreateStoreSubcategory(ctx, storeID, name, nil)
 		if err != nil {
 			return nil, fmt.Errorf("не удалось создать подкатегорию '%s': %w", name, err)
 		}

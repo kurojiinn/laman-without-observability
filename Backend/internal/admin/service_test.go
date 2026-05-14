@@ -51,8 +51,12 @@ func (m *adminRepoMock) GetStoreSubcategories(ctx context.Context, storeID uuid.
 	return []models.Subcategory{}, nil
 }
 
-func (m *adminRepoMock) CreateStoreSubcategory(ctx context.Context, storeID uuid.UUID, name string) (*models.Subcategory, error) {
-	return &models.Subcategory{}, nil
+func (m *adminRepoMock) CreateStoreSubcategory(ctx context.Context, storeID uuid.UUID, name string, parentID *uuid.UUID) (*models.Subcategory, error) {
+	return &models.Subcategory{ID: uuid.New(), StoreID: &storeID, ParentID: parentID, Name: name}, nil
+}
+
+func (m *adminRepoMock) UpdateStoreSubcategory(ctx context.Context, storeID, subID uuid.UUID, name string) error {
+	return nil
 }
 
 func (m *adminRepoMock) DeleteStoreSubcategory(ctx context.Context, storeID, subID uuid.UUID) error {

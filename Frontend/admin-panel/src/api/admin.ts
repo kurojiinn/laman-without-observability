@@ -153,10 +153,13 @@ export const deleteOptionValue = async (user: string, password: string, valueId:
 
 // ─── Store subcategories (магазин-локальные категории) ────────────────────────
 
+// Двухуровневая категория магазина: parent_id = null — категория верхнего уровня,
+// parent_id заполнен — подкатегория внутри категории parent_id.
 export type StoreSubcategory = {
   id: string;
   category_id?: string | null;
   store_id?: string | null;
+  parent_id?: string | null;
   name: string;
   created_at: string;
   updated_at: string;
@@ -174,17 +177,29 @@ export const fetchStoreSubcategories = async (
   return data ?? [];
 };
 
+// parentId задан — создаётся подкатегория второго уровня внутри категории parentId.
 export const createStoreSubcategory = async (
   user: string,
   password: string,
   storeId: string,
-  name: string
+  name: string,
+  parentId?: string | null
 ): Promise<StoreSubcategory> => {
   const { data } = await createAdminClient(user, password).post<StoreSubcategory>(
     `/stores/${storeId}/subcategories`,
-    { name }
+    { name, parent_id: parentId ?? null }
   );
   return data;
+};
+
+export const updateStoreSubcategory = async (
+  user: string,
+  password: string,
+  storeId: string,
+  subId: string,
+  name: string
+): Promise<void> => {
+  await createAdminClient(user, password).patch(`/stores/${storeId}/subcategories/${subId}`, { name });
 };
 
 export const deleteStoreSubcategory = async (
