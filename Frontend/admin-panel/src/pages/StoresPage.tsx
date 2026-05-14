@@ -6,6 +6,7 @@ import {
   createStore,
   deleteStore,
   fetchAdminStores,
+  fetchStoreCategoryMeta,
   restoreStore,
   updateStore,
   uploadStoreImage,
@@ -13,12 +14,10 @@ import {
 import type { DeleteStoreConflict } from "../api/admin";
 import { PageHeader, Card, Btn, Modal, Input, Select, ImageUploadZone } from "../components/Layout";
 import type { Store, StoreCategoryType } from "../types";
-import { STORE_CATEGORY_LABELS } from "../types";
 import { StoreDetailView } from "./StoreDetailView";
 
 interface Props { user: string; password: string; }
 
-const CATEGORY_OPTIONS = Object.entries(STORE_CATEGORY_LABELS).map(([v, l]) => ({ value: v, label: l }));
 const CITY_OPTIONS = [
   { value: "Грозный", label: "Грозный" },
   { value: "Ойсхар", label: "Ойсхар" },
@@ -64,6 +63,18 @@ export function StoresPage({ user, password }: Props) {
     queryKey: ["admin-stores"],
     queryFn: () => fetchAdminStores(user, password),
   });
+  const categoriesQ = useQuery({
+    queryKey: ["store-category-meta"],
+    queryFn: fetchStoreCategoryMeta,
+  });
+  const categoryOptions = (categoriesQ.data ?? []).map((m) => ({
+    value: m.category_type,
+    label: m.name ?? m.category_type,
+  }));
+  const categoryNameById = (id: string | null | undefined) => {
+    if (!id) return "Без категории";
+    return (categoriesQ.data ?? []).find((m) => m.category_type === id)?.name ?? id;
+  };
 
   function openEdit(store: Store) {
     setEditTarget(store);
@@ -72,7 +83,7 @@ export function StoresPage({ user, password }: Props) {
       address: store.address,
       city: store.city ?? "Ойсхар",
       description: store.description ?? "",
-      category_type: store.category_type,
+      category_type: store.category_type ?? "",
     });
     setEditImageFile(null);
     setEditImagePreview(resolveImg(store.image_url));
@@ -241,7 +252,7 @@ export function StoresPage({ user, password }: Props) {
                 {/* Категория + рейтинг */}
                 <div className="flex flex-col items-end gap-1 flex-shrink-0">
                   <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">
-                    {STORE_CATEGORY_LABELS[store.category_type] ?? store.category_type}
+                    {categoryNameById(store.category_type)}
                   </span>
                   {store.rating > 0 && (
                     <span className="flex items-center gap-1 text-xs text-gray-500">
@@ -297,7 +308,7 @@ export function StoresPage({ user, password }: Props) {
         <Input label="Название *" value={form.name} onChange={(v) => setForm((p) => ({ ...p, name: v }))} placeholder="Название магазина" />
         <Input label="Адрес *" value={form.address} onChange={(v) => setForm((p) => ({ ...p, address: v }))} placeholder="ул. Пушкина, 1" />
         <Select label="Город" value={form.city} onChange={(v) => setForm((p) => ({ ...p, city: v }))} options={CITY_OPTIONS} />
-        <Select label="Категория" value={form.category_type} onChange={(v) => setForm((p) => ({ ...p, category_type: v as StoreCategoryType }))} options={CATEGORY_OPTIONS} />
+        <Select label="Категория" value={form.category_type} onChange={(v) => setForm((p) => ({ ...p, category_type: v as StoreCategoryType }))} options={categoryOptions} />
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Описание</label>
           <textarea
@@ -333,7 +344,7 @@ export function StoresPage({ user, password }: Props) {
         <Input label="Название *" value={editForm.name} onChange={(v) => setEditForm((p) => ({ ...p, name: v }))} placeholder="Название магазина" />
         <Input label="Адрес" value={editForm.address} onChange={(v) => setEditForm((p) => ({ ...p, address: v }))} placeholder="ул. Пушкина, 1" />
         <Select label="Город" value={editForm.city} onChange={(v) => setEditForm((p) => ({ ...p, city: v }))} options={CITY_OPTIONS} />
-        <Select label="Категория" value={editForm.category_type} onChange={(v) => setEditForm((p) => ({ ...p, category_type: v as StoreCategoryType }))} options={CATEGORY_OPTIONS} />
+        <Select label="Категория" value={editForm.category_type} onChange={(v) => setEditForm((p) => ({ ...p, category_type: v as StoreCategoryType }))} options={categoryOptions} />
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Описание</label>
           <textarea

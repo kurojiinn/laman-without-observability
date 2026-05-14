@@ -43,7 +43,7 @@ export default function StoreDetailView({
   disableSwipe?: boolean;
 }) {
   const [store, setStore] = useState<Store>(initialStore);
-  const meta = CATEGORY_META[store.category_type] ?? DEFAULT_META;
+  const meta = CATEGORY_META[store.category_type ?? ""] ?? DEFAULT_META;
 
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);

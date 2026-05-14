@@ -14,17 +14,17 @@ import (
 // CatalogService обрабатывает бизнес-логику, связанную с каталогом,
 // включая категории, товары и магазины.
 type CatalogService struct {
-	categoryRepo    CategoryRepository
-	subcategoryRepo SubcategoryRepository
-	productRepo     ProductRepository
-	storeRepo       StoreRepository
-	reviewRepo      ReviewRepository
-	featuredRepo    FeaturedProductRepository
-	recipeRepo          RecipeRepository
-	scenarioRepo        ScenarioRepository
-	storeCatMetaRepo    StoreCategoryMetaRepository
-	optionsRepo         OptionsRepo   // nil = опции не подгружаются
-	rdb                 *redis.Client // optional: nil = без кеширования
+	categoryRepo     CategoryRepository
+	subcategoryRepo  SubcategoryRepository
+	productRepo      ProductRepository
+	storeRepo        StoreRepository
+	reviewRepo       ReviewRepository
+	featuredRepo     FeaturedProductRepository
+	recipeRepo       RecipeRepository
+	scenarioRepo     ScenarioRepository
+	storeCatMetaRepo StoreCategoryMetaRepository
+	optionsRepo      OptionsRepo   // nil = опции не подгружаются
+	rdb              *redis.Client // optional: nil = без кеширования
 }
 
 // OptionsRepo — минимальный интерфейс к опциям товара. Объявлен здесь,
@@ -106,6 +106,27 @@ func (s *CatalogService) UpdateStoreCategoryMeta(ctx context.Context, categoryTy
 		return err
 	}
 	cache.Invalidate(ctx, s.rdb, cache.KeyStoreCategoryMeta)
+	return nil
+}
+
+// CreateStoreCategory создаёт новую категорию магазинов.
+func (s *CatalogService) CreateStoreCategory(ctx context.Context, id, name string, imageURL *string) (*models.StoreCategoryMeta, error) {
+	cat, err := s.storeCatMetaRepo.Create(ctx, id, name, imageURL)
+	if err != nil {
+		return nil, err
+	}
+	cache.Invalidate(ctx, s.rdb, cache.KeyStoreCategoryMeta)
+	return cat, nil
+}
+
+// DeleteStoreCategory удаляет категорию магазинов. Магазины этой категории
+// остаются, но теряют привязку (category_type становится NULL).
+func (s *CatalogService) DeleteStoreCategory(ctx context.Context, id string) error {
+	if err := s.storeCatMetaRepo.Delete(ctx, id); err != nil {
+		return err
+	}
+	cache.Invalidate(ctx, s.rdb, cache.KeyStoreCategoryMeta)
+	cache.InvalidatePattern(ctx, s.rdb, cache.KeyStores+":*")
 	return nil
 }
 

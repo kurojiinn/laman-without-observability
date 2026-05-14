@@ -76,22 +76,22 @@ type Subcategory struct {
 
 // Store представляет магазин, где можно приобрести товары.
 type Store struct {
-	ID           uuid.UUID         `db:"id" json:"id"`
-	Name         string            `db:"name" json:"name"`
-	Address      string            `db:"address" json:"address"`
-	City         string            `db:"city" json:"city"`
-	Phone        *string           `db:"phone" json:"phone,omitempty"`
-	Description  *string           `db:"description" json:"description,omitempty"`
-	ImageURL     *string           `db:"image_url" json:"image_url,omitempty"`
-	Rating       float64           `db:"rating" json:"rating"`
-	CategoryType StoreCategoryType `db:"category_type" json:"category_type"`
-	OpensAt      *string           `db:"opens_at" json:"opens_at,omitempty"`
-	ClosesAt     *string           `db:"closes_at" json:"closes_at,omitempty"`
-	IsActive     bool              `db:"is_active" json:"is_active"`
-	CreatedAt    time.Time         `db:"created_at" json:"created_at"`
-	UpdatedAt    time.Time         `db:"updated_at" json:"updated_at"`
-	Lat          *float64          `db:"lat" json:"lat,omitempty"`
-	Lng          *float64          `db:"lng" json:"lng,omitempty"`
+	ID           uuid.UUID `db:"id" json:"id"`
+	Name         string    `db:"name" json:"name"`
+	Address      string    `db:"address" json:"address"`
+	City         string    `db:"city" json:"city"`
+	Phone        *string   `db:"phone" json:"phone,omitempty"`
+	Description  *string   `db:"description" json:"description,omitempty"`
+	ImageURL     *string   `db:"image_url" json:"image_url,omitempty"`
+	Rating       float64   `db:"rating" json:"rating"`
+	CategoryType *string   `db:"category_type" json:"category_type"`
+	OpensAt      *string   `db:"opens_at" json:"opens_at,omitempty"`
+	ClosesAt     *string   `db:"closes_at" json:"closes_at,omitempty"`
+	IsActive     bool      `db:"is_active" json:"is_active"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
+	Lat          *float64  `db:"lat" json:"lat,omitempty"`
+	Lng          *float64  `db:"lng" json:"lng,omitempty"`
 }
 
 // Review представляет отзыв покупателя о магазине.
@@ -163,7 +163,9 @@ type FeaturedProduct struct {
 	CreatedAt time.Time         `db:"created_at" json:"created_at"`
 }
 
-// StoreCategoryMeta хранит настройки отображения типа магазина.
+// StoreCategoryMeta — категория магазина (таблица store_categories).
+// CategoryType — это id категории (slug у базовых: FOOD/GROCERY/…, uuid у созданных из админки).
+// Имя поля и json-тег оставлены как category_type для обратной совместимости с клиентом.
 type StoreCategoryMeta struct {
 	CategoryType string  `db:"category_type" json:"category_type"`
 	Name         *string `db:"name"          json:"name,omitempty"`
@@ -171,14 +173,5 @@ type StoreCategoryMeta struct {
 	ImageURL     *string `db:"image_url"     json:"image_url,omitempty"`
 }
 
-// StoreCategoryType представляет тип магазина.
+// StoreCategoryType — id категории магазина (slug или uuid). Хранится как строка.
 type StoreCategoryType string
-
-const (
-	StoreCategoryFood     StoreCategoryType = "FOOD"
-	StoreCategoryGrocery  StoreCategoryType = "GROCERY"
-	StoreCategoryBuilding StoreCategoryType = "BUILDING"
-	StoreCategorySweets   StoreCategoryType = "SWEETS"
-	StoreCategoryHome     StoreCategoryType = "HOME"
-	StoreCategoryPharmacy StoreCategoryType = "PHARMACY"
-)

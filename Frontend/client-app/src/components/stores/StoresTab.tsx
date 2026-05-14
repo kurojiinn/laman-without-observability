@@ -59,7 +59,7 @@ export default function StoresTab({ search }: Props) {
 }
 
 function StoreCard({ store, onClick }: { store: Store; onClick: () => void }) {
-  const meta = CATEGORY_META[store.category_type] ?? DEFAULT_META;
+  const meta = CATEGORY_META[store.category_type ?? ""] ?? DEFAULT_META;
   const open = isStoreOpen(store);
   const hasHours = !!store.opens_at && !!store.closes_at;
 

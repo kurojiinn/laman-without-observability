@@ -1,12 +1,15 @@
-export type StoreCategoryType = "FOOD" | "GROCERY" | "BUILDING" | "HOME" | "PHARMACY" | "SWEETS";
+// Категории магазинов теперь динамические (таблица store_categories на бэке).
+// category_type — это id категории: slug у базовых (FOOD/GROCERY/…), uuid у созданных из админки.
+export type StoreCategoryType = string;
 
-export const STORE_CATEGORY_LABELS: Record<StoreCategoryType, string> = {
-  FOOD: "🍽️ Еда",
-  GROCERY: "🛒 Продукты",
-  HOME: "🧹 Химия и быт",
-  BUILDING: "🏗️ Стройматериалы",
-  PHARMACY: "💊 Аптеки",
-  SWEETS: "🍬 Сладости и подарки",
+// Запасные подписи для базовых категорий — на случай если название из API ещё не загрузилось.
+export const STORE_CATEGORY_LABELS: Record<string, string> = {
+  FOOD: "Еда",
+  GROCERY: "Продукты",
+  HOME: "Химия и быт",
+  BUILDING: "Стройматериалы",
+  PHARMACY: "Аптеки",
+  SWEETS: "Сладости и подарки",
 };
 
 export type Store = {
@@ -18,7 +21,7 @@ export type Store = {
   description?: string | null;
   image_url?: string | null;
   rating: number;
-  category_type: StoreCategoryType;
+  category_type: StoreCategoryType | null;
   opens_at?: string | null;
   closes_at?: string | null;
   is_active?: boolean;

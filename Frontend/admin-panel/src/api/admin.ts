@@ -283,6 +283,27 @@ export const updateStoreCategoryImage = async (
   return data;
 };
 
+export const createStoreCategory = async (
+  user: string,
+  password: string,
+  name: string,
+  image?: File | null
+): Promise<StoreCategoryMeta> => {
+  const form = new FormData();
+  form.append("name", name);
+  if (image) form.append("image", image);
+  const { data } = await createAdminClient(user, password).post<StoreCategoryMeta>(
+    "/store-categories",
+    form,
+    { headers: { "Content-Type": "multipart/form-data" } }
+  );
+  return data;
+};
+
+export const deleteStoreCategory = async (user: string, password: string, categoryType: string) => {
+  await createAdminClient(user, password).delete(`/store-categories/${categoryType}`);
+};
+
 export const deleteCategory = async (user: string, password: string, categoryId: string) => {
   await createAdminClient(user, password).delete(`/categories/${categoryId}`);
 };

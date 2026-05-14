@@ -615,22 +615,63 @@ func NewPostgresStoreCategoryMetaRepository(db *database.DB) StoreCategoryMetaRe
 
 func (r *postgresStoreCategoryMetaRepository) GetAll(ctx context.Context) ([]models.StoreCategoryMeta, error) {
 	var rows []models.StoreCategoryMeta
-	err := r.db.SelectContext(ctx, &rows, `SELECT category_type, name, description, image_url FROM store_category_meta ORDER BY category_type`)
+	err := r.db.SelectContext(ctx, &rows,
+		`SELECT id AS category_type, name, description, image_url FROM store_categories ORDER BY position, name`)
 	return rows, err
 }
 
 func (r *postgresStoreCategoryMetaRepository) UpdateImage(ctx context.Context, categoryType string, imageURL string) error {
-	_, err := r.db.ExecContext(ctx,
-		`UPDATE store_category_meta SET image_url = $1, updated_at = NOW() WHERE category_type = $2`,
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE store_categories SET image_url = $1, updated_at = NOW() WHERE id = $2`,
 		imageURL, categoryType,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if affected, _ := res.RowsAffected(); affected == 0 {
+		return fmt.Errorf("категория не найдена")
+	}
+	return nil
 }
 
 func (r *postgresStoreCategoryMetaRepository) UpdateMeta(ctx context.Context, categoryType string, name, description string) error {
-	_, err := r.db.ExecContext(ctx,
-		`UPDATE store_category_meta SET name = $1, description = $2, updated_at = NOW() WHERE category_type = $3`,
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE store_categories SET name = $1, description = $2, updated_at = NOW() WHERE id = $3`,
 		name, description, categoryType,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if affected, _ := res.RowsAffected(); affected == 0 {
+		return fmt.Errorf("категория не найдена")
+	}
+	return nil
+}
+
+// Create добавляет новую категорию магазина. position ставится в конец списка.
+func (r *postgresStoreCategoryMetaRepository) Create(ctx context.Context, id, name string, imageURL *string) (*models.StoreCategoryMeta, error) {
+	var cat models.StoreCategoryMeta
+	err := r.db.GetContext(ctx, &cat,
+		`INSERT INTO store_categories (id, name, image_url, position)
+		 VALUES ($1, $2, $3, COALESCE((SELECT MAX(position) FROM store_categories), 0) + 1)
+		 RETURNING id AS category_type, name, description, image_url`,
+		id, name, imageURL,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &cat, nil
+}
+
+// Delete удаляет категорию. У магазинов с этой категорией category_type
+// обнулится автоматически (FK ON DELETE SET NULL).
+func (r *postgresStoreCategoryMetaRepository) Delete(ctx context.Context, id string) error {
+	res, err := r.db.ExecContext(ctx, `DELETE FROM store_categories WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	if affected, _ := res.RowsAffected(); affected == 0 {
+		return fmt.Errorf("категория не найдена")
+	}
+	return nil
 }

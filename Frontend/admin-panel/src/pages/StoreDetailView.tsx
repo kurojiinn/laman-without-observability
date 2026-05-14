@@ -6,6 +6,7 @@ import {
   deleteProduct,
   deleteStoreSubcategory,
   fetchProducts,
+  fetchStoreCategoryMeta,
   fetchStoreSubcategories,
   updateProduct,
   uploadStoreImage,
@@ -15,7 +16,6 @@ import type { StoreSubcategory } from "../api/admin";
 import { PageHeader, Card, Btn, Modal, Input, Select, ImageUploadZone } from "../components/Layout";
 import { ProductOptionsEditor } from "../components/ProductOptionsEditor";
 import type { Product, Store, StoreCategoryType } from "../types";
-import { STORE_CATEGORY_LABELS } from "../types";
 
 interface Props {
   user: string;
@@ -24,7 +24,6 @@ interface Props {
   onBack: () => void;
 }
 
-const CATEGORY_OPTIONS = Object.entries(STORE_CATEGORY_LABELS).map(([v, l]) => ({ value: v, label: l }));
 const CITY_OPTIONS = [
   { value: "Грозный", label: "Грозный" },
   { value: "Ойсхар", label: "Ойсхар" },
@@ -55,7 +54,7 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
     address: store.address,
     city: store.city ?? "Ойсхар",
     description: store.description ?? "",
-    category_type: store.category_type,
+    category_type: store.category_type ?? "",
   });
   const [editImageFile, setEditImageFile] = useState<File | null>(null);
   const [editImagePreview, setEditImagePreview] = useState<string | null>(resolveImg(store.image_url));
@@ -90,6 +89,18 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
     queryKey: ["store-products", store.id],
     queryFn: () => fetchProducts(user, password, store.id),
   });
+  const categoriesQ = useQuery({
+    queryKey: ["store-category-meta"],
+    queryFn: fetchStoreCategoryMeta,
+  });
+  const categoryOptions = (categoriesQ.data ?? []).map((m) => ({
+    value: m.category_type,
+    label: m.name ?? m.category_type,
+  }));
+  const storeCategoryName =
+    (categoriesQ.data ?? []).find((m) => m.category_type === store.category_type)?.name ??
+    store.category_type ??
+    "Без категории";
 
   const subOptions = (subsQ.data ?? []).map((s) => ({ value: s.id, label: s.name }));
   // Подкатегории, в которые сгруппированы товары — для отображения секциями.
@@ -237,7 +248,7 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
             <p className="text-sm text-gray-500 mt-0.5">{store.address} · {store.city ?? "—"}</p>
             <div className="flex items-center gap-2 mt-2">
               <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">
-                {STORE_CATEGORY_LABELS[store.category_type] ?? store.category_type}
+                {storeCategoryName}
               </span>
               {store.description && <span className="text-xs text-gray-400 truncate">{store.description}</span>}
             </div>
@@ -398,7 +409,7 @@ export function StoreDetailView({ user, password, store, onBack }: Props) {
         <Input label="Название *" value={editForm.name} onChange={(v) => setEditForm((p) => ({ ...p, name: v }))} />
         <Input label="Адрес" value={editForm.address} onChange={(v) => setEditForm((p) => ({ ...p, address: v }))} />
         <Select label="Город" value={editForm.city} onChange={(v) => setEditForm((p) => ({ ...p, city: v }))} options={CITY_OPTIONS} />
-        <Select label="Категория" value={editForm.category_type} onChange={(v) => setEditForm((p) => ({ ...p, category_type: v as StoreCategoryType }))} options={CATEGORY_OPTIONS} />
+        <Select label="Категория" value={editForm.category_type} onChange={(v) => setEditForm((p) => ({ ...p, category_type: v as StoreCategoryType }))} options={categoryOptions} />
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Описание</label>
           <textarea

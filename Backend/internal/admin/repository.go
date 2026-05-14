@@ -148,9 +148,14 @@ func (r *postgresRepository) CreateStore(ctx context.Context, store *models.Stor
 
 // UpdateStore обновляет поля магазина.
 func (r *postgresRepository) UpdateStore(ctx context.Context, id uuid.UUID, name, address, city, description string, categoryType models.StoreCategoryType) error {
+	// Пустой category_type → NULL: магазин без категории (иначе FK на store_categories упадёт).
+	var catParam interface{}
+	if ct := strings.TrimSpace(string(categoryType)); ct != "" {
+		catParam = ct
+	}
 	res, err := r.db.ExecContext(ctx,
 		`UPDATE stores SET name=$1, address=$2, city=$3, description=$4, category_type=$5, updated_at=NOW() WHERE id=$6`,
-		name, address, city, description, categoryType, id,
+		name, address, city, description, catParam, id,
 	)
 	if err != nil {
 		return err
@@ -395,6 +400,11 @@ func newStoreFromRequest(req *CreateStoreRequest) *models.Store {
 		rating = *req.Rating
 	}
 
+	var categoryType *string
+	if ct := strings.TrimSpace(string(req.CategoryType)); ct != "" {
+		categoryType = &ct
+	}
+
 	return &models.Store{
 		ID:           uuid.New(),
 		Name:         req.Name,
@@ -404,7 +414,7 @@ func newStoreFromRequest(req *CreateStoreRequest) *models.Store {
 		Description:  req.Description,
 		ImageURL:     req.ImageURL,
 		Rating:       rating,
-		CategoryType: req.CategoryType,
+		CategoryType: categoryType,
 		OpensAt:      req.OpensAt,
 		ClosesAt:     req.ClosesAt,
 		CreatedAt:    now,

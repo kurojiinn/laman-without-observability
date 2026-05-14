@@ -6,8 +6,6 @@ import { useStores, useStoreCategoryMeta } from "@/lib/queries";
 import CategoryIcon, { CATEGORY_META, DEFAULT_META } from "@/components/ui/CategoryIcon";
 import StoreAvatar from "@/components/ui/StoreAvatar";
 
-const STORE_CATEGORY_TYPES = ["FOOD", "GROCERY", "PHARMACY", "SWEETS", "HOME", "BUILDING"];
-
 type View = "categories" | "stores";
 
 export default function CategoriesTab({ search, activeCity, onOpenStore }: { search: string; activeCity: string; onOpenStore: (store: Store) => void }) {
@@ -18,23 +16,24 @@ export default function CategoriesTab({ search, activeCity, onOpenStore }: { sea
   const { data: storeCatMetaItems = [] } = useStoreCategoryMeta();
 
   const allStores = allStoresData ?? [];
-  const storeCatMeta = useMemo(() => {
-    const map: Record<string, string | null> = {};
-    for (const item of storeCatMetaItems) map[item.category_type] = item.image_url ?? null;
-    return map;
-  }, [storeCatMetaItems]);
 
   // Магазины выбранного города
   const cityStores = allStores.filter((s) => s.city === activeCity);
 
-  // Категории с количеством магазинов (только выбранный город, только непустые)
-  const categoriesWithCount = STORE_CATEGORY_TYPES
-    .map((type) => ({
-      type,
-      meta: CATEGORY_META[type] ?? DEFAULT_META,
-      count: cityStores.filter((s) => s.category_type === type).length,
-    }))
-    .filter(({ count }) => count > 0);
+  // Категории берём из API — их порядок, названия и фоны задаются в админке.
+  // styleMeta даёт цвет/иконку для базовых категорий; для созданных в админке — нейтральный DEFAULT_META.
+  const categoriesWithCount = useMemo(() =>
+    storeCatMetaItems
+      .map((item) => ({
+        type: item.category_type,
+        label: item.name || CATEGORY_META[item.category_type]?.label || "Магазины",
+        imageUrl: item.image_url ?? null,
+        styleMeta: CATEGORY_META[item.category_type] ?? DEFAULT_META,
+        count: cityStores.filter((s) => s.category_type === item.category_type).length,
+      }))
+      .filter(({ count }) => count > 0),
+    [storeCatMetaItems, cityStores],
+  );
 
   // Магазины с учётом города, категории и поиска
   const filteredStores = cityStores.filter((s) => {
@@ -48,7 +47,10 @@ export default function CategoriesTab({ search, activeCity, onOpenStore }: { sea
 
   // ── Список магазинов категории ─────────────────────────────────────────────
   if (view === "stores" && activeCategoryType) {
-    const catMeta = CATEGORY_META[activeCategoryType] ?? DEFAULT_META;
+    const activeCategoryName =
+      storeCatMetaItems.find((i) => i.category_type === activeCategoryType)?.name ||
+      CATEGORY_META[activeCategoryType]?.label ||
+      "Категория";
 
     return (
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
@@ -64,7 +66,7 @@ export default function CategoriesTab({ search, activeCity, onOpenStore }: { sea
 
         <div className="flex items-center gap-3 mb-4">
           <CategoryIcon type={activeCategoryType} size="md" />
-          <h1 className="text-xl font-bold text-gray-900">{catMeta.label}</h1>
+          <h1 className="text-xl font-bold text-gray-900">{activeCategoryName}</h1>
         </div>
 
         {loadingStores ? (
@@ -137,14 +139,13 @@ export default function CategoriesTab({ search, activeCity, onOpenStore }: { sea
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3 lg:gap-4 mb-8">
-              {categoriesWithCount.map(({ type, meta, count }) => {
-                const dynamicImg = storeCatMeta[type] ?? null;
-                const bgImg = dynamicImg ? resolveImageUrl(dynamicImg, "hero") : (meta.bgImageFile ? getUploadUrl(meta.bgImageFile) : null);
+              {categoriesWithCount.map(({ type, label, imageUrl, styleMeta, count }) => {
+                const bgImg = imageUrl ? resolveImageUrl(imageUrl, "hero") : (styleMeta.bgImageFile ? getUploadUrl(styleMeta.bgImageFile) : null);
                 return (
                   <button
                     key={type}
                     onClick={() => { setActiveCategoryType(type); setView("stores"); }}
-                    className={`relative flex flex-col justify-between p-3 sm:p-4 lg:p-6 rounded-2xl overflow-hidden hover:shadow-lg active:scale-[0.98] transition-all text-left min-h-[100px] sm:min-h-[110px] lg:min-h-[170px] ${bgImg ? "" : `bg-gradient-to-br ${meta.gridBg}`}`}
+                    className={`relative flex flex-col justify-between p-3 sm:p-4 lg:p-6 rounded-2xl overflow-hidden hover:shadow-lg active:scale-[0.98] transition-all text-left min-h-[100px] sm:min-h-[110px] lg:min-h-[170px] ${bgImg ? "" : `bg-gradient-to-br ${styleMeta.gridBg}`}`}
                   >
                     {bgImg && (
                       <>
@@ -153,7 +154,7 @@ export default function CategoriesTab({ search, activeCity, onOpenStore }: { sea
                       </>
                     )}
                     <div className="relative flex flex-col justify-end h-full">
-                      <p className={`text-sm lg:text-base font-bold leading-tight ${bgImg ? "text-white" : "text-gray-900"}`}>{meta.label}</p>
+                      <p className={`text-sm lg:text-base font-bold leading-tight ${bgImg ? "text-white" : "text-gray-900"}`}>{label}</p>
                       {count > 0 && (
                         <p className={`text-[11px] lg:text-xs mt-0.5 ${bgImg ? "text-white/70" : "text-gray-500"}`}>{count} {pluralStore(count)}</p>
                       )}

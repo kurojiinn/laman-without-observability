@@ -84,11 +84,13 @@ type RecipeRepository interface {
 	RemoveProduct(ctx context.Context, recipeID uuid.UUID, productID uuid.UUID) error
 }
 
-// StoreCategoryMetaRepository управляет метаданными типов магазинов.
+// StoreCategoryMetaRepository управляет категориями магазинов (таблица store_categories).
 type StoreCategoryMetaRepository interface {
 	GetAll(ctx context.Context) ([]models.StoreCategoryMeta, error)
 	UpdateImage(ctx context.Context, categoryType string, imageURL string) error
 	UpdateMeta(ctx context.Context, categoryType string, name, description string) error
+	Create(ctx context.Context, id, name string, imageURL *string) (*models.StoreCategoryMeta, error)
+	Delete(ctx context.Context, id string) error
 }
 
 // ReviewRepository определяет интерфейс для работы с отзывами.

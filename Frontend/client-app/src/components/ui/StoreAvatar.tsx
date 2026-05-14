@@ -18,7 +18,7 @@ interface Props {
 }
 
 export default function StoreAvatar({ store, className = "w-12 h-12 rounded-xl", textClass = "text-sm" }: Props) {
-  const meta = CATEGORY_META[store.category_type] ?? DEFAULT_META;
+  const meta = CATEGORY_META[store.category_type ?? ""] ?? DEFAULT_META;
 
   if (store.image_url) {
     return (

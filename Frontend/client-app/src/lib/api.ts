@@ -169,7 +169,7 @@ export interface Store {
   description?: string;
   image_url?: string;
   rating: number;
-  category_type: string;
+  category_type: string | null;
   opens_at?: string;
   closes_at?: string;
   lat?: number;
@@ -284,7 +284,7 @@ export const catalogApi = {
   getRecipes: () => api.get<RecipeWithProducts[]>("/v1/catalog/recipes"),
   getRecipe: (id: string) => api.get<RecipeWithProducts>(`/v1/catalog/recipes/${id}`),
   getScenarios: () => api.get<Scenario[]>("/v1/catalog/scenarios"),
-  getStoreCategoryMeta: () => api.get<{ category_type: string; image_url?: string | null }[]>("/v1/catalog/store-category-meta"),
+  getStoreCategoryMeta: () => api.get<{ category_type: string; name?: string | null; description?: string | null; image_url?: string | null }[]>("/v1/catalog/store-category-meta"),
 };
 
 export interface Recipe {

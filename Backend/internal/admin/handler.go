@@ -34,10 +34,12 @@ type RecipeManager interface {
 	RemoveRecipeProduct(ctx context.Context, recipeID uuid.UUID, productID uuid.UUID) error
 }
 
-// StoreCategoryImageUpdater обновляет данные типа магазина.
+// StoreCategoryImageUpdater управляет категориями магазинов.
 type StoreCategoryImageUpdater interface {
 	UpdateStoreCategoryImage(ctx context.Context, categoryType string, imageURL string) error
 	UpdateStoreCategoryMeta(ctx context.Context, categoryType string, name, description string) error
+	CreateStoreCategory(ctx context.Context, id, name string, imageURL *string) (*models.StoreCategoryMeta, error)
+	DeleteStoreCategory(ctx context.Context, id string) error
 }
 
 // ScenarioManager абстрагирует управление сценариями для admin-панели.
@@ -139,8 +141,10 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.Han
 		admin.PATCH("/pickers/:id", h.UpdatePicker)
 		admin.PATCH("/pickers/:id/password", h.UpdatePickerPassword)
 		admin.DELETE("/pickers/:id", h.DeletePicker)
-		// Фоны типов магазинов
+		// Категории магазинов
 		if h.storeCatUpdater != nil {
+			admin.POST("/store-categories", h.AdminCreateStoreCategory)
+			admin.DELETE("/store-categories/:type", h.AdminDeleteStoreCategory)
 			admin.PATCH("/store-category-meta/:type", h.AdminUpdateStoreCategoryMeta)
 			admin.PATCH("/store-category-meta/:type/image", h.AdminUpdateStoreCategoryImage)
 		}
@@ -596,7 +600,7 @@ var importAllowedExts = map[string][]byte{
 	".xlsx": {0x50, 0x4B, 0x03, 0x04}, // ZIP/PK — формат Open XML
 	".xlsm": {0x50, 0x4B, 0x03, 0x04},
 	".xls":  {0xD0, 0xCF, 0x11, 0xE0}, // OLE2 compound document
-	".csv":  nil,                        // plain text, без магических байтов
+	".csv":  nil,                      // plain text, без магических байтов
 }
 
 // ImportProducts принимает Excel/CSV файл и выполняет массовый импорт.
@@ -904,15 +908,47 @@ func (h *Handler) AdminDeleteScenario(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
-// AdminUpdateStoreCategoryMeta обновляет название и описание типа магазина.
-// PATCH /api/v1/admin/store-category-meta/:type
-func (h *Handler) AdminUpdateStoreCategoryMeta(c *gin.Context) {
-	categoryType := strings.ToUpper(c.Param("type"))
-	validTypes := map[string]bool{"FOOD": true, "PHARMACY": true, "BUILDING": true, "HOME": true, "GROCERY": true, "SWEETS": true}
-	if !validTypes[categoryType] {
-		h.respondError(c, http.StatusBadRequest, "неверный тип категории", "")
+// AdminCreateStoreCategory создаёт новую категорию магазинов.
+// POST /api/v1/admin/store-categories  (multipart/form-data: name, image?)
+func (h *Handler) AdminCreateStoreCategory(c *gin.Context) {
+	ctx, span := observability.StartSpan(c.Request.Context(), "admin.create_store_category")
+	defer span.End()
+
+	_ = c.Request.ParseMultipartForm(20 << 20)
+	name := strings.TrimSpace(c.PostForm("name"))
+	if name == "" {
+		h.respondError(c, http.StatusBadRequest, "название обязательно", "")
 		return
 	}
+
+	var imageURL *string
+	if url, err := h.saveUploadedImage(ctx, c); err == nil && url != "" {
+		imageURL = &url
+	}
+
+	cat, err := h.storeCatUpdater.CreateStoreCategory(ctx, uuid.NewString(), name, imageURL)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось создать категорию", err.Error())
+		return
+	}
+	c.JSON(http.StatusCreated, cat)
+}
+
+// AdminDeleteStoreCategory удаляет категорию магазинов.
+// Магазины этой категории не удаляются — у них обнуляется category_type.
+// DELETE /api/v1/admin/store-categories/:type
+func (h *Handler) AdminDeleteStoreCategory(c *gin.Context) {
+	if err := h.storeCatUpdater.DeleteStoreCategory(c.Request.Context(), c.Param("type")); err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось удалить категорию", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// AdminUpdateStoreCategoryMeta обновляет название и описание категории магазинов.
+// PATCH /api/v1/admin/store-category-meta/:type
+func (h *Handler) AdminUpdateStoreCategoryMeta(c *gin.Context) {
+	categoryType := c.Param("type")
 	var req struct {
 		Name        string `json:"name"`
 		Description string `json:"description"`
@@ -921,24 +957,23 @@ func (h *Handler) AdminUpdateStoreCategoryMeta(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, "некорректные данные", err.Error())
 		return
 	}
-	if err := h.storeCatUpdater.UpdateStoreCategoryMeta(c.Request.Context(), categoryType, req.Name, req.Description); err != nil {
+	if strings.TrimSpace(req.Name) == "" {
+		h.respondError(c, http.StatusBadRequest, "название обязательно", "")
+		return
+	}
+	if err := h.storeCatUpdater.UpdateStoreCategoryMeta(c.Request.Context(), categoryType, strings.TrimSpace(req.Name), strings.TrimSpace(req.Description)); err != nil {
 		h.respondError(c, http.StatusInternalServerError, "не удалось обновить категорию", err.Error())
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-// AdminUpdateStoreCategoryImage обновляет фоновое изображение типа магазина.
+// AdminUpdateStoreCategoryImage обновляет фоновое изображение категории магазинов.
 func (h *Handler) AdminUpdateStoreCategoryImage(c *gin.Context) {
 	ctx, span := observability.StartSpan(c.Request.Context(), "admin.update_store_category_image")
 	defer span.End()
 
-	categoryType := strings.ToUpper(c.Param("type"))
-	validTypes := map[string]bool{"FOOD": true, "PHARMACY": true, "BUILDING": true, "HOME": true, "GROCERY": true, "SWEETS": true}
-	if !validTypes[categoryType] {
-		h.respondError(c, http.StatusBadRequest, "неверный тип категории", "")
-		return
-	}
+	categoryType := c.Param("type")
 
 	_ = c.Request.ParseMultipartForm(20 << 20)
 	imageURL, err := h.saveUploadedImage(ctx, c)
@@ -1068,9 +1103,9 @@ func (h *Handler) respondError(c *gin.Context, status int, message string, detai
 // ── Витрина ────────────────────────────────────────────────────────────────────
 
 type AddFeaturedRequest struct {
-	ProductID uuid.UUID               `json:"product_id"`
+	ProductID uuid.UUID                `json:"product_id"`
 	BlockType models.FeaturedBlockType `json:"block_type"`
-	Position  int                     `json:"position"`
+	Position  int                      `json:"position"`
 }
 
 // GetFeatured возвращает список записей витрины по блоку.
