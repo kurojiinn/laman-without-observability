@@ -1143,7 +1143,7 @@ func (h *Handler) AddFeatured(c *gin.Context) {
 		Position:  req.Position,
 		CreatedAt: time.Now(),
 	}
-	if err := h.service.repo.AddFeatured(c.Request.Context(), fp); err != nil {
+	if err := h.service.AddFeatured(c.Request.Context(), fp); err != nil {
 		h.respondError(c, http.StatusInternalServerError, "ошибка добавления", err.Error())
 		return
 	}
@@ -1158,7 +1158,7 @@ func (h *Handler) DeleteFeatured(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, "неверный ID", "")
 		return
 	}
-	if err := h.service.repo.DeleteFeatured(c.Request.Context(), id); err != nil {
+	if err := h.service.DeleteFeatured(c.Request.Context(), id); err != nil {
 		h.respondError(c, http.StatusNotFound, "запись не найдена", err.Error())
 		return
 	}

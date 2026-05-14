@@ -47,6 +47,34 @@ func (s *Service) invalidateStoresCache(ctx context.Context) {
 	cache.InvalidatePattern(ctx, s.rdb, cache.KeyStores+":*")
 }
 
+// invalidateFeaturedCache сбрасывает кеш блоков витрины.
+// Без него клиент (и сама админка через /catalog/featured) до 5 минут
+// видят старый состав блока — добавленный товар не появляется, удалённый не исчезает.
+func (s *Service) invalidateFeaturedCache(ctx context.Context) {
+	if s.rdb == nil {
+		return
+	}
+	cache.InvalidatePattern(ctx, s.rdb, "cache:featured:*")
+}
+
+// AddFeatured добавляет товар в блок витрины и сбрасывает кеш витрины.
+func (s *Service) AddFeatured(ctx context.Context, fp *models.FeaturedProduct) error {
+	if err := s.repo.AddFeatured(ctx, fp); err != nil {
+		return err
+	}
+	s.invalidateFeaturedCache(ctx)
+	return nil
+}
+
+// DeleteFeatured убирает товар из блока витрины и сбрасывает кеш витрины.
+func (s *Service) DeleteFeatured(ctx context.Context, id uuid.UUID) error {
+	if err := s.repo.DeleteFeatured(ctx, id); err != nil {
+		return err
+	}
+	s.invalidateFeaturedCache(ctx)
+	return nil
+}
+
 // GetDashboardStats возвращает сводные метрики.
 func (s *Service) GetDashboardStats(ctx context.Context) (*DashboardStats, error) {
 	stats, err := s.repo.GetDashboardStats(ctx)

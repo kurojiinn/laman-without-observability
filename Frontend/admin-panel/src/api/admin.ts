@@ -378,10 +378,13 @@ export const importProducts = async (user: string, password: string, file: File)
 export const searchProductsByName = async (
   query: string
 ): Promise<{ id: string; name: string; price: number; store_id: string }[]> => {
+  // /catalog/products отдаёт пагинированный ответ { data, total, ... } —
+  // достаём массив, но поддерживаем и «голый» массив на случай старого формата.
   const { data } = await publicClient.get(
     `/catalog/products?search=${encodeURIComponent(query)}&available_only=true`
   );
-  return data ?? [];
+  if (Array.isArray(data)) return data;
+  return data?.data ?? [];
 };
 
 export const searchStoreProducts = async (
