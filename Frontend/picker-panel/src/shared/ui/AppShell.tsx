@@ -72,7 +72,7 @@ export function AppShell({ children, title, subtitle }: AppShellProps) {
       <aside className="sidebar">
         <div className="sidebar-brand">
           <div className="sidebar-brand-logo">📦</div>
-          <div className="sidebar-brand-name">Yuher</div>
+          <div className="sidebar-brand-name">Yuhher</div>
           <div className="sidebar-brand-sub">Панель сборщика</div>
         </div>
 

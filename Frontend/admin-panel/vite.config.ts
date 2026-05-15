@@ -9,9 +9,9 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "icons/apple-touch-icon.png"],
       manifest: {
-        name: "Yuher — Админ",
-        short_name: "Yuher Admin",
-        description: "Админ-панель Yuher",
+        name: "Yuhher — Админ",
+        short_name: "Yuhher Admin",
+        description: "Админ-панель Yuhher",
         lang: "ru",
         dir: "ltr",
         start_url: "/admin/",

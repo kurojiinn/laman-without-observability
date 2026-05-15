@@ -36,7 +36,7 @@ self.addEventListener("push", (event) => {
   })();
 
   event.waitUntil(
-    self.registration.showNotification(data.title ?? "Yuher", {
+    self.registration.showNotification(data.title ?? "Yuhher", {
       body: data.body ?? "",
       icon: "/picker/icons/icon-192.png",
       badge: "/picker/icons/icon-192.png",

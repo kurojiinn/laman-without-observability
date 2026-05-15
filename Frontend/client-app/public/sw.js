@@ -16,7 +16,7 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("push", (event) => {
   const data = event.data?.json() ?? {};
   event.waitUntil(
-    self.registration.showNotification(data.title ?? "Yuher", {
+    self.registration.showNotification(data.title ?? "Yuhher", {
       body: data.body ?? "",
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",

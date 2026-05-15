@@ -54,7 +54,7 @@ export function Layout({ page, onNavigate, onLogout, user, children }: Props) {
             Y
           </div>
           <div>
-            <p className="text-white font-bold text-sm leading-tight">Yuher Admin</p>
+            <p className="text-white font-bold text-sm leading-tight">Yuhher Admin</p>
             <p className="text-gray-400 text-xs">Панель управления</p>
           </div>
         </div>
@@ -120,7 +120,7 @@ export function Layout({ page, onNavigate, onLogout, user, children }: Props) {
           </button>
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-indigo-500 rounded-md flex items-center justify-center text-white font-bold text-xs">Y</div>
-            <span className="font-bold text-sm text-gray-900">Yuher Admin</span>
+            <span className="font-bold text-sm text-gray-900">Yuhher Admin</span>
           </div>
         </header>
 

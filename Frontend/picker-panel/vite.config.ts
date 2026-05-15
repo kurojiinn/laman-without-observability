@@ -12,9 +12,9 @@ export default defineConfig({
       filename: "sw.ts",
       includeAssets: ["favicon.ico", "icons/apple-touch-icon.png"],
       manifest: {
-        name: "Yuher — Сборщик",
-        short_name: "Yuher Picker",
-        description: "Панель сборщика заказов Yuher",
+        name: "Yuhher — Сборщик",
+        short_name: "Yuhher Picker",
+        description: "Панель сборщика заказов Yuhher",
         lang: "ru",
         dir: "ltr",
         start_url: "/picker/",
