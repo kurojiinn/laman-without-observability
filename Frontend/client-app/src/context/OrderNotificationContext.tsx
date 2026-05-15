@@ -12,8 +12,8 @@ import {
 import { useAuth } from "@/context/AuthContext";
 
 function getBaseUrl(): string {
+  if (typeof window !== "undefined") return `${window.location.origin}/api`;
   if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
-  if (typeof window !== "undefined") return `http://${window.location.hostname}:8080/api`;
   return "http://localhost:8080/api";
 }
 

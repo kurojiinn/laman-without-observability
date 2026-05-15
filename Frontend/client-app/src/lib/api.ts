@@ -5,11 +5,12 @@ import { tokenStore } from "@/lib/tokenStore";
 // Это позволяет открывать сайт по любому IP (192.168.x.x, другое устройство)
 // без изменения конфигурации.
 function getBaseUrl(): string {
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}/api`;
+  }
+  // SSR: используем явный URL из env или localhost
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
-  }
-  if (typeof window !== "undefined") {
-    return `http://${window.location.hostname}:8080/api`;
   }
   return "http://localhost:8080/api";
 }
