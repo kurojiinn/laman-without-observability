@@ -50,7 +50,7 @@ function AdminApp() {
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-              <svg viewBox="0 0 24 24" className="w-9 h-9 text-white" fill="currentColor"><path d="M13 2L4.5 13.5H11L10 22L19.5 10.5H13L13 2Z"/></svg>
+              <svg viewBox="0 0 24 24" className="w-9 h-9 text-white" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
             <h1 className="text-2xl font-bold text-gray-900">Yuhher Admin</h1>
             <p className="text-gray-400 text-sm mt-1">Панель управления</p>

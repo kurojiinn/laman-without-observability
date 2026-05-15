@@ -71,7 +71,7 @@ export function AppShell({ children, title, subtitle }: AppShellProps) {
     <div className="layout">
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <div className="sidebar-brand-logo"><svg viewBox="0 0 24 24" style={{width:"1em",height:"1em",fill:"currentColor"}}><path d="M13 2L4.5 13.5H11L10 22L19.5 10.5H13L13 2Z"/></svg></div>
+          <div className="sidebar-brand-logo"><svg viewBox="0 0 24 24" style={{width:"1em",height:"1em",fill:"currentColor"}}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
           <div className="sidebar-brand-name">Yuhher</div>
           <div className="sidebar-brand-sub">Панель сборщика</div>
         </div>
