@@ -50,8 +50,8 @@ export function Layout({ page, onNavigate, onLogout, user, children }: Props) {
       >
         {/* Logo */}
         <div className="flex items-center gap-3 px-6 py-5 border-b border-white/10">
-          <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">
-            ⚡
+          <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
+            <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="currentColor"><path d="M13 2L4.5 13.5H11L10 22L19.5 10.5H13L13 2Z"/></svg>
           </div>
           <div>
             <p className="text-white font-bold text-sm leading-tight">Yuhher Admin</p>
@@ -119,7 +119,7 @@ export function Layout({ page, onNavigate, onLogout, user, children }: Props) {
             </svg>
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-indigo-500 rounded-md flex items-center justify-center text-white font-bold text-xs">⚡</div>
+            <div className="w-6 h-6 bg-indigo-500 rounded-md flex items-center justify-center"><svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-white" fill="currentColor"><path d="M13 2L4.5 13.5H11L10 22L19.5 10.5H13L13 2Z"/></svg></div>
             <span className="font-bold text-sm text-gray-900">Yuhher Admin</span>
           </div>
         </header>

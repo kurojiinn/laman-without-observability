@@ -24,7 +24,7 @@ export function LoginPage() {
   return (
     <div className="login-page">
       <form className="login-form" onSubmit={submit}>
-        <div className="login-logo">⚡</div>
+        <div className="login-logo"><svg viewBox="0 0 24 24" style={{width:"1em",height:"1em",fill:"currentColor"}}><path d="M13 2L4.5 13.5H11L10 22L19.5 10.5H13L13 2Z"/></svg></div>
         <h1 className="login-title">Yuhher</h1>
         <p className="login-sub">Панель сборщика — авторизация</p>
         <label>
