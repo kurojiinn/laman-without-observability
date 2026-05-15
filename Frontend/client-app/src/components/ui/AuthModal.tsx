@@ -90,12 +90,11 @@ function LeftPanel() {
 
       <div className="relative z-10">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <span className="text-white font-bold text-lg tracking-tight">Yuher</span>
+          <svg className="w-8 h-8 flex-shrink-0" viewBox="0 0 32 32" fill="none">
+            <path d="M16 2C10.477 2 6 6.477 6 12c0 7.333 10 18 10 18s10-10.667 10-18C26 6.477 21.523 2 16 2z" fill="white" fillOpacity="0.25"/>
+            <path d="M17.5 7L14 13.5H17.5L15 19.5L21.5 12.5H18L17.5 7Z" fill="white"/>
+          </svg>
+          <span className="text-white font-bold text-lg tracking-tight">Yuhher.</span>
         </div>
       </div>
 
@@ -295,7 +294,7 @@ function AuthForm() {
     try {
       const res = await authApi.verifyEmail(email.trim(), otpCode);
       login(res.token, res.user);
-      toast.success("Добро пожаловать в Yuher!");
+      toast.success("Добро пожаловать в Yuhher!");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Неверный код");
       setOtp(Array(OTP_LENGTH).fill(""));

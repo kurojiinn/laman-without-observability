@@ -12,8 +12,8 @@ import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Yuher — близкие магазины, быстрая доставка",
-  description: "Yuher — доставка из ближайших магазинов. Продукты, еда, товары — быстро и рядом.",
+  title: "Yuhher — близкие магазины, быстрая доставка",
+  description: "Yuhher — доставка из ближайших магазинов. Продукты, еда, товары — быстро и рядом.",
 };
 
 export const viewport: Viewport = {
@@ -62,7 +62,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#08091C" media="(prefers-color-scheme: dark)" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="Yuher" />
+        <meta name="apple-mobile-web-app-title" content="Yuhher" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="min-h-full flex flex-col">

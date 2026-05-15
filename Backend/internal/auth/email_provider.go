@@ -110,31 +110,31 @@ func (n *NoopEmailSender) SendOTP(_ context.Context, to, code string) error {
 // buildOTPMessage собирает multipart/alternative письмо с text и HTML частями.
 // HTML-версия + Date + Message-ID + понятный From снижают вероятность попадания в спам.
 func buildOTPMessage(from, to, code string) string {
-	subject := base64.StdEncoding.EncodeToString([]byte("Код подтверждения Yuher: " + code))
+	subject := base64.StdEncoding.EncodeToString([]byte("Код подтверждения Yuhher: " + code))
 	date := time.Now().Format(time.RFC1123Z)
 	messageID := generateMessageID(from)
 	boundary := generateBoundary()
 
 	textBody := fmt.Sprintf(
 		"Здравствуйте!\r\n\r\n"+
-			"Ваш код подтверждения для входа в Yuher: %s\r\n\r\n"+
+			"Ваш код подтверждения для входа в Yuhher: %s\r\n\r\n"+
 			"Код действителен 5 минут.\r\n\r\n"+
 			"Если вы не запрашивали код — просто проигнорируйте это письмо, никаких действий с вашей стороны не требуется.\r\n\r\n"+
 			"---\r\n"+
-			"Yuher — доставка чего угодно по Грозному\r\n"+
+			"Yuhher — доставка чего угодно по Грозному\r\n"+
 			"Это автоматическое письмо, отвечать на него не нужно.",
 		code,
 	)
 
 	htmlBody := fmt.Sprintf(`<!DOCTYPE html>
 <html lang="ru">
-<head><meta charset="UTF-8"><title>Код подтверждения Yuher</title></head>
+<head><meta charset="UTF-8"><title>Код подтверждения Yuhher</title></head>
 <body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%%" style="background:#f4f4f7;padding:40px 16px;">
     <tr><td align="center">
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="480" style="max-width:480px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
         <tr><td style="background:linear-gradient(135deg,#312e81 0%%,#4338ca 100%%);padding:32px 32px 24px;text-align:center;">
-          <div style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">Yuher</div>
+          <div style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">Yuhher</div>
           <div style="color:#c7d2fe;font-size:13px;margin-top:6px;">Доставка по Грозному</div>
         </td></tr>
         <tr><td style="padding:32px;">
@@ -147,7 +147,7 @@ func buildOTPMessage(from, to, code string) string {
           <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.5;">Если вы не запрашивали этот код — просто проигнорируйте письмо.</p>
         </td></tr>
         <tr><td style="padding:20px 32px;background:#f9fafb;border-top:1px solid #e5e7eb;text-align:center;">
-          <p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.5;">Это автоматическое письмо, отвечать на него не нужно.<br>© %d Yuher. Все права защищены.</p>
+          <p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.5;">Это автоматическое письмо, отвечать на него не нужно.<br>© %d Yuhher. Все права защищены.</p>
         </td></tr>
       </table>
     </td></tr>
@@ -156,7 +156,7 @@ func buildOTPMessage(from, to, code string) string {
 </html>`, code, time.Now().Year())
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "From: Yuher <%s>\r\n", from)
+	fmt.Fprintf(&b, "From: Yuhher <%s>\r\n", from)
 	fmt.Fprintf(&b, "To: %s\r\n", to)
 	fmt.Fprintf(&b, "Subject: =?UTF-8?B?%s?=\r\n", subject)
 	fmt.Fprintf(&b, "Date: %s\r\n", date)

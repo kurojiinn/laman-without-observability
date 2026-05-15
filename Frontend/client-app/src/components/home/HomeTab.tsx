@@ -392,7 +392,7 @@ const PROMO_BANNERS = [
     id: "idea",
     tag: "Поделитесь",
     headline: "Есть идея? 🎯",
-    sub: "Помогите сделать Yuher лучше — какой магазин добавить, чего не хватает?",
+    sub: "Помогите сделать Yuhher лучше — какой магазин добавить, чего не хватает?",
     emoji: "💡",
     bg: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 55%, #1e40af 100%)",
     dotColor: "#3b82f6",
@@ -413,7 +413,7 @@ const PROMO_BANNERS = [
   {
     id: "partner",
     tag: "Для бизнеса",
-    headline: "Добавь свой\nмагазин в Yuher",
+    headline: "Добавь свой\nмагазин в Yuhher",
     sub: "Тысячи клиентов — без затрат на доставку",
     emoji: "🤝",
     bg: "linear-gradient(135deg, #064e3b 0%, #065f46 50%, #059669 100%)",
@@ -435,7 +435,7 @@ const PROMO_BANNERS = [
   {
     id: "app",
     tag: "Удобнее",
-    headline: "Yuher на\nглавном экране",
+    headline: "Yuhher на\nглавном экране",
     sub: "Без App Store — работает как приложение",
     emoji: "📲",
     bg: "linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)",
@@ -583,7 +583,7 @@ function PromoModal({ banner, onClose }: { banner: PromoBannerType; onClose: () 
         </div>
         <div className="px-5 pb-6">
           {banner.modal.hideCta ? (
-            <p className="text-center text-xs text-gray-400 leading-relaxed">Добавьте на главный экран — и Yuher всегда под рукой</p>
+            <p className="text-center text-xs text-gray-400 leading-relaxed">Добавьте на главный экран — и Yuhher всегда под рукой</p>
           ) : (
             <button onClick={() => window.open(banner.modal.ctaAction, "_blank", "noopener")} className="w-full py-3.5 rounded-2xl text-white font-bold text-sm transition-all active:scale-[0.98]" style={{ background: banner.modal.ctaBg }}>
               {banner.modal.cta}
@@ -980,7 +980,7 @@ function CharityModal({ onClose }: { onClose: () => void }) {
           <div className="relative flex items-center gap-3">
             <span className="text-4xl grayscale opacity-70">🫶</span>
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest opacity-60 mb-0.5">Yuher Добро · скоро</p>
+              <p className="text-xs font-bold uppercase tracking-widest opacity-60 mb-0.5">Yuhher Добро · скоро</p>
               <h2 className="text-xl font-bold leading-tight text-gray-800">Делимся теплом</h2>
               <p className="text-xs opacity-75 mt-0.5">Каждый рубль — это чья-то тарелка еды</p>
             </div>
