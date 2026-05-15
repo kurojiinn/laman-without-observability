@@ -14,9 +14,9 @@ function resolveImg(url: string | null | undefined) {
   if (!url) return null;
   try {
     const { pathname } = new URL(url);
-    return ``;
+    return `${window.location.origin}${pathname}`;
   } catch {
-    return ``;
+    return `${window.location.origin}${url}`;
   }
 }
 
