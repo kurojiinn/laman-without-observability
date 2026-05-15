@@ -558,16 +558,16 @@ function CategoryCard({
       onClick={onClick}
       className={`flex-shrink-0 w-[92px] h-[92px] rounded-3xl flex flex-col items-center justify-center gap-1.5 px-2 transition-all duration-200 active:scale-[0.96] ${
         active
-          ? "bg-gradient-to-br from-[#7C3AED] to-[#4B5EFC] border border-[#9B7CFF]/60 shadow-[0_0_24px_rgba(124,77,255,0.55)]"
-          : "bg-white/[0.04] border border-white/10 backdrop-blur-md hover:bg-white/[0.07]"
+          ? "bg-gradient-to-br from-[#7C3AED] to-[#4B5EFC] border border-[#9B7CFF]/60"
+          : "bg-gray-100 border border-gray-200 hover:bg-gray-200"
       }`}
     >
-      <span className={`w-7 h-7 ${active ? "text-white" : "text-[#9B8CFF]"}`}>
+      <span className={`w-7 h-7 ${active ? "text-white" : "text-[#7C3AED]"}`}>
         {categoryGlyph(label)}
       </span>
       <span
         className={`text-[11px] font-semibold leading-tight text-center line-clamp-2 ${
-          active ? "text-white" : "text-gray-300"
+          active ? "text-white" : "text-gray-600"
         }`}
       >
         {label}
@@ -592,8 +592,8 @@ function CategoryChip({
       onClick={onClick}
       className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
         active
-          ? "bg-[#7C3AED] text-white shadow-[0_0_16px_rgba(124,77,255,0.45)]"
-          : "bg-white/[0.04] text-gray-400 border border-white/10 hover:bg-white/[0.07]"
+          ? "bg-[#7C3AED] text-white"
+          : "bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200"
       }`}
     >
       {label}
