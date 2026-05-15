@@ -30,10 +30,7 @@ const CITY_OPTIONS = [
   { value: "Ойсхар", label: "Ойсхар" },
 ];
 
-const apiBase = (() => {
-  const v = (import.meta as any).env?.VITE_API_BASE_URL;
-  return v || (typeof window !== "undefined" ? `http://${window.location.hostname}:8080` : "");
-})();
+const apiBase = window.location.origin;
 
 function resolveImg(url: string | null | undefined) {
   if (!url) return null;

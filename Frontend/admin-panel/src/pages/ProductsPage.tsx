@@ -9,13 +9,7 @@ import type { Product } from "../types";
 
 interface Props { user: string; password: string; }
 
-const apiBase = (() => {
-  if (typeof window !== "undefined") {
-    const v = (import.meta as any).env?.VITE_API_BASE_URL;
-    return v || `http://${window.location.hostname}:8080`;
-  }
-  return "";
-})();
+const apiBase = window.location.origin;
 
 function resolveImg(url: string | null | undefined) {
   if (!url) return null;

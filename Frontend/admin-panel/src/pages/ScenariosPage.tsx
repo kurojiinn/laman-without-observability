@@ -28,10 +28,7 @@ const EMPTY: Omit<Scenario, "id" | "created_at" | "updated_at"> = {
   is_active: true,
 };
 
-const apiBase = (() => {
-  const v = (import.meta as any).env?.VITE_API_BASE_URL;
-  return v || (typeof window !== "undefined" ? `http://${window.location.hostname}:8080` : "");
-})();
+const apiBase = window.location.origin;
 
 function resolveImg(url: string | null | undefined) {
   if (!url) return null;

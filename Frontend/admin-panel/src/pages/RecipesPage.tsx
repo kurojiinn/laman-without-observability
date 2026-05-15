@@ -9,10 +9,7 @@ import type { Recipe, RecipeWithProducts, Store } from "../types";
 
 interface Props { user: string; password: string; }
 
-const apiBase = (() => {
-  const v = (import.meta as any).env?.VITE_API_BASE_URL;
-  return v || (typeof window !== "undefined" ? `http://${window.location.hostname}:8080` : "");
-})();
+const apiBase = window.location.origin;
 function resolveImg(url: string | null | undefined) {
   if (!url) return null;
   return url.startsWith("http") ? url : `${apiBase}${url}`;
