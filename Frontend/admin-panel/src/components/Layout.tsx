@@ -51,7 +51,7 @@ export function Layout({ page, onNavigate, onLogout, user, children }: Props) {
         {/* Logo */}
         <div className="flex items-center gap-3 px-6 py-5 border-b border-white/10">
           <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">
-            Y
+            ⚡
           </div>
           <div>
             <p className="text-white font-bold text-sm leading-tight">Yuhher Admin</p>
@@ -119,7 +119,7 @@ export function Layout({ page, onNavigate, onLogout, user, children }: Props) {
             </svg>
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-indigo-500 rounded-md flex items-center justify-center text-white font-bold text-xs">Y</div>
+            <div className="w-6 h-6 bg-indigo-500 rounded-md flex items-center justify-center text-white font-bold text-xs">⚡</div>
             <span className="font-bold text-sm text-gray-900">Yuhher Admin</span>
           </div>
         </header>

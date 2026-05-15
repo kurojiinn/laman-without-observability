@@ -24,7 +24,7 @@ export function LoginPage() {
   return (
     <div className="login-page">
       <form className="login-form" onSubmit={submit}>
-        <div className="login-logo">📦</div>
+        <div className="login-logo">⚡</div>
         <h1 className="login-title">Yuhher</h1>
         <p className="login-sub">Панель сборщика — авторизация</p>
         <label>
