@@ -231,7 +231,7 @@ export function ScenariosPage({ user, password }: Props) {
               />
               {form.image_url && (
                 <div className="mt-2 w-16 h-16 rounded-xl overflow-hidden border border-gray-100">
-                  <img src={form.image_url} alt="" className="w-full h-full object-cover" />
+                  <img src={resolveImg(form.image_url)!} alt="" className="w-full h-full object-cover" />
                 </div>
               )}
             </div>
@@ -383,7 +383,7 @@ export function ScenariosPage({ user, password }: Props) {
               <div key={sc.id} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 transition-colors">
                 <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center text-xl">
                   {sc.image_url
-                    ? <img src={sc.image_url} alt={sc.label} className="w-full h-full object-cover" />
+                    ? <img src={resolveImg(sc.image_url)!} alt={sc.label} className="w-full h-full object-cover" />
                     : sc.emoji || "⚡"
                   }
                 </div>

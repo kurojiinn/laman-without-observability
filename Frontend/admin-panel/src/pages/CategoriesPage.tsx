@@ -13,6 +13,16 @@ import {
 import { PageHeader, Card, Btn, Modal, Input, Select, ImageUploadZone } from "../components/Layout";
 import type { Store } from "../types";
 
+function resolveImg(url: string | null | undefined) {
+  if (!url) return null;
+  try {
+    const { pathname } = new URL(url);
+    return `${window.location.origin}${pathname}`;
+  } catch {
+    return `${window.location.origin}${url}`;
+  }
+}
+
 interface Props { user: string; password: string; }
 
 export function CategoriesPage({ user, password }: Props) {
@@ -307,7 +317,7 @@ export function CategoriesPage({ user, password }: Props) {
               >
                 {imageUrl && (
                   <>
-                    <img src={imageUrl} alt={name} className="absolute inset-0 w-full h-full object-cover" />
+                    <img src={resolveImg(imageUrl)!} alt={name} className="absolute inset-0 w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-black/50" />
                   </>
                 )}
