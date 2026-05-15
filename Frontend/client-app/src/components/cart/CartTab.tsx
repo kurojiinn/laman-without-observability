@@ -8,6 +8,7 @@ import { catalogApi, ordersApi, usersApi, isStoreOpen, resolveImageUrl, type Sto
 import { saveGuestOrder } from "@/lib/guestOrders";
 import ProductModal from "@/components/ui/ProductModal";
 import { DeliveryTimePicker, type DeliveryType } from "@/components/ui/DeliveryTimePicker";
+import ConsentCheckbox from "@/components/ui/ConsentCheckbox";
 
 type View = "cart" | "checkout" | "success";
 
@@ -56,6 +57,9 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
   // Шаг 2 — отправка
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState<string | null>(null);
+
+  const [consentChecked, setConsentChecked] = useState(false);
+  const [consentError, setConsentError]     = useState<string | null>(null);
 
   // Модалка товара
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -288,6 +292,11 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
   // ── Шаг 1: корзина + форма ────────────────────────────────────────────────
   function handleToCheckout(e: React.FormEvent) {
     e.preventDefault();
+    if (!consentChecked) {
+      setConsentError("Необходимо дать согласие на обработку персональных данных");
+      return;
+    }
+    setConsentError(null);
     if (store && !isStoreOpen(store)) {
       setError(
         `Магазин «${store.name}» сейчас закрыт` +
@@ -497,6 +506,12 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
           {error}
         </div>
       )}
+
+      <ConsentCheckbox
+        checked={consentChecked}
+        onChange={(v) => { setConsentChecked(v); if (v) setConsentError(null); }}
+        error={consentError}
+      />
 
       <button
         type="submit"

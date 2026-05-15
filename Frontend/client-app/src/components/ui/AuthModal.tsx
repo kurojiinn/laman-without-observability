@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { authApi } from "@/lib/api";
 import { useBodyScrollLockWhen } from "@/hooks/useBodyScrollLock";
 import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
+import ConsentCheckbox from "@/components/ui/ConsentCheckbox";
 
 const OTP_LENGTH = 4;
 
@@ -255,6 +256,9 @@ function AuthForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [consentChecked, setConsentChecked] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
+
   const otpCode = otp.join("");
 
   const switchMode = (next: "login" | "register") => {
@@ -262,11 +266,18 @@ function AuthForm() {
     setStep("credentials");
     setError(null);
     setOtp(Array(OTP_LENGTH).fill(""));
+    setConsentChecked(false);
+    setConsentError(null);
   };
 
   const handleCredentialsSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password) return;
+    if (mode === "register" && !consentChecked) {
+      setConsentError("Необходимо дать согласие на обработку персональных данных");
+      return;
+    }
+    setConsentError(null);
     setError(null);
     setLoading(true);
     try {
@@ -445,6 +456,14 @@ function AuthForm() {
         <p className="text-xs text-gray-400">
           После регистрации отправим код подтверждения на ваш email
         </p>
+      )}
+
+      {mode === "register" && (
+        <ConsentCheckbox
+          checked={consentChecked}
+          onChange={(v) => { setConsentChecked(v); if (v) setConsentError(null); }}
+          error={consentError}
+        />
       )}
 
       <button
