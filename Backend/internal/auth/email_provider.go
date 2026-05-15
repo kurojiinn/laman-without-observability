@@ -184,11 +184,11 @@ func buildOTPMessage(from, to, code string) string {
 func generateBoundary() string {
 	buf := make([]byte, 16)
 	_, _ = rand.Read(buf)
-	return "yuher_" + hex.EncodeToString(buf)
+	return "yuhher_" + hex.EncodeToString(buf)
 }
 
 func generateMessageID(from string) string {
-	domain := "yuher.ru"
+	domain := "yuhher.ru"
 	if at := strings.LastIndex(from, "@"); at >= 0 && at+1 < len(from) {
 		domain = from[at+1:]
 	}

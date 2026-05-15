@@ -11,7 +11,7 @@ export interface GuestOrder {
   store_name: string;
 }
 
-const STORAGE_KEY = "yuher_guest_orders";
+const STORAGE_KEY = "yuhher_guest_orders";
 const MAX_GUEST_ORDERS = 2;
 
 export function readGuestOrders(): GuestOrder[] {
