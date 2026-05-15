@@ -12,7 +12,12 @@ interface Props { user: string; password: string; }
 const apiBase = window.location.origin;
 function resolveImg(url: string | null | undefined) {
   if (!url) return null;
-  return url.startsWith("http") ? url : `${apiBase}${url}`;
+  try {
+    const { pathname } = new URL(url);
+    return ``;
+  } catch {
+    return ``;
+  }
 }
 
 export function RecipesPage({ user, password }: Props) {

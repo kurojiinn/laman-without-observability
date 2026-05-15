@@ -34,7 +34,12 @@ const apiBase = window.location.origin;
 
 function resolveImg(url: string | null | undefined) {
   if (!url) return null;
-  try { new URL(url); return url; } catch { return `${apiBase}${url}`; }
+  try {
+    const { pathname } = new URL(url);
+    return ``;
+  } catch {
+    return ``;
+  }
 }
 
 export function StoreDetailView({ user, password, store, onBack }: Props) {

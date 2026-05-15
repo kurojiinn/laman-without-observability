@@ -32,8 +32,12 @@ const apiBase = window.location.origin;
 
 function resolveImg(url: string | null | undefined) {
   if (!url) return null;
-  if (url.startsWith("http")) return url;
-  return `${apiBase}${url}`;
+  try {
+    const { pathname } = new URL(url);
+    return ``;
+  } catch {
+    return ``;
+  }
 }
 
 export function ScenariosPage({ user, password }: Props) {
