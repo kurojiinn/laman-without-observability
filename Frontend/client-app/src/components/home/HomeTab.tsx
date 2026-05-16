@@ -243,7 +243,7 @@ export default function HomeTab({ onOpenStore, onGoToCart, search, activeCity }:
           storeName={storeMap[selectedProduct.store_id]?.name}
           onClose={() => setSelectedProduct(null)}
           onGoToStore={() => {
-            onOpenStore(selectedProduct.store_id, selectedProduct.id, selectedProduct.category_id);
+            onOpenStore(selectedProduct.store_id, selectedProduct.id, selectedProduct.subcategory_id);
             setSelectedProduct(null);
           }}
         />
@@ -327,7 +327,7 @@ function FeaturedSection({
             product={product}
             storeName={storeMap[product.store_id]?.name}
             onOpen={() => onOpenProduct(product)}
-            onShowInStore={() => onOpenStore(product.store_id, product.id, product.category_id)}
+            onShowInStore={() => onOpenStore(product.store_id, product.id, product.subcategory_id)}
             badge={badge}
           />
         ))}
@@ -900,7 +900,7 @@ function SearchResults({
             product={product}
             storeName={storeMap[product.store_id]?.name}
             onOpen={() => onOpenProduct(product)}
-            onShowInStore={() => onOpenStore(product.store_id, product.id, product.category_id)}
+            onShowInStore={() => onOpenStore(product.store_id, product.id, product.subcategory_id)}
           />
         ))}
       </div>

@@ -526,7 +526,7 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
           onClose={() => setSelectedProduct(null)}
           onGoToStore={onGoToStore ? () => {
             setSelectedProduct(null);
-            onGoToStore(selectedProduct.store_id, selectedProduct.id, selectedProduct.category_id);
+            onGoToStore(selectedProduct.store_id, selectedProduct.id, selectedProduct.subcategory_id);
           } : undefined}
         />
       )}

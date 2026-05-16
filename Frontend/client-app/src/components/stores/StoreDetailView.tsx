@@ -106,8 +106,16 @@ export default function StoreDetailView({
         const list = Array.isArray(data) ? data : [];
         setCategoryTree(list);
         if (targetCategoryId) {
-          const matched = list.find((n) => n.id === targetCategoryId);
-          setSelectedL1(matched ?? list[0] ?? null);
+          // targetCategoryId — это subcategory_id товара. Ищем сначала среди L1-узлов,
+          // потом среди L2-детей (тогда выбираем родительский L1 и сразу L2).
+          const l1Match = list.find((n) => n.id === targetCategoryId);
+          if (l1Match) {
+            setSelectedL1(l1Match);
+          } else {
+            const l1Parent = list.find((n) => n.children.some((c) => c.id === targetCategoryId));
+            setSelectedL1(l1Parent ?? list[0] ?? null);
+            if (l1Parent) setSelectedL2Id(targetCategoryId);
+          }
         } else {
           setSelectedL1(list[0] ?? null);
         }
