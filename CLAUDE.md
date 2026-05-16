@@ -6,8 +6,38 @@
 Сервис доставки "чего угодно" — продукты, еда, товары из магазинов.
 
 ## Репозитории
-- GitHub: git@github.com:kurojiinn/laman-without-observability.git (origin) — основной, push сюда
-- GitLab: git@gitlab.com:Khadzhiev404/laman-backend.git (gitlab) — устарел, ветки расходятся, не пушить
+- GitHub: git@github.com:kurojiinn/laman-without-observability.git (origin) — **основной, push только сюда**
+- GitLab: git@gitlab.com:Khadzhiev404/laman-backend.git (gitlab) — устарел, ветки расходятся, **не пушить**
+
+## Git workflow / Deploy
+
+### Локальная разработка → сервер
+```bash
+# 1. Закоммитить и запушить в GitHub
+git add <файлы>
+git commit -m "feat: описание"
+git push origin main          # ← ВСЕГДА origin, не gitlab
+
+# 2. На сервере — обновить и пересобрать нужный сервис
+git pull origin main
+docker compose build client-app && docker compose up -d client-app
+# или api:
+docker compose build api && docker compose up -d api
+# или всё сразу (дольше):
+docker compose build && docker compose up -d
+```
+
+### После изменения .env (без изменений кода)
+```bash
+# Пересборка не нужна — просто перезапуск
+docker compose up -d api
+```
+
+### Посмотреть логи на сервере
+```bash
+docker compose logs -f api
+docker compose logs -f client-app
+```
 
 ---
 
@@ -85,21 +115,21 @@ Laman-App/
 ### Всё через docker-compose (рекомендуется)
 ```bash
 # Поднять всё (бэкенд + БД + Redis + Jaeger + admin-panel + picker-panel)
-docker-compose up -d
+docker compose up -d
 
 # Пересобрать конкретный сервис после изменений в коде
-docker-compose build picker-panel && docker-compose up -d picker-panel
-docker-compose build api && docker-compose up -d api
+docker compose build picker-panel && docker compose up -d picker-panel
+docker compose build api && docker compose up -d api
 
 # Посмотреть логи
-docker-compose logs -f api
-docker-compose logs -f picker-panel
+docker compose logs -f api
+docker compose logs -f picker-panel
 ```
 
 ### client-app (Next.js) — через docker-compose или локально
 ```bash
 # Через docker-compose (рекомендуется — prod-like через nginx):
-docker-compose up -d client-app
+docker compose up -d client-app
 
 # Локально для разработки (hot reload без пересборки образа):
 cd Frontend/client-app
@@ -323,9 +353,21 @@ lint → build → deploy_staging (auto) → deploy_prod (manual)
 - Body-scroll-lock через `useBodyScrollLockWhen` (position:fixed) — единственный способ
   удержать страницу под открытой модалкой в iOS Safari/PWA, простой overflow:hidden там игнорируется
 - Безопасность: аудит и исправление критических уязвимостей (см. ниже)
+- **Визуал категорий в магазине** — карточки (CategoryCard) и чипы (CategoryChip) переведены
+  с glassmorphism на стандартные Tailwind-стили (`bg-gray-100`), видны на светлом фоне;
+  убрано неравномерное свечение (`box-shadow` обрезалось `overflow-x-auto` контейнером)
+- **152-ФЗ Согласие на обработку ПД** — компонент `ConsentCheckbox` (unchecked по умолчанию,
+  ссылки на `/privacy-policy` и `/consent`, блокирует сабмит если не отмечен); добавлен
+  в форму регистрации (`AuthModal`) и в чекаут (`CartTab`)
+- **Юридические страницы** — `/privacy-policy` и `/consent` (статические Server Component,
+  полные тексты по 152-ФЗ, mobile-friendly)
+- **Баг: ProductModal crash** — null guard в `useState` lazy initializer: `g.values` может
+  быть `null` если у товара в БД option_group без values → добавлена проверка `!g.values`
+- **Навигация к категории товара** — «Перейти в магазин» теперь открывает магазин
+  сразу на правильной L1-категории товара (`product.category_id` прокидывается через
+  всю цепочку: `HomeTab` / `CartTab` → `page.tsx` → `StoreDetailView` как `targetCategoryId`)
 
 ## Что в разработке
-- TASK-009: Push уведомления клиенту
 - TASK-010: Онлайн оплата (ЮKassa)
 - TASK-011: Промокоды и скидки
 - TASK-012: Рейтинг магазинов
@@ -413,7 +455,7 @@ GET /orders?page=1&limit=20
 - Миграции запускаются вручную: `cd Backend && make migrate-up` (postgres должен быть запущен)
 - `dist/` в picker-panel — старый билд, не используется в dev режиме
 - picker-panel и admin-panel Docker образы делают `npm run build` → nginx (prod сборка)
-  → при изменении кода нужно пересобирать образ: `docker-compose build <service>`
+  → при изменении кода нужно пересобирать образ: `docker compose build <service>`
   → для активной разработки лучше запускать `npm run dev` локально
 - После изменения `.env` на сервере: `docker compose up -d api` (пересборка не нужна)
 
