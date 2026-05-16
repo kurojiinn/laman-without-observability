@@ -137,7 +137,7 @@ export function useBanners() {
   return useQuery({
     queryKey: queryKeys.banners,
     queryFn: () => catalogApi.getBanners(),
-    staleTime: 5 * 60_000,
+    staleTime: 0,
   });
 }
 

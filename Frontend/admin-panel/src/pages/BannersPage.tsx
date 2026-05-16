@@ -56,14 +56,14 @@ export function BannersPage({ user, password }: Props) {
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["banners"] });
+      qc.invalidateQueries({ queryKey: ["banners", user] });
       resetForm();
     },
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => deleteBanner(user, password, id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["banners"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["banners", user] }),
   });
 
   function startEdit(b: Banner) {
@@ -202,6 +202,12 @@ export function BannersPage({ user, password }: Props) {
 
         {bannersQ.isLoading ? (
           <div className="px-5 py-10 text-center text-gray-400 text-sm">Загрузка...</div>
+        ) : bannersQ.isError ? (
+          <div className="px-5 py-10 text-center text-red-400">
+            <p className="text-3xl mb-2">⚠️</p>
+            <p className="text-sm">Ошибка загрузки: {(bannersQ.error as any)?.message ?? "Неизвестная ошибка"}</p>
+            <button onClick={() => bannersQ.refetch()} className="mt-2 text-xs text-indigo-600 hover:underline">Повторить</button>
+          </div>
         ) : banners.length === 0 ? (
           <div className="px-5 py-10 text-center text-gray-400">
             <p className="text-3xl mb-2">🖼️</p>
