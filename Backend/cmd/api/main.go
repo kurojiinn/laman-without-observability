@@ -16,6 +16,7 @@ import (
 
 	"Laman/internal/admin"
 	"Laman/internal/auth"
+	"Laman/internal/banners"
 	"Laman/internal/catalog"
 	"Laman/internal/config"
 	"Laman/internal/database"
@@ -103,6 +104,8 @@ func main() {
 	optionsRepo := options.NewPostgresRepository(db)
 	optionsService := options.NewService(optionsRepo)
 	optionsHandler := options.NewHandler(optionsService)
+	bannerRepo := banners.NewPostgresRepository(db)
+	bannerService := banners.NewService(bannerRepo)
 
 	hub := events.NewHub()
 	// Инициализация сервисов
@@ -175,13 +178,15 @@ func main() {
 		WithRecipes(catalogService).
 		WithStoreCategoryUpdater(catalogService).
 		WithScenarios(catalogService).
-		WithOptionsRouter(optionsHandler)
+		WithOptionsRouter(optionsHandler).
+		WithBanners(bannerService)
+	bannerHandler := banners.NewHandler(bannerService, logger)
 	pickerHandler := picker.NewHandler(pickerService, logger, authService, hub, pickerLoginLimiter)
 	favoritesHandler := favorites.NewHandler(favoritesService, authService, logger)
 	pushHandler := push.NewHandler(pushService, authService)
 
 	// Настройка роутера
-	router := setupRouter(logger, cfg, authService, authHandler, userHandler, catalogHandler, orderHandler, adminHandler, pickerHandler, favoritesHandler, pushHandler)
+	router := setupRouter(logger, cfg, authService, authHandler, userHandler, catalogHandler, orderHandler, adminHandler, pickerHandler, favoritesHandler, pushHandler, bannerHandler)
 
 	// Настройка health check
 	router.GET("/health", func(c *gin.Context) {
@@ -245,6 +250,7 @@ func setupRouter(
 	pickerHandler *picker.Handler,
 	favoritesHandler *favorites.Handler,
 	pushHandler *push.Handler,
+	bannerHandler *banners.Handler,
 ) *gin.Engine {
 	router := gin.New()
 	// nginx проксирует с 127.0.0.1 — доверяем только ему для корректного X-Forwarded-For
@@ -274,6 +280,7 @@ func setupRouter(
 		pickerHandler.RegisterRoutes(v1)
 		favoritesHandler.RegisterRoutes(v1)
 		pushHandler.RegisterRoutes(v1)
+		bannerHandler.RegisterRoutes(v1)
 	}
 
 	return router

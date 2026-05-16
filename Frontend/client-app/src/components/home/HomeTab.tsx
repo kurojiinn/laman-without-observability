@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
-import { catalogApi, resolveImageUrl, type Product, type Store, type RecipeWithProducts, type Scenario } from "@/lib/api";
-import { useStores, useScenarios, useFeatured, useRecipes } from "@/lib/queries";
+import { catalogApi, resolveImageUrl, type Banner, type Product, type Store, type RecipeWithProducts, type Scenario } from "@/lib/api";
+import { useStores, useScenarios, useFeatured, useRecipes, useBanners } from "@/lib/queries";
 import { useCart } from "@/context/CartContext";
 import ProductModal from "@/components/ui/ProductModal";
 import { FeaturedRowSkeleton, ScenariosSkeleton, SectionHeaderSkeleton } from "@/components/ui/Skeleton";
@@ -458,24 +458,30 @@ const PROMO_BANNERS = [
 type PromoBannerType = typeof PROMO_BANNERS[number];
 
 function PromoBannerCarousel() {
+  const { data: apiBanners = [] } = useBanners();
+  const useApi = apiBanners.length > 0;
+
   const [index, setIndex] = useState(0);
   const [openBanner, setOpenBanner] = useState<PromoBannerType | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const touchStartX = useRef<number | null>(null);
   const didSwipe = useRef(false);
 
+  const total = useApi ? apiBanners.length : PROMO_BANNERS.length;
+
   function startInterval() {
     if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = setInterval(() => setIndex((i) => (i + 1) % PROMO_BANNERS.length), 6_000);
+    intervalRef.current = setInterval(() => setIndex((i) => (i + 1) % total), 6_000);
   }
 
   useEffect(() => {
     startInterval();
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total]);
 
   function go(dir: 1 | -1) {
-    setIndex((i) => (i + dir + PROMO_BANNERS.length) % PROMO_BANNERS.length);
+    setIndex((i) => (i + dir + total) % total);
     startInterval();
   }
 
@@ -489,6 +495,62 @@ function PromoBannerCarousel() {
     const delta = e.changedTouches[0].clientX - touchStartX.current;
     if (Math.abs(delta) > 40) { didSwipe.current = true; go(delta < 0 ? 1 : -1); }
     touchStartX.current = null;
+  }
+
+  if (useApi) {
+    return (
+      <div className="select-none rounded-2xl overflow-hidden" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+        <div className="flex transition-transform duration-500 ease-in-out" style={{ transform: `translateX(-${index * 100}%)` }}>
+          {apiBanners.map((b) => {
+            const imgUrl = resolveImageUrl(b.image_url);
+            return (
+              <button
+                key={b.id}
+                onClick={() => { if (!didSwipe.current && b.link) window.open(b.link, "_blank", "noopener"); }}
+                className="relative w-full flex-shrink-0 text-left overflow-hidden min-h-[90px]"
+                style={{ background: "linear-gradient(135deg, #1e293b 0%, #334155 100%)" }}
+              >
+                {imgUrl && (
+                  <img src={imgUrl} alt="" className="absolute inset-0 w-full h-full object-cover" aria-hidden />
+                )}
+                <div className="absolute inset-0 bg-black/40" />
+                <div className="relative px-4 pt-3 pb-3">
+                  <h2 className="text-[14px] font-extrabold text-white leading-snug">{b.title}</h2>
+                  {b.description && (
+                    <p className="text-white/70 text-[11px] mt-1 leading-relaxed line-clamp-2">{b.description}</p>
+                  )}
+                  {b.link && (
+                    <span className="text-white/50 text-[10px] font-medium mt-1.5 flex items-center gap-0.5">
+                      Подробнее
+                      <svg className="w-2 h-2" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </span>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center justify-between px-3 py-1.5 bg-gray-900">
+          <button onClick={(e) => { e.stopPropagation(); go(-1); }} className="w-7 h-7 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors">
+            <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+          </button>
+          <div className="flex gap-2">
+            {apiBanners.map((_, i) => (
+              <button key={i} onClick={() => { setIndex(i); startInterval(); }} className="transition-all duration-300" style={{ width: i === index ? 20 : 6, height: 6, borderRadius: 3, background: i === index ? "#ffffff" : "rgba(255,255,255,0.3)" }} />
+            ))}
+          </div>
+          <button onClick={(e) => { e.stopPropagation(); go(1); }} className="w-7 h-7 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors">
+            <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const banner = PROMO_BANNERS[index];

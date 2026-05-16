@@ -239,6 +239,18 @@ export interface Scenario {
   is_active: boolean;
 }
 
+export interface Banner {
+  id: string;
+  title: string;
+  description: string;
+  image_url: string;
+  link: string;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // Стандартный формат ответа списочных эндпоинтов.
 // Frontend компоненты могут принимать как пагинированный, так и обычный массив
 // — useInfiniteQuery собирает все страницы в один список.
@@ -300,6 +312,7 @@ export const catalogApi = {
   getRecipe: (id: string) => api.get<RecipeWithProducts>(`/v1/catalog/recipes/${id}`),
   getScenarios: () => api.get<Scenario[]>("/v1/catalog/scenarios"),
   getStoreCategoryMeta: () => api.get<{ category_type: string; name?: string | null; description?: string | null; image_url?: string | null }[]>("/v1/catalog/store-category-meta"),
+  getBanners: () => api.get<Banner[]>("/v1/banners"),
 };
 
 export interface Recipe {

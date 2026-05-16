@@ -56,6 +56,15 @@ type OptionsRouter interface {
 	RegisterRoutes(admin *gin.RouterGroup)
 }
 
+// BannerManager абстрагирует CRUD баннеров для admin-панели.
+type BannerManager interface {
+	GetAll(ctx context.Context) ([]models.Banner, error)
+	Create(ctx context.Context, b *models.Banner) error
+	Update(ctx context.Context, id uuid.UUID, b *models.Banner) error
+	Delete(ctx context.Context, id uuid.UUID) error
+	UpdateImage(ctx context.Context, id uuid.UUID, imageURL string) error
+}
+
 // Handler принимает admin-запросы и проксирует их в сервис.
 type Handler struct {
 	service         *Service
@@ -65,6 +74,7 @@ type Handler struct {
 	storeCatUpdater StoreCategoryImageUpdater
 	scenarios       ScenarioManager
 	optionsRouter   OptionsRouter
+	banners         BannerManager
 }
 
 // WithRecipes добавляет поддержку управления рецептами.
@@ -89,6 +99,12 @@ func (h *Handler) WithScenarios(sm ScenarioManager) *Handler {
 // к admin-роутеру. Без него endpoints просто не регистрируются.
 func (h *Handler) WithOptionsRouter(r OptionsRouter) *Handler {
 	h.optionsRouter = r
+	return h
+}
+
+// WithBanners подключает управление баннерами к admin-роутеру.
+func (h *Handler) WithBanners(bm BannerManager) *Handler {
+	h.banners = bm
 	return h
 }
 
@@ -172,6 +188,14 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.Han
 		// Опции товара (product_option_groups / values)
 		if h.optionsRouter != nil {
 			h.optionsRouter.RegisterRoutes(admin)
+		}
+		// Баннеры
+		if h.banners != nil {
+			admin.GET("/banners", h.AdminGetBanners)
+			admin.POST("/banners", h.AdminCreateBanner)
+			admin.PUT("/banners/:id", h.AdminUpdateBanner)
+			admin.DELETE("/banners/:id", h.AdminDeleteBanner)
+			admin.PATCH("/banners/:id/image", h.AdminUploadBannerImage)
 		}
 	}
 }
@@ -1504,4 +1528,96 @@ func (h *Handler) DeletePicker(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// ─── Баннеры ──────────────────────────────────────────────────────────────────
+
+func (h *Handler) AdminGetBanners(c *gin.Context) {
+	items, err := h.banners.GetAll(c.Request.Context())
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось получить баннеры", err.Error())
+		return
+	}
+	if items == nil {
+		items = []models.Banner{}
+	}
+	c.JSON(http.StatusOK, items)
+}
+
+func (h *Handler) AdminCreateBanner(c *gin.Context) {
+	var b models.Banner
+	if err := c.ShouldBindJSON(&b); err != nil {
+		h.respondError(c, http.StatusBadRequest, "некорректные данные", err.Error())
+		return
+	}
+	if strings.TrimSpace(b.Title) == "" {
+		h.respondError(c, http.StatusBadRequest, "title обязателен", "")
+		return
+	}
+	if err := h.banners.Create(c.Request.Context(), &b); err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось создать баннер", err.Error())
+		return
+	}
+	c.JSON(http.StatusCreated, b)
+}
+
+func (h *Handler) AdminUpdateBanner(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID баннера", "")
+		return
+	}
+	var b models.Banner
+	if err := c.ShouldBindJSON(&b); err != nil {
+		h.respondError(c, http.StatusBadRequest, "некорректные данные", err.Error())
+		return
+	}
+	if strings.TrimSpace(b.Title) == "" {
+		h.respondError(c, http.StatusBadRequest, "title обязателен", "")
+		return
+	}
+	if err := h.banners.Update(c.Request.Context(), id, &b); err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось обновить баннер", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handler) AdminDeleteBanner(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID баннера", "")
+		return
+	}
+	if err := h.banners.Delete(c.Request.Context(), id); err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось удалить баннер", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handler) AdminUploadBannerImage(c *gin.Context) {
+	ctx, span := observability.StartSpan(c.Request.Context(), "admin.upload_banner_image")
+	defer span.End()
+
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "неверный ID баннера", "")
+		return
+	}
+	_ = c.Request.ParseMultipartForm(20 << 20)
+	imageURL, err := h.saveUploadedImage(ctx, c)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, "не удалось сохранить изображение", err.Error())
+		return
+	}
+	if imageURL == "" {
+		h.respondError(c, http.StatusBadRequest, "файл изображения обязателен", "")
+		return
+	}
+	if err := h.banners.UpdateImage(ctx, id, imageURL); err != nil {
+		h.respondError(c, http.StatusInternalServerError, "не удалось обновить изображение", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"image_url": imageURL})
 }

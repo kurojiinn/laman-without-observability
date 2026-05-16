@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { catalogApi, ordersApi, usersApi, favoritesApi, reviewsApi } from "./api";
 import type {
-  Category, Subcategory, Product, Store, Scenario, RecipeWithProducts,
+  Banner, Category, Subcategory, Product, Store, Scenario, RecipeWithProducts,
   UserProfile, Order, Review,
 } from "./api";
 
@@ -22,6 +22,7 @@ export const queryKeys = {
   storeSubcategories: (storeId: string) => ["store-subcategories", storeId] as const,
   featured: (block: string) => ["featured", block] as const,
   scenarios: ["scenarios"] as const,
+  banners: ["banners"] as const,
   recipes: ["recipes"] as const,
   recipe: (id: string) => ["recipe", id] as const,
   storeCategoryMeta: ["store-category-meta"] as const,
@@ -129,6 +130,14 @@ export function useRecipes() {
     queryKey: queryKeys.recipes,
     queryFn: () => catalogApi.getRecipes(),
     staleTime: 10 * 60_000,
+  });
+}
+
+export function useBanners() {
+  return useQuery({
+    queryKey: queryKeys.banners,
+    queryFn: () => catalogApi.getBanners(),
+    staleTime: 5 * 60_000,
   });
 }
 

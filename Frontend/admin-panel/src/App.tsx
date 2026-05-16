@@ -12,6 +12,7 @@ import { ScenariosPage } from "./pages/ScenariosPage";
 import { CategoriesPage } from "./pages/CategoriesPage";
 import { ProductCategoriesPage } from "./pages/ProductCategoriesPage";
 import { PickersPage } from "./pages/PickersPage";
+import { BannersPage } from "./pages/BannersPage";
 
 function AdminApp() {
   const queryClient = useQueryClient();
@@ -105,6 +106,7 @@ function AdminApp() {
       {page === "categories" && <CategoriesPage user={creds.user} password={creds.password} />}
       {page === "product-categories" && <ProductCategoriesPage user={creds.user} password={creds.password} />}
       {page === "pickers" && <PickersPage user={creds.user} password={creds.password} />}
+      {page === "banners" && <BannersPage user={creds.user} password={creds.password} />}
     </Layout>
   );
 }

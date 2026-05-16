@@ -185,3 +185,15 @@ export type Recipe = {
 export type RecipeIngredient = Product & { quantity: number };
 
 export type RecipeWithProducts = Recipe & { products: RecipeIngredient[] };
+
+export type Banner = {
+  id: string;
+  title: string;
+  description: string;
+  image_url: string;
+  link: string;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};

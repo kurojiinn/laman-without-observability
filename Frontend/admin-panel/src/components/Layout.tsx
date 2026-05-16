@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export type Page = "dashboard" | "stores" | "products" | "vitrina" | "recipes" | "orders" | "scenarios" | "categories" | "product-categories" | "pickers";
+export type Page = "dashboard" | "stores" | "products" | "vitrina" | "recipes" | "orders" | "scenarios" | "categories" | "product-categories" | "pickers" | "banners";
 
 interface NavItem {
   id: Page;
@@ -19,6 +19,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "categories", label: "Категории магазинов", icon: "🗂️" },
   { id: "product-categories", label: "Категории товаров", icon: "🏷️" },
   { id: "pickers", label: "Сборщики", icon: "👤" },
+  { id: "banners", label: "Баннеры", icon: "🖼️" },
 ];
 
 interface Props {

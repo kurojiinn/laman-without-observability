@@ -192,3 +192,16 @@ type StoreCategoryMeta struct {
 
 // StoreCategoryType — id категории магазина (slug или uuid). Хранится как строка.
 type StoreCategoryType string
+
+// Banner — рекламный баннер на главном экране.
+type Banner struct {
+	ID          uuid.UUID `db:"id"          json:"id"`
+	Title       string    `db:"title"       json:"title"`
+	Description string    `db:"description" json:"description"`
+	ImageURL    string    `db:"image_url"   json:"image_url"`
+	Link        string    `db:"link"        json:"link"`
+	IsActive    bool      `db:"is_active"   json:"is_active"`
+	SortOrder   int       `db:"sort_order"  json:"sort_order"`
+	CreatedAt   time.Time `db:"created_at"  json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at"  json:"updated_at"`
+}

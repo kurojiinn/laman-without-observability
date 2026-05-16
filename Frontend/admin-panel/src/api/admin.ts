@@ -1,5 +1,6 @@
 import { createAdminClient, publicClient } from "./client";
 import type {
+  Banner,
   Category,
   DashboardStats,
   FeaturedItem,
@@ -638,4 +639,49 @@ export const updatePickerPassword = async (
 
 export const deletePicker = async (user: string, password: string, id: string) => {
   await createAdminClient(user, password).delete(`/pickers/${id}`);
+};
+
+// ─── Banners ──────────────────────────────────────────────────────────────────
+
+export const fetchBanners = async (user: string, password: string): Promise<Banner[]> => {
+  const { data } = await createAdminClient(user, password).get<Banner[]>("/banners");
+  return data ?? [];
+};
+
+export const createBanner = async (
+  user: string,
+  password: string,
+  payload: Omit<Banner, "id" | "created_at" | "updated_at">
+): Promise<Banner> => {
+  const { data } = await createAdminClient(user, password).post<Banner>("/banners", payload);
+  return data;
+};
+
+export const updateBanner = async (
+  user: string,
+  password: string,
+  id: string,
+  payload: Omit<Banner, "id" | "created_at" | "updated_at">
+): Promise<void> => {
+  await createAdminClient(user, password).put(`/banners/${id}`, payload);
+};
+
+export const deleteBanner = async (user: string, password: string, id: string): Promise<void> => {
+  await createAdminClient(user, password).delete(`/banners/${id}`);
+};
+
+export const uploadBannerImage = async (
+  user: string,
+  password: string,
+  id: string,
+  image: File
+): Promise<{ image_url: string }> => {
+  const form = new FormData();
+  form.append("image", image);
+  const { data } = await createAdminClient(user, password).patch<{ image_url: string }>(
+    `/banners/${id}/image`,
+    form,
+    { headers: { "Content-Type": "multipart/form-data" } }
+  );
+  return data;
 };
