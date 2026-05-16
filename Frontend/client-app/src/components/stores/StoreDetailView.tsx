@@ -27,6 +27,7 @@ export default function StoreDetailView({
   store: initialStore,
   onBack,
   targetProductId,
+  targetCategoryId,
   search = "",
   sort: sortProp,
   onSortChange,
@@ -36,6 +37,7 @@ export default function StoreDetailView({
   store: Store;
   onBack: () => void;
   targetProductId?: string;
+  targetCategoryId?: string;
   search?: string;
   sort?: string;
   onSortChange?: (v: string) => void;
@@ -93,7 +95,7 @@ export default function StoreDetailView({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [sortOpen]);
 
-  // Загружаем дерево категорий магазина. По умолчанию выбираем первую категорию.
+  // Загружаем дерево категорий магазина. Если передан targetCategoryId — выбираем её.
   useEffect(() => {
     setCategoryTree([]);
     setCategoryReady(false);
@@ -103,10 +105,16 @@ export default function StoreDetailView({
       .then((data) => {
         const list = Array.isArray(data) ? data : [];
         setCategoryTree(list);
-        setSelectedL1(list[0] ?? null);
+        if (targetCategoryId) {
+          const matched = list.find((n) => n.id === targetCategoryId);
+          setSelectedL1(matched ?? list[0] ?? null);
+        } else {
+          setSelectedL1(list[0] ?? null);
+        }
       })
       .catch(() => {})
       .finally(() => setCategoryReady(true));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.id]);
 
   // Параметр фильтра товаров из выбранной категории. Поиск переопределяет фильтр.

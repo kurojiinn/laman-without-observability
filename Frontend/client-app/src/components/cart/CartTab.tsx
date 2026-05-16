@@ -24,7 +24,7 @@ const INPUT_CLS =
   "w-full h-10 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all";
 
 interface CartTabProps {
-  onGoToStore?: (storeId: string, productId?: string) => void;
+  onGoToStore?: (storeId: string, productId?: string, categoryId?: string) => void;
 }
 
 export default function CartTab({ onGoToStore }: CartTabProps) {
@@ -526,7 +526,7 @@ export default function CartTab({ onGoToStore }: CartTabProps) {
           onClose={() => setSelectedProduct(null)}
           onGoToStore={onGoToStore ? () => {
             setSelectedProduct(null);
-            onGoToStore(selectedProduct.store_id, selectedProduct.id);
+            onGoToStore(selectedProduct.store_id, selectedProduct.id, selectedProduct.category_id);
           } : undefined}
         />
       )}

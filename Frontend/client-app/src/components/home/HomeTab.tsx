@@ -30,7 +30,7 @@ const SHOWCASES: Record<ShowcaseKey, ShowcaseBlock> = {
 };
 
 interface Props {
-  onOpenStore: (storeId: string, productId?: string) => void;
+  onOpenStore: (storeId: string, productId?: string, categoryId?: string) => void;
   onGoToCart: () => void;
   search: string;
   activeCity: string;
@@ -243,7 +243,7 @@ export default function HomeTab({ onOpenStore, onGoToCart, search, activeCity }:
           storeName={storeMap[selectedProduct.store_id]?.name}
           onClose={() => setSelectedProduct(null)}
           onGoToStore={() => {
-            onOpenStore(selectedProduct.store_id, selectedProduct.id);
+            onOpenStore(selectedProduct.store_id, selectedProduct.id, selectedProduct.category_id);
             setSelectedProduct(null);
           }}
         />
@@ -300,7 +300,7 @@ function FeaturedSection({
   activeCity: string;
   onViewAll: () => void;
   onOpenProduct: (p: Product) => void;
-  onOpenStore: (storeId: string, productId?: string) => void;
+  onOpenStore: (storeId: string, productId?: string, categoryId?: string) => void;
   badge?: "new" | "hot";
 }) {
   const visible = products
@@ -327,7 +327,7 @@ function FeaturedSection({
             product={product}
             storeName={storeMap[product.store_id]?.name}
             onOpen={() => onOpenProduct(product)}
-            onShowInStore={() => onOpenStore(product.store_id, product.id)}
+            onShowInStore={() => onOpenStore(product.store_id, product.id, product.category_id)}
             badge={badge}
           />
         ))}
@@ -609,7 +609,7 @@ function ShowcasePage({
   activeCity: string;
   onClose: () => void;
   onOpenProduct: (p: Product) => void;
-  onOpenStore: (storeId: string, productId?: string) => void;
+  onOpenStore: (storeId: string, productId?: string, categoryId?: string) => void;
 }) {
   useBodyScrollLock();
   const { style: swipeStyle, handlers: swipeHandlers } = useSwipeToDismiss({ onDismiss: onClose, threshold: 80, direction: "right" });
@@ -650,7 +650,7 @@ function ShowcasePage({
                   product={product}
                   storeName={storeMap[product.store_id]?.name}
                   onOpen={() => onOpenProduct(product)}
-                  onShowInStore={() => { onClose(); onOpenStore(product.store_id, product.id); }}
+                  onShowInStore={() => { onClose(); onOpenStore(product.store_id, product.id, product.category_id); }}
                 />
               ))}
             </div>
@@ -855,7 +855,7 @@ function SearchResults({
   q: string;
   activeCity: string;
   storeMap: Record<string, Store>;
-  onOpenStore: (storeId: string, productId?: string) => void;
+  onOpenStore: (storeId: string, productId?: string, categoryId?: string) => void;
   onOpenProduct: (p: Product) => void;
 }) {
   const [products, setProducts] = useState<Product[]>([]);
@@ -900,7 +900,7 @@ function SearchResults({
             product={product}
             storeName={storeMap[product.store_id]?.name}
             onOpen={() => onOpenProduct(product)}
-            onShowInStore={() => onOpenStore(product.store_id, product.id)}
+            onShowInStore={() => onOpenStore(product.store_id, product.id, product.category_id)}
           />
         ))}
       </div>

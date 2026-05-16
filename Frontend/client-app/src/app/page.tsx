@@ -55,10 +55,12 @@ export default function Home() {
   const [openStore, setOpenStore] = useState<Store | null>(null);
   const [storeLoading, setStoreLoading] = useState(false);
   const [targetProductId, setTargetProductId] = useState<string | undefined>(undefined);
+  const [targetCategoryId, setTargetCategoryId] = useState<string | undefined>(undefined);
   const [sort, setSort] = useState("");
 
-  function handleOpenStore(storeId: string, productId?: string) {
+  function handleOpenStore(storeId: string, productId?: string, categoryId?: string) {
     setTargetProductId(productId);
+    setTargetCategoryId(categoryId);
     setStoreLoading(true);
     catalogApi
       .getStore(storeId)
@@ -75,6 +77,7 @@ export default function Home() {
   function handleCloseStore() {
     setOpenStore(null);
     setTargetProductId(undefined);
+    setTargetCategoryId(undefined);
     setSort("");
   }
 
@@ -106,7 +109,7 @@ export default function Home() {
       <main className="flex-1 pb-16 md:pb-0">
         {/* Магазин открытый с главной — показываем внутри main (хедер и таббар остаются) */}
         {openStore ? (
-          <StoreDetailView store={openStore} onBack={handleCloseStore} targetProductId={targetProductId} search={search} sort={sort} isAdmin={isAdmin} />
+          <StoreDetailView store={openStore} onBack={handleCloseStore} targetProductId={targetProductId} targetCategoryId={targetCategoryId} search={search} sort={sort} isAdmin={isAdmin} />
         ) : storeLoading ? (
           <div className="flex items-center justify-center py-32">
             <div className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
@@ -116,7 +119,7 @@ export default function Home() {
             {activeTab === "home"       && <HomeTab onOpenStore={handleOpenStore} onGoToCart={() => handleTabChange("cart")} search={search} activeCity={activeCity} />}
             {activeTab === "categories" && <CategoriesTab search={search} activeCity={activeCity} onOpenStore={handleOpenStoreObject} />}
             {activeTab === "favorites"  && <FavoritesTab search={search} />}
-            {activeTab === "cart"       && <CartTab onGoToStore={(storeId, productId) => { handleTabChange("home"); handleOpenStore(storeId, productId); }} />}
+            {activeTab === "cart"       && <CartTab onGoToStore={(storeId, productId, categoryId) => { handleTabChange("home"); handleOpenStore(storeId, productId, categoryId); }} />}
           </>
         )}
       </main>
