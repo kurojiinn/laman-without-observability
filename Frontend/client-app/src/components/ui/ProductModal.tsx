@@ -32,7 +32,7 @@ export default function ProductModal({ product, storeName, onClose, onGoToStore,
   const [selectedByGroup, setSelectedByGroup] = useState<Record<string, ProductOptionValue>>(() => {
     const initial: Record<string, ProductOptionValue> = {};
     for (const g of groups) {
-      if (g.values.length === 0) continue;
+      if (!g.values || g.values.length === 0) continue;
       const def = g.values.find((v) => v.is_default) ?? g.values[0];
       initial[g.id] = def;
     }
